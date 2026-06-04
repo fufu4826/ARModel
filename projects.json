@@ -1,0 +1,26 @@
+[
+  {
+    "id": "wellness",
+    "name": "โครงการสมุนไพรและสุขภาพ",
+    "description": "นิทรรศการเรียนรู้ผลิตภัณฑ์ภูมิปัญญาด้านสุขภาพของศูนย์ศึกษาการพัฒนาภูพาน",
+    "department": "งานสาธารณสุข",
+    "cover_image": "pic/lukplakob.JPG",
+    "visible": true
+  },
+  {
+    "id": "garden",
+    "name": "โครงการพืชสวนภูพาน",
+    "description": "เรียนรู้พืชสวน ผลผลิต และความหลากหลายทางการเกษตรในพื้นที่สกลนคร",
+    "department": "งานกิจกรรมพืชสวน",
+    "cover_image": "pic/Lychee.jpg",
+    "visible": true
+  },
+  {
+    "id": "rice-and-food",
+    "name": "โครงการข้าวและผลิตภัณฑ์แปรรูป",
+    "description": "จัดแสดงองค์ความรู้ด้านข้าวและผลิตภัณฑ์อาหารแปรรูปของศูนย์เรียนรู้",
+    "department": "งานข้าวและผลิตภัณฑ์แปรรูป",
+    "cover_image": "pic/ricephupan.JPG",
+    "visible": true
+  }
+]

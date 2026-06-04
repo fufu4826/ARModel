@@ -1,0 +1,62 @@
+[
+  {
+    "id": "lukplakob",
+    "name": "ลูกประคบ",
+    "description": "งานสาธารณสุข",
+    "department": "",
+    "project_id": "wellness",
+    "model": "model/lukplakob.glb",
+    "image": "pic/lukplakob.JPG",
+    "rotate_x": 3.141592653589793,
+    "scale": 0.15,
+    "visible": true
+  },
+  {
+    "id": "audtang",
+    "name": "ธัญพืชอัดแท่ง",
+    "description": "ผลิตภัณฑ์แปรรูปจากถั่วเขียว",
+    "department": "",
+    "project_id": "rice-and-food",
+    "model": "model/audtang.glb",
+    "image": "pic/audtang.JPG",
+    "rotate_x": 0.0,
+    "scale": 0.08,
+    "visible": true
+  },
+  {
+    "id": "lychee",
+    "name": "ลิ้นจี่",
+    "description": "งานกิจกรรมพืชสวน",
+    "department": "",
+    "project_id": "garden",
+    "model": "model/Lychee.glb",
+    "image": "pic/Lychee.jpg",
+    "rotate_x": 0.0,
+    "scale": 0.25,
+    "visible": true
+  },
+  {
+    "id": "mond",
+    "name": "ลูกหม่อน",
+    "description": "งานกิจกรรมพืชสวน",
+    "department": "",
+    "project_id": "garden",
+    "model": "model/mond.glb",
+    "image": "pic/mond.JPG",
+    "rotate_x": 0.0,
+    "scale": 0.06,
+    "visible": true
+  },
+  {
+    "id": "ricephupan",
+    "name": "เมล็ดข้าวพันธุ์ภูพาน",
+    "description": "งานข้าว",
+    "department": "",
+    "project_id": "rice-and-food",
+    "model": "model/ricephupan.glb",
+    "image": "pic/ricephupan.JPG",
+    "rotate_x": 0.0,
+    "scale": 0.04,
+    "visible": true
+  }
+]

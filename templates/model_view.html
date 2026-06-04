@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ model.name }} - 3D/AR Viewer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+</head>
+<body class="viewer-page">
+  <header class="site-header">
+    <a class="nav-link" href="{{ url_for('project_detail', project_id=model.project_id) }}">Back to project</a>
+    <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+  </header>
+
+  <main class="viewer-shell">
+    <section class="viewer-stage" aria-label="3D model viewer">
+      <div class="viewer-card">
+        <model-viewer
+          id="mainModelViewer"
+          src="{{ model_url }}"
+          poster="{{ thumbnail_url }}"
+          alt="{{ model_name }}"
+          aria-label="3D viewer for {{ model_name }}"
+          camera-controls
+          auto-rotate
+          ar
+          ar-modes="webxr scene-viewer quick-look"
+          shadow-intensity="1"
+          exposure="1"
+          environment-image="neutral"
+          style="width: 100%; height: 600px;">
+          <button class="ar-button" slot="ar-button" type="button" aria-label="Open {{ model_name }} in augmented reality">Open AR</button>
+        </model-viewer>
+        <div class="viewer-state is-visible" id="modelLoadingState" role="status" aria-live="polite">Loading 3D model...</div>
+        <div class="viewer-state viewer-error" id="modelErrorState" role="alert" hidden>Unable to load this 3D model.</div>
+      </div>
+    </section>
+
+    <aside class="info-panel">
+      <div class="eyebrow">{{ model.department or model.project_department or "Cultural 3D Model" }}</div>
+      <h1 id="modelTitle">{{ model.name }}</h1>
+      <p class="lead" id="modelDescription">{{ model.description or "3D model for cultural and community learning." }}</p>
+
+      {% if thumbnail_url %}
+      <img class="detail-thumb" id="modelThumbnail" src="{{ thumbnail_url }}" alt="{{ model.name }}" onerror="this.hidden=true;" />
+      {% endif %}
+
+      <dl class="meta-list">
+        <div>
+          <dt>Project</dt>
+          <dd id="modelProjectName">{{ model.project_name }}</dd>
+        </div>
+        <div>
+          <dt>File size</dt>
+          <dd id="modelSize">{{ "%.2f MB"|format(size_mb) if size_mb is not none else "Unknown" }}</dd>
+        </div>
+        <div>
+          <dt>Model file</dt>
+          <dd>{{ model.model or "Not specified" }}</dd>
+        </div>
+      </dl>
+
+      <div class="usage-note">
+        On mobile, tap the AR button in the viewer. WebXR, Scene Viewer, and Quick Look support depends on your device and browser.
+      </div>
+
+      <div class="action-row">
+        <a class="button secondary" href="{{ url_for('project_detail', project_id=model.project_id) }}">Project models</a>
+        <a class="button" href="{{ url_for('index') }}">All projects</a>
+      </div>
+    </aside>
+
+    {% if related_models %}
+    <section class="related-section">
+      <h2>Related models</h2>
+      <div class="related-grid">
+        {% for item in related_models %}
+        <a class="related-card model-switch"
+           href="{{ url_for('model_detail', model_id=item.id) }}"
+           data-name="{{ item.name }}"
+           data-description="{{ item.description }}"
+           data-project="{{ item.project_name }}"
+           data-model-url="{{ item.model_url }}"
+           data-thumbnail-url="{{ item.thumbnail_url }}"
+           data-size="{{ '%.2f MB'|format(item.size_mb) if item.size_mb is not none else 'Unknown' }}">
+          <div class="related-thumb">
+            {% if item.thumbnail_url %}
+            <img src="{{ item.thumbnail_url }}" alt="{{ item.name }}" onerror="this.hidden=true;" />
+            {% else %}
+            <span>No image</span>
+            {% endif %}
+          </div>
+          <strong>{{ item.name }}</strong>
+          <span>{{ item.project_name }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  </main>
+
+  <script src="{{ url_for('static', filename='js/ar-viewer.js') }}" defer></script>
+  {% if mode == "ar" %}
+  <script>
+    window.addEventListener("load", () => {
+      const viewer = document.getElementById("mainModelViewer");
+      setTimeout(() => {
+        if (viewer && viewer.activateAR) viewer.activateAR();
+      }, 900);
+    });
+  </script>
+  {% endif %}
+</body>
+</html>

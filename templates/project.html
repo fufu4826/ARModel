@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ project.name }} - AR Models</title>
+  <style>
+    :root {
+      --green: #1f5f3b;
+      --green-2: #2f7d4b;
+      --gold: #d6a846;
+      --cream: #fbfaf5;
+      --earth: #efe8d8;
+      --text: #1d2a22;
+      --muted: #66756b;
+      --line: #dfe7dc;
+      --shadow: 0 16px 40px rgba(36, 57, 42, 0.12);
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--cream); color: var(--text); font-family: Arial, "Noto Sans Thai", sans-serif; }
+    .page { min-height: 100vh; padding: 22px 16px 42px; }
+    .shell { width: min(1180px, 100%); margin: 0 auto; }
+    .topbar { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-bottom: 18px; }
+    .back { color: var(--green); font-weight: 800; text-decoration: none; }
+    .admin { color: var(--muted); font-weight: 800; text-decoration: none; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr); gap: 20px; align-items: stretch; margin-bottom: 22px; }
+    .hero-copy { padding: clamp(20px, 4vw, 34px); background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    h1 { margin: 0 0 10px; color: var(--green); font-size: clamp(28px, 5vw, 46px); letter-spacing: 0; line-height: 1.15; }
+    p { line-height: 1.6; }
+    .muted { color: var(--muted); margin: 0; }
+    .badge { display: inline-flex; margin-bottom: 12px; padding: 6px 10px; border-radius: 999px; background: #eef7eb; color: var(--green); font-size: 13px; font-weight: 800; }
+    .hero-img { min-height: 260px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); background: var(--earth); display: grid; place-items: center; color: var(--muted); box-shadow: var(--shadow); }
+    .hero-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 18px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; }
+    .thumb { aspect-ratio: 1 / 1; background: var(--earth); display: grid; place-items: center; overflow: hidden; color: var(--muted); }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .body { padding: 16px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    h2 { margin: 0; font-size: 20px; line-height: 1.3; }
+    .desc { margin: 0; color: var(--muted); line-height: 1.5; flex: 1; }
+    .meta { color: var(--green); font-size: 13px; font-weight: 800; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+    .btn { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; padding: 10px 12px; border-radius: var(--radius); text-decoration: none; font-weight: 800; }
+    .btn.primary { background: var(--green); color: white; }
+    .btn.secondary { background: #fff7df; color: #6b4a05; border: 1px solid #ead799; }
+    .empty { padding: 30px; text-align: center; color: var(--muted); background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+    @media (max-width: 760px) { .hero { grid-template-columns: 1fr; } .topbar { align-items: flex-start; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="shell">
+      <nav class="topbar">
+        <a class="back" href="{{ url_for('index') }}">← กลับไปเลือกโครงการ</a>
+        <a class="admin" href="{{ url_for('admin_login') }}">Admin Login</a>
+      </nav>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="badge">{{ project.department or "ศูนย์ศึกษาการพัฒนาภูพาน" }}</span>
+          <h1>{{ project.name }}</h1>
+          <p class="muted">{{ project.description or "รายการโมเดล AR ภายในโครงการ" }}</p>
+        </div>
+        <div class="hero-img">
+          {% if project.cover_image %}
+          <img src="{{ url_for('static', filename=project.cover_image) }}" alt="{{ project.name }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+          <span style="display:none;">ไม่มีรูปภาพ</span>
+          {% else %}
+          <span>ไม่มีรูปภาพ</span>
+          {% endif %}
+        </div>
+      </section>
+
+      {% if models %}
+      <section class="grid" aria-label="รายการโมเดล">
+        {% for model in models %}
+        <article class="card">
+          <div class="thumb">
+            {% if model.image %}
+            <img src="{{ url_for('static', filename=model.image) }}" alt="{{ model.name }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+            <span style="display:none;">ไม่มีรูปภาพ</span>
+            {% else %}
+            <span>ไม่มีรูปภาพ</span>
+            {% endif %}
+          </div>
+          <div class="body">
+            <div class="meta">{{ model.department or model.project_department or "หน่วยงาน" }}</div>
+            <h2>{{ model.name }}</h2>
+            <p class="desc">{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้" }}</p>
+            <div class="meta">{{ model.project_name }}</div>
+            <div class="actions">
+              <a class="btn primary" href="{{ url_for('model_detail', model_id=model.id, mode='3d') }}">ดู 3D</a>
+              <a class="btn secondary" href="{{ url_for('model_detail', model_id=model.id, mode='ar') }}">ดู AR</a>
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </section>
+      {% else %}
+      <div class="empty">โครงการนี้ยังไม่มีโมเดลที่เผยแพร่</div>
+      {% endif %}
+    </div>
+  </main>
+</body>
+</html>

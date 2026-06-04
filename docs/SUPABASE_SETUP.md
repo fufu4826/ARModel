@@ -96,6 +96,14 @@ python scripts/migrate_json_to_supabase.py --upload-assets
 
 Use `--upload-assets` to upload local files from `static/model/` and `static/pic/` into Supabase Storage. Without this flag, the script inserts metadata and preserves existing external URLs, but local-only asset paths are not usable on Supabase records.
 
+To validate your local JSON metadata and preview exactly what files and database records would be migrated without modifying any remote data, run the migration with the `--dry-run` flag (which does not require the environment variables to be set):
+
+```bash
+python scripts/migrate_json_to_supabase.py --dry-run
+# Or to preview with local static asset checks:
+python scripts/migrate_json_to_supabase.py --dry-run --upload-assets
+```
+
 ## Production Behavior
 
 When all Supabase environment variables are configured:

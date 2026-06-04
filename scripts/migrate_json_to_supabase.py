@@ -29,9 +29,21 @@ def require_env(name: str) -> str:
     return value
 
 
-SUPABASE_URL = require_env("SUPABASE_URL").rstrip("/")
-SUPABASE_SERVICE_ROLE_KEY = require_env("SUPABASE_SERVICE_ROLE_KEY")
-SUPABASE_STORAGE_BUCKET = require_env("SUPABASE_STORAGE_BUCKET")
+SUPABASE_URL = ""
+SUPABASE_SERVICE_ROLE_KEY = ""
+SUPABASE_STORAGE_BUCKET = ""
+
+
+def init_env(dry_run: bool = False) -> None:
+    global SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_STORAGE_BUCKET
+    if dry_run:
+        SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://dry-run.supabase.co").rstrip("/")
+        SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "dry-run-key")
+        SUPABASE_STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "dry-run-bucket")
+    else:
+        SUPABASE_URL = require_env("SUPABASE_URL").rstrip("/")
+        SUPABASE_SERVICE_ROLE_KEY = require_env("SUPABASE_SERVICE_ROLE_KEY")
+        SUPABASE_STORAGE_BUCKET = require_env("SUPABASE_STORAGE_BUCKET")
 
 
 def headers(content_type: str | None = "application/json") -> dict[str, str]:
@@ -97,7 +109,7 @@ def public_url(object_path: str) -> str:
     return f"{SUPABASE_URL}/storage/v1/object/public/{quote(SUPABASE_STORAGE_BUCKET)}/{quote(object_path, safe='/')}"
 
 
-def upload_file(relative_path: str, folder: str, allowed_extensions: set[str]) -> tuple[str, float | None]:
+def upload_file(relative_path: str, folder: str, allowed_extensions: set[str], dry_run: bool = False) -> tuple[str, float | None]:
     if is_external_url(relative_path):
         return relative_path, None
 
@@ -116,6 +128,13 @@ def upload_file(relative_path: str, folder: str, allowed_extensions: set[str]) -
     object_path = f"{folder}/{safe_stem}-{uuid.uuid4().hex[:8]}{extension}"
     data = source.read_bytes()
     content_type = mimetypes.guess_type(source.name)[0] or "application/octet-stream"
+
+    if dry_run:
+        fake_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_STORAGE_BUCKET}/{object_path}"
+        fake_size = round(len(data) / (1024 * 1024), 2)
+        print(f"[DRY RUN] Would upload {source.name} to storage path: {object_path} ({fake_size} MB)")
+        return fake_url, fake_size
+
     supabase_request(
         f"/storage/v1/object/{quote(SUPABASE_STORAGE_BUCKET)}/{quote(object_path, safe='/')}",
         method="PUT",
@@ -126,12 +145,12 @@ def upload_file(relative_path: str, folder: str, allowed_extensions: set[str]) -
     return public_url(object_path), round(len(data) / (1024 * 1024), 2)
 
 
-def upsert_project(project: dict, upload_assets: bool) -> None:
+def upsert_project(project: dict, upload_assets: bool, dry_run: bool = False) -> None:
     project_id = str(project.get("id") or uuid.uuid4().hex)
     image_value = str(project.get("image_url") or project.get("cover_image") or project.get("image") or "").strip()
     image_url = image_value
     if upload_assets and image_value and not is_external_url(image_value):
-        image_url, _ = upload_file(image_value, "projects", IMAGE_EXTENSIONS)
+        image_url, _ = upload_file(image_value, "projects", IMAGE_EXTENSIONS, dry_run)
 
     payload = {
         "id": project_id,
@@ -140,16 +159,20 @@ def upsert_project(project: dict, upload_assets: bool) -> None:
         "description": str(project.get("description") or "").strip(),
         "image_url": image_url if is_external_url(image_url) else "",
     }
-    supabase_request(
-        "/rest/v1/projects",
-        method="POST",
-        payload=payload,
-        extra_headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
-    )
-    print(f"Upserted project: {payload['name']}")
+
+    if dry_run:
+        print(f"[DRY RUN] Would upsert project to database: {payload['name']} (ID: {payload['id']}, Slug: {payload['slug']})")
+    else:
+        supabase_request(
+            "/rest/v1/projects",
+            method="POST",
+            payload=payload,
+            extra_headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
+        )
+        print(f"Upserted project: {payload['name']}")
 
 
-def upsert_model(model: dict, upload_assets: bool) -> None:
+def upsert_model(model: dict, upload_assets: bool, dry_run: bool = False) -> None:
     model_id = str(model.get("id") or uuid.uuid4().hex)
     model_value = str(model.get("model_url") or model.get("model") or model.get("model_path") or "").strip()
     thumb_value = str(model.get("thumbnail_url") or model.get("image") or model.get("thumbnail") or "").strip()
@@ -157,11 +180,11 @@ def upsert_model(model: dict, upload_assets: bool) -> None:
     model_url = model_value
     file_size_mb = None
     if upload_assets and model_value and not is_external_url(model_value):
-        model_url, file_size_mb = upload_file(model_value, "models", MODEL_EXTENSIONS)
+        model_url, file_size_mb = upload_file(model_value, "models", MODEL_EXTENSIONS, dry_run)
 
     thumbnail_url = thumb_value
     if upload_assets and thumb_value and not is_external_url(thumb_value):
-        thumbnail_url, _ = upload_file(thumb_value, "thumbnails", IMAGE_EXTENSIONS)
+        thumbnail_url, _ = upload_file(thumb_value, "thumbnails", IMAGE_EXTENSIONS, dry_run)
 
     payload = {
         "id": model_id,
@@ -173,29 +196,42 @@ def upsert_model(model: dict, upload_assets: bool) -> None:
         "thumbnail_url": thumbnail_url if is_external_url(thumbnail_url) else "",
         "file_size_mb": file_size_mb,
     }
-    supabase_request(
-        "/rest/v1/models",
-        method="POST",
-        payload=payload,
-        extra_headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
-    )
-    print(f"Upserted model: {payload['name']}")
+
+    if dry_run:
+        print(f"[DRY RUN] Would upsert model to database: {payload['name']} (ID: {payload['id']}, Size: {payload['file_size_mb']} MB)")
+    else:
+        supabase_request(
+            "/rest/v1/models",
+            method="POST",
+            payload=payload,
+            extra_headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
+        )
+        print(f"Upserted model: {payload['name']}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Migrate ARModel JSON metadata to Supabase.")
     parser.add_argument("--upload-assets", action="store_true", help="Upload local static assets to Supabase Storage.")
+    parser.add_argument("--dry-run", action="store_true", help="Validate records and print actions without writing to Supabase.")
     args = parser.parse_args()
+
+    init_env(args.dry_run)
 
     projects = json.loads((BASE_DIR / "projects.json").read_text(encoding="utf-8"))
     models = json.loads((BASE_DIR / "models.json").read_text(encoding="utf-8"))
 
-    for project in projects:
-        upsert_project(project, args.upload_assets)
-    for model in models:
-        upsert_model(model, args.upload_assets)
+    if args.dry_run:
+        print("=== DRY RUN MODE: Validating and displaying planned migration ===")
 
-    print("Migration complete.")
+    for project in projects:
+        upsert_project(project, args.upload_assets, args.dry_run)
+    for model in models:
+        upsert_model(model, args.upload_assets, args.dry_run)
+
+    if args.dry_run:
+        print("=== DRY RUN COMPLETED SUCCESSFULLY ===")
+    else:
+        print("Migration complete.")
 
 
 if __name__ == "__main__":

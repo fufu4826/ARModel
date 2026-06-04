@@ -71,8 +71,10 @@
         {% endfor %}
       {% endwith %}
 
-      {% if is_vercel %}
+      {% if uploads_disabled %}
       <div class="notice">This site is running on Vercel. File uploads are disabled. Use external URLs for images and models. Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy.</div>
+      {% elif is_supabase %}
+      <div class="notice">Supabase is configured. Uploaded images and .glb files will be stored in Supabase Storage, and metadata will be stored in Supabase Database.</div>
       {% endif %}
 
       <section class="grid">
@@ -93,11 +95,11 @@
             </div>
             <div class="field full">
               <label for="project-cover">ภาพปกโครงการ</label>
-              <input id="project-cover" name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if is_vercel else "" }}>
+              <input id="project-cover" name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if uploads_disabled else "" }}>
             </div>
             <div class="field full">
               <label for="project-image-url">External image URL</label>
-              <input id="project-image-url" name="image_url" type="url" placeholder="https://example.com/project.jpg" {{ "disabled" if is_vercel else "" }}>
+              <input id="project-image-url" name="image_url" type="url" placeholder="https://example.com/project.jpg" {{ "disabled" if uploads_disabled else "" }}>
             </div>
             <label class="field check"><input name="visible" type="checkbox" checked> เผยแพร่บนหน้าเว็บไซต์</label>
             <button class="btn" type="submit">เพิ่มโครงการ</button>
@@ -132,24 +134,24 @@
               <textarea id="model-desc" name="description"></textarea>
             </div>
             <div class="field">
-              <label for="model-file">ไฟล์ .glb/.gltf</label>
-              <input id="model-file" name="model_file" type="file" accept=".glb,.gltf" {{ "disabled" if is_vercel else "" }}>
+              <label for="model-file">ไฟล์ .glb</label>
+              <input id="model-file" name="model_file" type="file" accept=".glb" {{ "disabled" if uploads_disabled else "" }}>
             </div>
             <div class="field">
               <label for="model-path">หรือระบุ path ไฟล์โมเดล</label>
-              <input id="model-path" name="model_path" placeholder="model/example.glb" {{ "disabled" if is_vercel else "" }}>
+              <input id="model-path" name="model_path" placeholder="model/example.glb" {{ "disabled" if uploads_disabled else "" }}>
             </div>
             <div class="field full">
               <label for="model-url">External .glb model URL</label>
-              <input id="model-url" name="model_url" type="url" placeholder="https://example.com/model.glb" {{ "disabled" if is_vercel else "" }}>
+              <input id="model-url" name="model_url" type="url" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}>
             </div>
             <div class="field">
               <label for="image-file">ภาพ Thumbnail</label>
-              <input id="image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if is_vercel else "" }}>
+              <input id="image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if uploads_disabled else "" }}>
             </div>
             <div class="field">
               <label for="thumbnail-url">External thumbnail URL</label>
-              <input id="thumbnail-url" name="thumbnail_url" type="url" placeholder="https://example.com/thumb.jpg" {{ "disabled" if is_vercel else "" }}>
+              <input id="thumbnail-url" name="thumbnail_url" type="url" placeholder="https://example.com/thumb.jpg" {{ "disabled" if uploads_disabled else "" }}>
             </div>
             <div class="field">
               <label for="rotate-x">หมุนแกน X</label>

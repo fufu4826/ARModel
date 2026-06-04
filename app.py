@@ -1,6 +1,8 @@
 import json
 import logging
+import mimetypes
 import os
+import re
 import secrets
 import uuid
 import webbrowser
@@ -8,13 +10,16 @@ from copy import deepcopy
 from functools import wraps
 from pathlib import Path
 from threading import Timer
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 from flask import abort, flash, Flask, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 
-MODEL_EXTENSIONS = {".glb", ".gltf"}
+MODEL_EXTENSIONS = {".glb"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 VERCEL_UPLOAD_MESSAGE = "File uploads are disabled on Vercel. Use an external URL instead."
 VERCEL_EDIT_MESSAGE = "Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy."
@@ -147,9 +152,22 @@ def is_vercel_runtime() -> bool:
     return bool(os.environ.get("VERCEL"))
 
 
+def is_supabase_enabled() -> bool:
+    return bool(
+        os.environ.get("SUPABASE_URL")
+        and os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        and os.environ.get("SUPABASE_STORAGE_BUCKET")
+    )
+
+
 @app.context_processor
 def inject_runtime_flags():
-    return {"is_vercel": is_vercel_runtime()}
+    supabase_enabled = is_supabase_enabled()
+    return {
+        "is_vercel": is_vercel_runtime(),
+        "is_supabase": supabase_enabled,
+        "uploads_disabled": is_vercel_runtime() and not supabase_enabled,
+    }
 
 
 def ensure_data_files() -> None:
@@ -324,14 +342,14 @@ def project_model_counts(projects: list[dict], models: list[dict]) -> dict[str, 
 
 
 def find_project(project_id: str, include_hidden: bool = False) -> dict | None:
-    for project in load_projects(include_hidden=include_hidden):
+    for project in get_projects(include_hidden=include_hidden):
         if project.get("id") == project_id:
             return project
     return None
 
 
 def find_model(model_id: str, include_hidden: bool = False) -> dict | None:
-    for model in load_models(include_hidden=include_hidden):
+    for model in get_models(include_hidden=include_hidden):
         if model.get("id") == model_id:
             return model
     return None
@@ -345,8 +363,257 @@ def save_config(config: dict) -> None:
     write_json(CONFIG_FILE, config)
 
 
+class SupabaseError(RuntimeError):
+    pass
+
+
+def supabase_base_url() -> str:
+    return os.environ.get("SUPABASE_URL", "").rstrip("/")
+
+
+def supabase_service_key() -> str:
+    return os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+
+
+def supabase_bucket() -> str:
+    return os.environ.get("SUPABASE_STORAGE_BUCKET", "")
+
+
+def supabase_headers(content_type: str | None = "application/json") -> dict[str, str]:
+    headers = {
+        "apikey": supabase_service_key(),
+        "Authorization": f"Bearer {supabase_service_key()}",
+    }
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
+
+
+def supabase_request(
+    path: str,
+    method: str = "GET",
+    payload: dict | list | None = None,
+    data: bytes | None = None,
+    content_type: str | None = "application/json",
+    extra_headers: dict[str, str] | None = None,
+):
+    if not is_supabase_enabled():
+        raise SupabaseError("Supabase is not configured.")
+
+    body = data
+    headers = supabase_headers(content_type)
+    if extra_headers:
+        headers.update(extra_headers)
+    if payload is not None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+    request_obj = Request(f"{supabase_base_url()}{path}", data=body, headers=headers, method=method)
+    try:
+        with urlopen(request_obj, timeout=45) as response:
+            response_body = response.read()
+            if not response_body:
+                return None
+            content = response_body.decode("utf-8")
+            return json.loads(content) if content else None
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise SupabaseError(f"Supabase {method} {path} failed: {exc.code} {detail}") from exc
+    except URLError as exc:
+        raise SupabaseError(f"Supabase {method} {path} failed: {exc.reason}") from exc
+    except OSError as exc:
+        raise SupabaseError(f"Supabase {method} {path} failed: {exc}") from exc
+
+
+def slugify(value: str, fallback: str | None = None) -> str:
+    raw = secure_filename(value or "") or (fallback or "")
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", raw).strip("-_").lower()
+    return slug or uuid.uuid4().hex
+
+
+def normalize_supabase_project(row: dict) -> dict:
+    image_url = str(row.get("image_url") or "").strip()
+    return {
+        "id": str(row.get("id") or uuid.uuid4().hex),
+        "slug": str(row.get("slug") or "").strip(),
+        "name": str(row.get("name") or "Project").strip(),
+        "description": str(row.get("description") or "").strip(),
+        "department": "",
+        "cover_image": image_url,
+        "image_url": image_url,
+        "image_path": "",
+        "visible": True,
+    }
+
+
+def normalize_supabase_model(row: dict) -> dict:
+    model_url = str(row.get("model_url") or "").strip()
+    thumbnail_url = str(row.get("thumbnail_url") or "").strip()
+    size_mb = row.get("file_size_mb")
+    try:
+        size_mb = float(size_mb) if size_mb is not None else None
+    except (TypeError, ValueError):
+        size_mb = None
+    return {
+        "id": str(row.get("id") or uuid.uuid4().hex),
+        "slug": str(row.get("slug") or "").strip(),
+        "name": str(row.get("name") or "Model").strip(),
+        "description": str(row.get("description") or "").strip(),
+        "department": "",
+        "project_id": str(row.get("project_id") or "").strip(),
+        "model": model_url,
+        "model_url": model_url,
+        "model_path": "",
+        "image": thumbnail_url,
+        "thumbnail_url": thumbnail_url,
+        "thumbnail_path": "",
+        "file_size_mb": size_mb,
+        "rotate_x": 0,
+        "scale": 0.2,
+        "visible": True,
+    }
+
+
+def fetch_supabase_projects() -> list[dict]:
+    rows = supabase_request("/rest/v1/projects?select=*&order=created_at.asc") or []
+    return [normalize_supabase_project(row) for row in rows]
+
+
+def fetch_supabase_models() -> list[dict]:
+    rows = supabase_request("/rest/v1/models?select=*&order=created_at.asc") or []
+    return [normalize_supabase_model(row) for row in rows]
+
+
+def get_projects(include_hidden: bool = True) -> list[dict]:
+    if is_supabase_enabled():
+        try:
+            return fetch_supabase_projects()
+        except SupabaseError as exc:
+            logger.warning("Falling back to local projects.json because Supabase read failed: %s", exc)
+    return load_projects(include_hidden=include_hidden)
+
+
+def get_models(include_hidden: bool = True) -> list[dict]:
+    if is_supabase_enabled():
+        try:
+            return fetch_supabase_models()
+        except SupabaseError as exc:
+            logger.warning("Falling back to local models.json because Supabase read failed: %s", exc)
+    return load_models(include_hidden=include_hidden)
+
+
+def supabase_public_url(object_path: str) -> str:
+    return f"{supabase_base_url()}/storage/v1/object/public/{quote(supabase_bucket())}/{quote(object_path, safe='/')}"
+
+
+def upload_to_supabase_storage(file_storage, folder: str) -> tuple[str, float | None]:
+    if not file_storage or not file_storage.filename:
+        return "", None
+
+    allowed_extensions = MODEL_EXTENSIONS if folder == "models" else IMAGE_EXTENSIONS
+    extension = Path(file_storage.filename).suffix.lower()
+    if extension not in allowed_extensions:
+        abort(400, f"Unsupported file type: {extension}")
+
+    filename = unique_asset_name(file_storage.filename, allowed_extensions)
+    object_path = f"{folder.strip('/')}/{filename}"
+    content_type = file_storage.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    data = file_storage.read()
+    file_storage.seek(0)
+    if not data:
+        abort(400, "Uploaded file is empty")
+
+    supabase_request(
+        f"/storage/v1/object/{quote(supabase_bucket())}/{quote(object_path, safe='/')}",
+        method="PUT",
+        data=data,
+        content_type=content_type,
+        extra_headers={"Cache-Control": "3600", "x-upsert": "false"},
+    )
+    return supabase_public_url(object_path), round(len(data) / (1024 * 1024), 2)
+
+
+def create_project(data: dict) -> dict:
+    project_id = data.get("id") or uuid.uuid4().hex
+    payload = {
+        "id": project_id,
+        "slug": data.get("slug") or slugify(data.get("name", ""), project_id),
+        "name": data.get("name", "").strip(),
+        "description": data.get("description", "").strip(),
+        "image_url": data.get("image_url", "").strip(),
+    }
+    rows = supabase_request(
+        "/rest/v1/projects",
+        method="POST",
+        payload=payload,
+        extra_headers={"Prefer": "return=representation"},
+    )
+    return normalize_supabase_project(rows[0]) if rows else normalize_supabase_project(payload)
+
+
+def update_project(project_id: str, data: dict) -> dict:
+    payload = {
+        "name": data.get("name", "").strip(),
+        "description": data.get("description", "").strip(),
+        "image_url": data.get("image_url", "").strip(),
+    }
+    rows = supabase_request(
+        f"/rest/v1/projects?id=eq.{quote(project_id)}",
+        method="PATCH",
+        payload=payload,
+        extra_headers={"Prefer": "return=representation"},
+    )
+    return normalize_supabase_project(rows[0]) if rows else normalize_supabase_project({"id": project_id, **payload})
+
+
+def delete_project(project_id: str) -> None:
+    supabase_request(f"/rest/v1/projects?id=eq.{quote(project_id)}", method="DELETE")
+
+
+def create_model(data: dict) -> dict:
+    model_id = data.get("id") or uuid.uuid4().hex
+    payload = {
+        "id": model_id,
+        "project_id": data.get("project_id") or None,
+        "slug": data.get("slug") or slugify(data.get("name", ""), model_id),
+        "name": data.get("name", "").strip(),
+        "description": data.get("description", "").strip(),
+        "model_url": data.get("model_url", "").strip(),
+        "thumbnail_url": data.get("thumbnail_url", "").strip(),
+        "file_size_mb": data.get("file_size_mb"),
+    }
+    rows = supabase_request(
+        "/rest/v1/models",
+        method="POST",
+        payload=payload,
+        extra_headers={"Prefer": "return=representation"},
+    )
+    return normalize_supabase_model(rows[0]) if rows else normalize_supabase_model(payload)
+
+
+def update_model(model_id: str, data: dict) -> dict:
+    payload = {
+        "project_id": data.get("project_id") or None,
+        "name": data.get("name", "").strip(),
+        "description": data.get("description", "").strip(),
+        "model_url": data.get("model_url", "").strip(),
+        "thumbnail_url": data.get("thumbnail_url", "").strip(),
+        "file_size_mb": data.get("file_size_mb"),
+    }
+    rows = supabase_request(
+        f"/rest/v1/models?id=eq.{quote(model_id)}",
+        method="PATCH",
+        payload=payload,
+        extra_headers={"Prefer": "return=representation"},
+    )
+    return normalize_supabase_model(rows[0]) if rows else normalize_supabase_model({"id": model_id, **payload})
+
+
+def delete_model(model_id: str) -> None:
+    supabase_request(f"/rest/v1/models?id=eq.{quote(model_id)}", method="DELETE")
+
+
 def admin_write_blocked_on_vercel() -> bool:
-    if not is_vercel_runtime():
+    if not is_vercel_runtime() or is_supabase_enabled():
         return False
     flash(VERCEL_EDIT_MESSAGE, "error")
     return True
@@ -361,7 +628,7 @@ def upload_attempted(*field_names: str) -> bool:
 
 
 def reject_vercel_upload_if_needed(*field_names: str) -> bool:
-    if is_vercel_runtime() and upload_attempted(*field_names):
+    if is_vercel_runtime() and not is_supabase_enabled() and upload_attempted(*field_names):
         flash(VERCEL_UPLOAD_MESSAGE, "error")
         return True
     return False
@@ -471,6 +738,15 @@ def file_size_mb(path_value: str | None) -> float | None:
     return round(target.stat().st_size / (1024 * 1024), 2)
 
 
+def model_size_mb(model: dict) -> float | None:
+    if model.get("file_size_mb") is not None:
+        try:
+            return round(float(model.get("file_size_mb")), 2)
+        except (TypeError, ValueError):
+            return None
+    return file_size_mb(model.get("model_path") or model.get("model"))
+
+
 def find_thumbnail_for_model(model_path: str | None) -> str:
     if not model_path:
         return ""
@@ -529,7 +805,7 @@ def api_model_payload(model: dict, projects: list[dict]) -> dict:
         "thumbnail_url": resolve_thumbnail_url(enriched),
         "project_id": enriched.get("project_id", ""),
         "project_name": enriched.get("project_name", ""),
-        "size_mb": file_size_mb(enriched.get("model_path") or enriched.get("model")),
+        "size_mb": model_size_mb(enriched),
     }
 
 
@@ -633,8 +909,8 @@ def parse_float(name: str, default: float) -> float:
 
 @app.route("/")
 def index():
-    models = load_models(include_hidden=False)
-    projects = [project_with_urls(project, models) for project in load_projects(include_hidden=False)]
+    models = get_models(include_hidden=False)
+    projects = [project_with_urls(project, models) for project in get_projects(include_hidden=False)]
     counts = project_model_counts(projects, models)
     return render_template("index.html", projects=projects, model_counts=counts)
 
@@ -644,10 +920,10 @@ def project_detail(project_id: str):
     project = find_project(project_id)
     if project is None:
         abort(404)
-    projects = load_projects(include_hidden=False)
+    projects = get_projects(include_hidden=False)
     models = [
         model_with_project(model, projects)
-        for model in load_models(include_hidden=False)
+        for model in get_models(include_hidden=False)
         if model.get("project_id") == project_id
     ]
     project = project_with_urls(project, models)
@@ -659,16 +935,16 @@ def model_detail(model_id: str):
     model = find_model(model_id)
     if model is None:
         abort(404)
-    projects = load_projects(include_hidden=False)
+    projects = get_projects(include_hidden=False)
     model = model_with_project(model, projects)
     related_models = []
-    for item in load_models(include_hidden=False):
+    for item in get_models(include_hidden=False):
         if item.get("project_id") != model.get("project_id") or item.get("id") == model.get("id"):
             continue
         related = model_with_project(item, projects)
         related["model_url"] = resolve_model_url(related)
         related["thumbnail_url"] = resolve_thumbnail_url(related)
-        related["size_mb"] = file_size_mb(related.get("model_path") or related.get("model"))
+        related["size_mb"] = model_size_mb(related)
         related_models.append(related)
         if len(related_models) >= 4:
             break
@@ -678,7 +954,7 @@ def model_detail(model_id: str):
         model_url=resolve_model_url(model),
         thumbnail_url=resolve_thumbnail_url(model),
         model_name=model.get("name", ""),
-        size_mb=file_size_mb(model.get("model_path") or model.get("model")),
+        size_mb=model_size_mb(model),
         related_models=related_models,
         mode=request.args.get("mode", "3d"),
     )
@@ -686,12 +962,13 @@ def model_detail(model_id: str):
 
 @app.get("/api/models")
 def api_models():
-    projects = load_projects(include_hidden=True)
-    models = load_models(include_hidden=True)
+    projects = get_projects(include_hidden=True)
+    models = get_models(include_hidden=True)
     known_paths = {strip_static_prefix(model.get("model")).lower() for model in models if model.get("model")}
-    for filesystem_model in models_from_filesystem(projects):
-        if strip_static_prefix(filesystem_model.get("model")).lower() not in known_paths:
-            models.append(normalize_model(filesystem_model, projects))
+    if not is_supabase_enabled():
+        for filesystem_model in models_from_filesystem(projects):
+            if strip_static_prefix(filesystem_model.get("model")).lower() not in known_paths:
+                models.append(normalize_model(filesystem_model, projects))
     return jsonify([api_model_payload(model, projects) for model in models])
 
 
@@ -703,8 +980,8 @@ def health():
 @app.route("/admin")
 @admin_required
 def admin():
-    raw_projects = load_projects(include_hidden=True)
-    raw_models = load_models(include_hidden=True)
+    raw_projects = get_projects(include_hidden=True)
+    raw_models = get_models(include_hidden=True)
     projects = [project_with_urls(project, raw_models) for project in raw_projects]
     models = [model_with_project(model, projects) for model in raw_models]
     counts = project_model_counts(projects, models)
@@ -759,6 +1036,22 @@ def add_project():
         abort(400, "Project name is required")
 
     image_url = request.form.get("image_url", "").strip()
+    if is_supabase_enabled():
+        try:
+            uploaded_image_url, _ = upload_to_supabase_storage(request.files.get("cover_image"), "projects")
+            create_project(
+                {
+                    "name": name,
+                    "description": request.form.get("description", "").strip(),
+                    "image_url": uploaded_image_url or image_url,
+                }
+            )
+            flash(f'เพิ่มโครงการ "{name}" แล้ว', "success")
+        except SupabaseError as exc:
+            logger.exception("Unable to create project in Supabase")
+            flash(f"Unable to save project to Supabase: {exc}", "error")
+        return redirect(url_for("admin"))
+
     cover_image = image_url or save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
     projects = load_projects(include_hidden=True)
     projects.append(
@@ -781,7 +1074,7 @@ def add_project():
 @app.route("/admin/projects/<project_id>/edit", methods=["GET", "POST"])
 @admin_required
 def edit_project(project_id: str):
-    projects = load_projects(include_hidden=True)
+    projects = get_projects(include_hidden=True)
     project = next((item for item in projects if item["id"] == project_id), None)
     if project is None:
         abort(404)
@@ -789,6 +1082,25 @@ def edit_project(project_id: str):
     if request.method == "POST":
         if reject_vercel_upload_if_needed("cover_image") or admin_write_blocked_on_vercel():
             return redirect(url_for("edit_project", project_id=project_id))
+
+        if is_supabase_enabled():
+            try:
+                uploaded_image_url, _ = upload_to_supabase_storage(request.files.get("cover_image"), "projects")
+                image_url = uploaded_image_url or request.form.get("image_url", "").strip() or project.get("image_url", "")
+                update_project(
+                    project_id,
+                    {
+                        "name": request.form.get("name", "").strip() or project["name"],
+                        "description": request.form.get("description", "").strip(),
+                        "image_url": image_url,
+                    },
+                )
+                flash("บันทึกข้อมูลโครงการแล้ว", "success")
+                return redirect(url_for("admin"))
+            except SupabaseError as exc:
+                logger.exception("Unable to update project in Supabase")
+                flash(f"Unable to save project to Supabase: {exc}", "error")
+                return redirect(url_for("edit_project", project_id=project_id))
 
         old_cover = project.get("cover_image")
         image_url = request.form.get("image_url", "").strip()
@@ -813,10 +1125,19 @@ def edit_project(project_id: str):
     return render_template("edit_project.html", project=project_with_urls(project))
 
 
-@app.post("/admin/projects/<project_id>/delete")
+@app.post("/admin/projects/<project_id>/delete", endpoint="delete_project")
 @admin_required
-def delete_project(project_id: str):
+def delete_project_route(project_id: str):
     if admin_write_blocked_on_vercel():
+        return redirect(url_for("admin"))
+
+    if is_supabase_enabled():
+        try:
+            delete_project(project_id)
+            flash("ลบโครงการแล้ว", "success")
+        except SupabaseError as exc:
+            logger.exception("Unable to delete project in Supabase")
+            flash(f"Unable to delete project from Supabase: {exc}", "error")
         return redirect(url_for("admin"))
 
     projects = load_projects(include_hidden=True)
@@ -852,6 +1173,32 @@ def add_model():
         abort(400, "Project is required")
 
     model_url = request.form.get("model_url", "").strip()
+    thumbnail_url = request.form.get("thumbnail_url", "").strip()
+
+    if is_supabase_enabled():
+        try:
+            uploaded_model_url, model_size_mb = upload_to_supabase_storage(request.files.get("model_file"), "models")
+            uploaded_thumbnail_url, _ = upload_to_supabase_storage(request.files.get("image_file"), "thumbnails")
+            final_model_url = uploaded_model_url or model_url
+            final_thumbnail_url = uploaded_thumbnail_url or thumbnail_url
+            if not final_model_url:
+                abort(400, "A .glb file or external model URL is required")
+            create_model(
+                {
+                    "name": name,
+                    "description": request.form.get("description", "").strip(),
+                    "project_id": project_id,
+                    "model_url": final_model_url,
+                    "thumbnail_url": final_thumbnail_url,
+                    "file_size_mb": model_size_mb,
+                }
+            )
+            flash(f'เพิ่มโมเดล "{name}" แล้ว', "success")
+        except SupabaseError as exc:
+            logger.exception("Unable to create model in Supabase")
+            flash(f"Unable to save model to Supabase: {exc}", "error")
+        return redirect(url_for("admin"))
+
     model_path = model_url or request.form.get("model_path", "").strip()
     uploaded_model = save_upload(request.files.get("model_file"), MODEL_DIR, "model", MODEL_EXTENSIONS)
     if uploaded_model:
@@ -859,7 +1206,6 @@ def add_model():
     if not model_path:
         abort(400, "A .glb/.gltf file or model path is required")
 
-    thumbnail_url = request.form.get("thumbnail_url", "").strip()
     image_path = thumbnail_url or request.form.get("image_path", "").strip()
     uploaded_image = save_upload(request.files.get("image_file"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
     if uploaded_image:
@@ -892,8 +1238,8 @@ def add_model():
 @app.route("/admin/models/<model_id>/edit", methods=["GET", "POST"])
 @admin_required
 def edit_model(model_id: str):
-    projects = load_projects(include_hidden=True)
-    models = load_models(include_hidden=True)
+    projects = get_projects(include_hidden=True)
+    models = get_models(include_hidden=True)
     model = next((item for item in models if item["id"] == model_id), None)
     if model is None:
         abort(404)
@@ -905,6 +1251,36 @@ def edit_model(model_id: str):
         project_id = request.form.get("project_id", "").strip()
         if find_project(project_id, include_hidden=True) is None:
             abort(400, "Project is required")
+
+        if is_supabase_enabled():
+            try:
+                uploaded_model_url, uploaded_size_mb = upload_to_supabase_storage(request.files.get("model_file"), "models")
+                uploaded_thumbnail_url, _ = upload_to_supabase_storage(request.files.get("image_file"), "thumbnails")
+                final_model_url = uploaded_model_url or request.form.get("model_url", "").strip() or model.get("model_url", "")
+                final_thumbnail_url = (
+                    uploaded_thumbnail_url
+                    or request.form.get("thumbnail_url", "").strip()
+                    or model.get("thumbnail_url", "")
+                )
+                if not final_model_url:
+                    abort(400, "A .glb file or external model URL is required")
+                update_model(
+                    model_id,
+                    {
+                        "name": request.form.get("name", "").strip() or model["name"],
+                        "description": request.form.get("description", "").strip(),
+                        "project_id": project_id,
+                        "model_url": final_model_url,
+                        "thumbnail_url": final_thumbnail_url,
+                        "file_size_mb": uploaded_size_mb if uploaded_size_mb is not None else model.get("file_size_mb"),
+                    },
+                )
+                flash("บันทึกข้อมูลโมเดลแล้ว", "success")
+                return redirect(url_for("admin"))
+            except SupabaseError as exc:
+                logger.exception("Unable to update model in Supabase")
+                flash(f"Unable to save model to Supabase: {exc}", "error")
+                return redirect(url_for("edit_model", model_id=model_id))
 
         old_model = model.get("model")
         old_image = model.get("image")
@@ -943,10 +1319,19 @@ def edit_model(model_id: str):
     return render_template("edit_model.html", model=model_with_project(model, projects), projects=projects)
 
 
-@app.post("/admin/models/<model_id>/delete")
+@app.post("/admin/models/<model_id>/delete", endpoint="delete_model")
 @admin_required
-def delete_model(model_id: str):
+def delete_model_route(model_id: str):
     if admin_write_blocked_on_vercel():
+        return redirect(url_for("admin"))
+
+    if is_supabase_enabled():
+        try:
+            delete_model(model_id)
+            flash("ลบโมเดลแล้ว", "success")
+        except SupabaseError as exc:
+            logger.exception("Unable to delete model in Supabase")
+            flash(f"Unable to delete model from Supabase: {exc}", "error")
         return redirect(url_for("admin"))
 
     models = load_models(include_hidden=True)

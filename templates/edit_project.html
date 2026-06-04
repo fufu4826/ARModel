@@ -13,15 +13,17 @@
   <main class="page">
     <form class="panel" method="post" enctype="multipart/form-data">
       <h1>แก้ไขโครงการ</h1>
-      {% if is_vercel %}
+      {% if uploads_disabled %}
       <div class="notice">This site is running on Vercel. File uploads are disabled. Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy.</div>
+      {% elif is_supabase %}
+      <div class="notice">Supabase is configured. Uploaded project images will be stored in Supabase Storage.</div>
       {% endif %}
       <div class="grid">
         <div class="field"><label>ชื่อโครงการ</label><input name="name" value="{{ project.name }}" required></div>
         <div class="field"><label>หน่วยงาน/แผนก</label><input name="department" value="{{ project.department }}"></div>
         <div class="field full"><label>รายละเอียด</label><textarea name="description">{{ project.description }}</textarea></div>
-        <div class="field full"><label>เปลี่ยนภาพปก</label><input name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if is_vercel else "" }}></div>
-        <div class="field full"><label>External image URL</label><input name="image_url" type="url" value="{{ project.image_url }}" placeholder="https://example.com/project.jpg" {{ "disabled" if is_vercel else "" }}></div>
+        <div class="field full"><label>เปลี่ยนภาพปก</label><input name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field full"><label>External image URL</label><input name="image_url" type="url" value="{{ project.image_url }}" placeholder="https://example.com/project.jpg" {{ "disabled" if uploads_disabled else "" }}></div>
         <label class="field check"><input name="visible" type="checkbox" {{ "checked" if project.visible else "" }}> เผยแพร่บนหน้าเว็บไซต์</label>
       </div>
       <div class="actions"><button class="btn" type="submit">บันทึก</button><a class="link" href="{{ url_for('admin') }}">ยกเลิก</a></div>

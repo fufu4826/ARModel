@@ -13,8 +13,10 @@
   <main class="page">
     <form class="panel" method="post" enctype="multipart/form-data">
       <h1>แก้ไขโมเดล</h1>
-      {% if is_vercel %}
+      {% if uploads_disabled %}
       <div class="notice">This site is running on Vercel. File uploads are disabled. Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy.</div>
+      {% elif is_supabase %}
+      <div class="notice">Supabase is configured. Uploaded thumbnails and .glb files will be stored in Supabase Storage.</div>
       {% endif %}
       <div class="grid">
         <div class="field"><label>ชื่อโมเดล</label><input name="name" value="{{ model.name }}" required></div>
@@ -22,12 +24,12 @@
         <div class="field"><label>หน่วยงาน/แผนก</label><input name="department" value="{{ model.department }}"></div>
         <div class="field"><label>ขนาด</label><input name="scale" type="number" value="{{ model.scale }}" step="0.01" min="0.001"></div>
         <div class="field full"><label>รายละเอียด</label><textarea name="description">{{ model.description }}</textarea></div>
-        <div class="field"><label>เปลี่ยนไฟล์ .glb/.gltf</label><input name="model_file" type="file" accept=".glb,.gltf" {{ "disabled" if is_vercel else "" }}></div>
-        <div class="field"><label>Path ไฟล์โมเดล</label><input name="model_path" value="{{ model.model_path }}" {{ "disabled" if is_vercel else "" }}></div>
-        <div class="field full"><label>External .glb model URL</label><input name="model_url" type="url" value="{{ model.model_url }}" placeholder="https://example.com/model.glb" {{ "disabled" if is_vercel else "" }}></div>
-        <div class="field"><label>เปลี่ยน Thumbnail</label><input name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if is_vercel else "" }}></div>
-        <div class="field"><label>Path รูปภาพ</label><input name="image_path" value="{{ model.thumbnail_path }}" {{ "disabled" if is_vercel else "" }}></div>
-        <div class="field full"><label>External thumbnail URL</label><input name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" {{ "disabled" if is_vercel else "" }}></div>
+        <div class="field"><label>เปลี่ยนไฟล์ .glb</label><input name="model_file" type="file" accept=".glb" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field"><label>Path ไฟล์โมเดล</label><input name="model_path" value="{{ model.model_path }}" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field full"><label>External .glb model URL</label><input name="model_url" type="url" value="{{ model.model_url }}" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field"><label>เปลี่ยน Thumbnail</label><input name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field"><label>Path รูปภาพ</label><input name="image_path" value="{{ model.thumbnail_path }}" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field full"><label>External thumbnail URL</label><input name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" {{ "disabled" if uploads_disabled else "" }}></div>
         <div class="field"><label>หมุนแกน X</label><input name="rotate_x" type="number" value="{{ model.rotate_x }}" step="0.01"></div>
         <label class="field check"><input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> เผยแพร่โมเดล</label>
       </div>

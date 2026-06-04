@@ -310,9 +310,9 @@ def model_with_project(model: dict, projects: list[dict]) -> dict:
     return enriched
 
 
-def project_with_urls(project: dict) -> dict:
+def project_with_urls(project: dict, models: list[dict] | None = None) -> dict:
     enriched = dict(project)
-    enriched["cover_image_url"] = resolve_project_image_url(enriched)
+    enriched["cover_image_url"] = resolve_project_image_url(enriched, models)
     return enriched
 
 
@@ -433,12 +433,20 @@ def resolve_thumbnail_url(model: dict) -> str:
     return resolved or PLACEHOLDER_THUMBNAIL
 
 
-def resolve_project_image_url(project: dict) -> str:
+def resolve_project_image_url(project: dict, models: list[dict] | None = None) -> str:
     for key in ("image_url", "cover_image"):
         value = str(project.get(key) or "").strip()
         if is_external_url(value):
             return value
     resolved = local_static_url_if_exists(project.get("image_path") or project.get("cover_image"))
+    if resolved:
+        return resolved
+    for model in models or []:
+        if model.get("project_id") == project.get("id"):
+            thumbnail_url = resolve_thumbnail_url(model)
+            if thumbnail_url:
+                return thumbnail_url
+            break
     return resolved or PLACEHOLDER_THUMBNAIL
 
 
@@ -625,8 +633,8 @@ def parse_float(name: str, default: float) -> float:
 
 @app.route("/")
 def index():
-    projects = [project_with_urls(project) for project in load_projects(include_hidden=False)]
     models = load_models(include_hidden=False)
+    projects = [project_with_urls(project, models) for project in load_projects(include_hidden=False)]
     counts = project_model_counts(projects, models)
     return render_template("index.html", projects=projects, model_counts=counts)
 
@@ -636,13 +644,13 @@ def project_detail(project_id: str):
     project = find_project(project_id)
     if project is None:
         abort(404)
-    project = project_with_urls(project)
     projects = load_projects(include_hidden=False)
     models = [
         model_with_project(model, projects)
         for model in load_models(include_hidden=False)
         if model.get("project_id") == project_id
     ]
+    project = project_with_urls(project, models)
     return render_template("project.html", project=project, models=models)
 
 
@@ -695,8 +703,10 @@ def health():
 @app.route("/admin")
 @admin_required
 def admin():
-    projects = [project_with_urls(project) for project in load_projects(include_hidden=True)]
-    models = [model_with_project(model, projects) for model in load_models(include_hidden=True)]
+    raw_projects = load_projects(include_hidden=True)
+    raw_models = load_models(include_hidden=True)
+    projects = [project_with_urls(project, raw_models) for project in raw_projects]
+    models = [model_with_project(model, projects) for model in raw_models]
     counts = project_model_counts(projects, models)
     return render_template("admin.html", projects=projects, models=models, model_counts=counts)
 

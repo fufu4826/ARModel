@@ -23,12 +23,33 @@ For production, set a `SECRET_KEY` environment variable. Local development can r
 5. Deploy with the Python runtime.
 6. If this project is inside a larger repository, set the Vercel root directory to `ARModel`.
 
+## Vercel Runtime Limitation
+
+Vercel serverless functions use a read-only project filesystem at runtime. Uploading files into `static/`, editing `models.json`, or editing `projects.json` through the admin UI works only in local development.
+
+On Vercel:
+
+- Public pages, `/api/models`, and the AR viewer read committed JSON/static assets.
+- Admin editing is read-only and file uploads are disabled.
+- Use external image/model URLs in `models.json` and `projects.json` for production assets that are not committed to the repository.
+
+To add files permanently:
+
+1. Add `.glb` files and images locally.
+2. Update `models.json` or `projects.json`.
+3. Commit and push to GitHub.
+4. Redeploy on Vercel.
+
+For production admin uploads, add cloud object storage such as Cloudflare R2, Supabase Storage, Firebase Storage, or Cloudinary, then store the returned external URLs in JSON.
+
 ## Adding Models
 
 - Put `.glb` files in `static/model/`.
 - Put thumbnails in `static/pic/`.
 - Match the thumbnail filename with the model filename when possible, for example `rice.glb` and `rice.jpg`.
 - Update `models.json` when metadata such as name, description, project, visibility, or thumbnail path is required.
+- For externally hosted assets, set `model_url` and `thumbnail_url` in `models.json`.
+- For externally hosted project images, set `image_url` in `projects.json`.
 
 ## AR Usage
 

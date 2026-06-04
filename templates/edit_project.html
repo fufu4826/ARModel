@@ -6,18 +6,22 @@
   <title>แก้ไขโครงการ</title>
   <style>
     :root { --green:#1f5f3b; --cream:#fbfaf5; --text:#1d2a22; --muted:#66756b; --line:#dfe7dc; --radius:8px; }
-    *{box-sizing:border-box} body{margin:0;background:var(--cream);color:var(--text);font-family:Arial,"Noto Sans Thai",sans-serif}.page{min-height:100vh;padding:24px 16px}.panel{width:min(760px,100%);margin:0 auto;background:white;border:1px solid var(--line);border-radius:var(--radius);padding:22px}h1{margin:0 0 18px;color:var(--green);letter-spacing:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:6px}.full{grid-column:1/-1}label{font-weight:800;color:var(--muted);font-size:13px}input,textarea{min-height:42px;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;font:inherit}textarea{min-height:110px}.check{flex-direction:row;align-items:center}.check input{min-height:0}.actions{display:flex;gap:10px;margin-top:16px}.btn,.link{min-height:42px;padding:10px 14px;border-radius:var(--radius);font-weight:800;text-decoration:none;border:1px solid var(--line);cursor:pointer}.btn{background:var(--green);color:white;border-color:var(--green)}.link{background:white;color:var(--green)}@media(max-width:620px){.grid{grid-template-columns:1fr}.actions{display:block}.btn,.link{width:100%;display:flex;justify-content:center;margin-top:8px}}
+    *{box-sizing:border-box} body{margin:0;background:var(--cream);color:var(--text);font-family:Arial,"Noto Sans Thai",sans-serif}.page{min-height:100vh;padding:24px 16px}.panel{width:min(760px,100%);margin:0 auto;background:white;border:1px solid var(--line);border-radius:var(--radius);padding:22px}h1{margin:0 0 18px;color:var(--green);letter-spacing:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:6px}.full{grid-column:1/-1}label{font-weight:800;color:var(--muted);font-size:13px}input,textarea{min-height:42px;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;font:inherit}textarea{min-height:110px}.check{flex-direction:row;align-items:center}.check input{min-height:0}.notice{margin:0 0 16px;padding:12px 14px;border-radius:var(--radius);background:#fff7df;color:#6b4a05;border:1px solid #ead799;font-weight:800;line-height:1.5}.actions{display:flex;gap:10px;margin-top:16px}.btn,.link{min-height:42px;padding:10px 14px;border-radius:var(--radius);font-weight:800;text-decoration:none;border:1px solid var(--line);cursor:pointer}.btn{background:var(--green);color:white;border-color:var(--green)}.link{background:white;color:var(--green)}@media(max-width:620px){.grid{grid-template-columns:1fr}.actions{display:block}.btn,.link{width:100%;display:flex;justify-content:center;margin-top:8px}}
   </style>
 </head>
 <body>
   <main class="page">
     <form class="panel" method="post" enctype="multipart/form-data">
       <h1>แก้ไขโครงการ</h1>
+      {% if is_vercel %}
+      <div class="notice">This site is running on Vercel. File uploads are disabled. Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy.</div>
+      {% endif %}
       <div class="grid">
         <div class="field"><label>ชื่อโครงการ</label><input name="name" value="{{ project.name }}" required></div>
         <div class="field"><label>หน่วยงาน/แผนก</label><input name="department" value="{{ project.department }}"></div>
         <div class="field full"><label>รายละเอียด</label><textarea name="description">{{ project.description }}</textarea></div>
-        <div class="field full"><label>เปลี่ยนภาพปก</label><input name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp"></div>
+        <div class="field full"><label>เปลี่ยนภาพปก</label><input name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if is_vercel else "" }}></div>
+        <div class="field full"><label>External image URL</label><input name="image_url" type="url" value="{{ project.image_url }}" placeholder="https://example.com/project.jpg" {{ "disabled" if is_vercel else "" }}></div>
         <label class="field check"><input name="visible" type="checkbox" {{ "checked" if project.visible else "" }}> เผยแพร่บนหน้าเว็บไซต์</label>
       </div>
       <div class="actions"><button class="btn" type="submit">บันทึก</button><a class="link" href="{{ url_for('admin') }}">ยกเลิก</a></div>

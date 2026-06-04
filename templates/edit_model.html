@@ -6,23 +6,28 @@
   <title>แก้ไขโมเดล</title>
   <style>
     :root { --green:#1f5f3b; --cream:#fbfaf5; --text:#1d2a22; --muted:#66756b; --line:#dfe7dc; --radius:8px; }
-    *{box-sizing:border-box} body{margin:0;background:var(--cream);color:var(--text);font-family:Arial,"Noto Sans Thai",sans-serif}.page{min-height:100vh;padding:24px 16px}.panel{width:min(860px,100%);margin:0 auto;background:white;border:1px solid var(--line);border-radius:var(--radius);padding:22px}h1{margin:0 0 18px;color:var(--green);letter-spacing:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:6px}.full{grid-column:1/-1}label{font-weight:800;color:var(--muted);font-size:13px}input,select,textarea{min-height:42px;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;font:inherit}textarea{min-height:110px}.check{flex-direction:row;align-items:center}.check input{min-height:0}.actions{display:flex;gap:10px;margin-top:16px}.btn,.link{min-height:42px;padding:10px 14px;border-radius:var(--radius);font-weight:800;text-decoration:none;border:1px solid var(--line);cursor:pointer}.btn{background:var(--green);color:white;border-color:var(--green)}.link{background:white;color:var(--green)}@media(max-width:620px){.grid{grid-template-columns:1fr}.actions{display:block}.btn,.link{width:100%;display:flex;justify-content:center;margin-top:8px}}
+    *{box-sizing:border-box} body{margin:0;background:var(--cream);color:var(--text);font-family:Arial,"Noto Sans Thai",sans-serif}.page{min-height:100vh;padding:24px 16px}.panel{width:min(860px,100%);margin:0 auto;background:white;border:1px solid var(--line);border-radius:var(--radius);padding:22px}h1{margin:0 0 18px;color:var(--green);letter-spacing:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:6px}.full{grid-column:1/-1}label{font-weight:800;color:var(--muted);font-size:13px}input,select,textarea{min-height:42px;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;font:inherit}textarea{min-height:110px}.check{flex-direction:row;align-items:center}.check input{min-height:0}.notice{margin:0 0 16px;padding:12px 14px;border-radius:var(--radius);background:#fff7df;color:#6b4a05;border:1px solid #ead799;font-weight:800;line-height:1.5}.actions{display:flex;gap:10px;margin-top:16px}.btn,.link{min-height:42px;padding:10px 14px;border-radius:var(--radius);font-weight:800;text-decoration:none;border:1px solid var(--line);cursor:pointer}.btn{background:var(--green);color:white;border-color:var(--green)}.link{background:white;color:var(--green)}@media(max-width:620px){.grid{grid-template-columns:1fr}.actions{display:block}.btn,.link{width:100%;display:flex;justify-content:center;margin-top:8px}}
   </style>
 </head>
 <body>
   <main class="page">
     <form class="panel" method="post" enctype="multipart/form-data">
       <h1>แก้ไขโมเดล</h1>
+      {% if is_vercel %}
+      <div class="notice">This site is running on Vercel. File uploads are disabled. Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy.</div>
+      {% endif %}
       <div class="grid">
         <div class="field"><label>ชื่อโมเดล</label><input name="name" value="{{ model.name }}" required></div>
         <div class="field"><label>โครงการ</label><select name="project_id">{% for project in projects %}<option value="{{ project.id }}" {{ "selected" if project.id == model.project_id else "" }}>{{ project.name }}</option>{% endfor %}</select></div>
         <div class="field"><label>หน่วยงาน/แผนก</label><input name="department" value="{{ model.department }}"></div>
         <div class="field"><label>ขนาด</label><input name="scale" type="number" value="{{ model.scale }}" step="0.01" min="0.001"></div>
         <div class="field full"><label>รายละเอียด</label><textarea name="description">{{ model.description }}</textarea></div>
-        <div class="field"><label>เปลี่ยนไฟล์ .glb/.gltf</label><input name="model_file" type="file" accept=".glb,.gltf"></div>
-        <div class="field"><label>Path ไฟล์โมเดล</label><input name="model_path" value="{{ model.model }}"></div>
-        <div class="field"><label>เปลี่ยน Thumbnail</label><input name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp"></div>
-        <div class="field"><label>Path รูปภาพ</label><input name="image_path" value="{{ model.image }}"></div>
+        <div class="field"><label>เปลี่ยนไฟล์ .glb/.gltf</label><input name="model_file" type="file" accept=".glb,.gltf" {{ "disabled" if is_vercel else "" }}></div>
+        <div class="field"><label>Path ไฟล์โมเดล</label><input name="model_path" value="{{ model.model_path }}" {{ "disabled" if is_vercel else "" }}></div>
+        <div class="field full"><label>External .glb model URL</label><input name="model_url" type="url" value="{{ model.model_url }}" placeholder="https://example.com/model.glb" {{ "disabled" if is_vercel else "" }}></div>
+        <div class="field"><label>เปลี่ยน Thumbnail</label><input name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if is_vercel else "" }}></div>
+        <div class="field"><label>Path รูปภาพ</label><input name="image_path" value="{{ model.thumbnail_path }}" {{ "disabled" if is_vercel else "" }}></div>
+        <div class="field full"><label>External thumbnail URL</label><input name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" {{ "disabled" if is_vercel else "" }}></div>
         <div class="field"><label>หมุนแกน X</label><input name="rotate_x" type="number" value="{{ model.rotate_x }}" step="0.01"></div>
         <label class="field check"><input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> เผยแพร่โมเดล</label>
       </div>

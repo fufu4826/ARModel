@@ -36,6 +36,7 @@
     .check input { width:auto; min-height:0; }
     .flash { margin:0 0 16px; padding:12px 14px; border-radius:var(--radius); background:#eaf5ee; color:var(--success); border:1px solid #bfe3ca; font-weight:800; }
     .flash.error { background:#fff2f2; color:var(--danger); border-color:#f2c0c0; }
+    .notice { margin:0 0 16px; padding:12px 14px; border-radius:var(--radius); background:#fff7df; color:#6b4a05; border:1px solid #ead799; font-weight:800; line-height:1.5; }
     .table-wrap { overflow-x:auto; background:white; border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:18px; }
     table { width:100%; min-width:860px; border-collapse:collapse; }
     th,td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; font-size:14px; }
@@ -70,6 +71,10 @@
         {% endfor %}
       {% endwith %}
 
+      {% if is_vercel %}
+      <div class="notice">This site is running on Vercel. File uploads are disabled. Use external URLs for images and models. Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy.</div>
+      {% endif %}
+
       <section class="grid">
         <div class="panel">
           <h2>เพิ่มโครงการ</h2>
@@ -88,7 +93,11 @@
             </div>
             <div class="field full">
               <label for="project-cover">ภาพปกโครงการ</label>
-              <input id="project-cover" name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp">
+              <input id="project-cover" name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if is_vercel else "" }}>
+            </div>
+            <div class="field full">
+              <label for="project-image-url">External image URL</label>
+              <input id="project-image-url" name="image_url" type="url" placeholder="https://example.com/project.jpg" {{ "disabled" if is_vercel else "" }}>
             </div>
             <label class="field check"><input name="visible" type="checkbox" checked> เผยแพร่บนหน้าเว็บไซต์</label>
             <button class="btn" type="submit">เพิ่มโครงการ</button>
@@ -124,15 +133,23 @@
             </div>
             <div class="field">
               <label for="model-file">ไฟล์ .glb/.gltf</label>
-              <input id="model-file" name="model_file" type="file" accept=".glb,.gltf">
+              <input id="model-file" name="model_file" type="file" accept=".glb,.gltf" {{ "disabled" if is_vercel else "" }}>
             </div>
             <div class="field">
               <label for="model-path">หรือระบุ path ไฟล์โมเดล</label>
-              <input id="model-path" name="model_path" placeholder="model/example.glb">
+              <input id="model-path" name="model_path" placeholder="model/example.glb" {{ "disabled" if is_vercel else "" }}>
+            </div>
+            <div class="field full">
+              <label for="model-url">External .glb model URL</label>
+              <input id="model-url" name="model_url" type="url" placeholder="https://example.com/model.glb" {{ "disabled" if is_vercel else "" }}>
             </div>
             <div class="field">
               <label for="image-file">ภาพ Thumbnail</label>
-              <input id="image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp">
+              <input id="image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if is_vercel else "" }}>
+            </div>
+            <div class="field">
+              <label for="thumbnail-url">External thumbnail URL</label>
+              <input id="thumbnail-url" name="thumbnail_url" type="url" placeholder="https://example.com/thumb.jpg" {{ "disabled" if is_vercel else "" }}>
             </div>
             <div class="field">
               <label for="rotate-x">หมุนแกน X</label>
@@ -152,7 +169,7 @@
             <tbody>
               {% for project in projects %}
               <tr>
-                <td>{% if project.cover_image %}<img class="thumb" src="{{ url_for('static', filename=project.cover_image) }}" alt="{{ project.name }}">{% else %}<div class="thumb"></div>{% endif %}</td>
+                <td>{% if project.cover_image_url %}<img class="thumb" src="{{ project.cover_image_url }}" alt="{{ project.name }}">{% else %}<div class="thumb"></div>{% endif %}</td>
                 <td><strong>{{ project.name }}</strong><div class="meta">{{ project.description or "-" }}</div></td>
                 <td>{{ project.department or "-" }}</td>
                 <td>{{ model_counts.get(project.id, 0) }}</td>
@@ -180,7 +197,7 @@
             <tbody>
               {% for model in models %}
               <tr>
-                <td>{% if model.image %}<img class="thumb" src="{{ url_for('static', filename=model.image) }}" alt="{{ model.name }}">{% else %}<div class="thumb"></div>{% endif %}</td>
+                <td>{% if model.thumbnail_resolved_url %}<img class="thumb" src="{{ model.thumbnail_resolved_url }}" alt="{{ model.name }}">{% else %}<div class="thumb"></div>{% endif %}</td>
                 <td><strong>{{ model.name }}</strong><div class="meta">{{ model.description or "-" }}</div><div class="meta">{{ model.model }}</div></td>
                 <td>{{ model.project_name }}</td>
                 <td>{{ model.department or "-" }}</td>

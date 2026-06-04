@@ -16,6 +16,16 @@ from werkzeug.utils import secure_filename
 
 MODEL_EXTENSIONS = {".glb", ".gltf"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+VERCEL_UPLOAD_MESSAGE = "File uploads are disabled on Vercel. Use an external URL instead."
+VERCEL_EDIT_MESSAGE = "Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy."
+PLACEHOLDER_THUMBNAIL = (
+    "data:image/svg+xml;utf8,"
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 500'>"
+    "<rect width='800' height='500' fill='%23edf1ea'/>"
+    "<text x='400' y='250' text-anchor='middle' dominant-baseline='middle' "
+    "font-family='Arial,sans-serif' font-size='34' fill='%2366756b'>No image</text>"
+    "</svg>"
+)
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(levelname)s:%(name)s:%(message)s")
 logger = logging.getLogger(__name__)
@@ -133,9 +143,21 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 
+def is_vercel_runtime() -> bool:
+    return bool(os.environ.get("VERCEL"))
+
+
+@app.context_processor
+def inject_runtime_flags():
+    return {"is_vercel": is_vercel_runtime()}
+
+
 def ensure_data_files() -> None:
     global _DATA_READY
     if _DATA_READY:
+        return
+    if is_vercel_runtime():
+        _DATA_READY = True
         return
     for directory in (MODEL_DIR, PIC_DIR):
         try:
@@ -176,6 +198,10 @@ def read_json(path: Path, default):
 
 
 def write_json(path: Path, value) -> None:
+    if is_vercel_runtime():
+        logger.warning("Blocked JSON write on Vercel runtime: %s", path)
+        abort(400, VERCEL_EDIT_MESSAGE)
+
     path = path.resolve()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -197,12 +223,16 @@ def save_models(models: list[dict]) -> None:
 
 def normalize_project(project: dict) -> dict:
     name = str(project.get("name") or project.get("project_name") or "โครงการ").strip()
+    image_url = str(project.get("image_url") or "").strip()
+    image_path = str(project.get("image_path") or project.get("cover_image") or project.get("image") or "").strip()
     return {
         "id": str(project.get("id") or uuid.uuid4().hex),
         "name": name,
         "description": str(project.get("description") or "").strip(),
         "department": str(project.get("department") or project.get("unit") or "").strip(),
-        "cover_image": str(project.get("cover_image") or project.get("image") or "").strip(),
+        "cover_image": image_url or image_path,
+        "image_url": image_url,
+        "image_path": image_path,
         "visible": bool(project.get("visible", True)),
     }
 
@@ -236,14 +266,23 @@ def normalize_model(model: dict, projects: list[dict]) -> dict:
         rotate_x = 0
         scale = 0.2
 
+    model_url = str(model.get("model_url") or "").strip()
+    model_path = str(model.get("model_path") or model.get("model") or "").strip()
+    thumbnail_url = str(model.get("thumbnail_url") or "").strip()
+    thumbnail_path = str(model.get("thumbnail_path") or model.get("image") or model.get("thumbnail") or "").strip()
+
     return {
         "id": model_id,
         "name": str(model.get("name") or "โมเดล").strip(),
         "description": str(model.get("description") or model.get("info") or "").strip(),
         "department": str(model.get("department") or model.get("unit") or "").strip(),
         "project_id": project_id,
-        "model": str(model.get("model") or model.get("model_path") or "").strip(),
-        "image": str(model.get("image") or model.get("thumbnail") or "").strip(),
+        "model": model_url or model_path,
+        "model_url": model_url,
+        "model_path": model_path,
+        "image": thumbnail_url or thumbnail_path,
+        "thumbnail_url": thumbnail_url,
+        "thumbnail_path": thumbnail_path,
         "rotate_x": rotate_x,
         "scale": scale,
         "visible": bool(model.get("visible", True)),
@@ -266,6 +305,14 @@ def model_with_project(model: dict, projects: list[dict]) -> dict:
     enriched["project"] = project
     enriched["project_name"] = project.get("name", "-")
     enriched["project_department"] = project.get("department", "")
+    enriched["model_resolved_url"] = resolve_model_url(enriched)
+    enriched["thumbnail_resolved_url"] = resolve_thumbnail_url(enriched)
+    return enriched
+
+
+def project_with_urls(project: dict) -> dict:
+    enriched = dict(project)
+    enriched["cover_image_url"] = resolve_project_image_url(enriched)
     return enriched
 
 
@@ -298,6 +345,28 @@ def save_config(config: dict) -> None:
     write_json(CONFIG_FILE, config)
 
 
+def admin_write_blocked_on_vercel() -> bool:
+    if not is_vercel_runtime():
+        return False
+    flash(VERCEL_EDIT_MESSAGE, "error")
+    return True
+
+
+def upload_attempted(*field_names: str) -> bool:
+    for field_name in field_names:
+        file_storage = request.files.get(field_name)
+        if file_storage and file_storage.filename:
+            return True
+    return False
+
+
+def reject_vercel_upload_if_needed(*field_names: str) -> bool:
+    if is_vercel_runtime() and upload_attempted(*field_names):
+        flash(VERCEL_UPLOAD_MESSAGE, "error")
+        return True
+    return False
+
+
 def ensure_secret_key() -> str:
     env_secret = os.environ.get("SECRET_KEY") or os.environ.get("FLASK_SECRET_KEY")
     if env_secret:
@@ -322,7 +391,7 @@ def strip_static_prefix(path_value: str | None) -> str:
 
 def is_external_url(path_value: str | None) -> bool:
     value = str(path_value or "").strip().lower()
-    return value.startswith(("http://", "https://", "data:"))
+    return value.startswith(("http://", "https://", "http//", "https//", "data:"))
 
 
 def static_asset_url(path_value: str | None) -> str:
@@ -332,6 +401,45 @@ def static_asset_url(path_value: str | None) -> str:
     if is_external_url(value):
         return value
     return url_for("static", filename=strip_static_prefix(value))
+
+
+def local_static_url_if_exists(path_value: str | None) -> str:
+    value = strip_static_prefix(path_value)
+    if not value:
+        return ""
+    target = static_asset_path(value)
+    if not target or not target.exists() or not target.is_file():
+        logger.warning("Missing static asset referenced by metadata: %s", path_value)
+        return ""
+    return url_for("static", filename=value)
+
+
+def resolve_model_url(model: dict) -> str:
+    for key in ("model_url", "model"):
+        value = str(model.get(key) or "").strip()
+        if is_external_url(value):
+            return value
+    return local_static_url_if_exists(model.get("model_path") or model.get("model"))
+
+
+def resolve_thumbnail_url(model: dict) -> str:
+    for key in ("thumbnail_url", "image"):
+        value = str(model.get(key) or "").strip()
+        if is_external_url(value):
+            return value
+    resolved = local_static_url_if_exists(
+        model.get("thumbnail_path") or model.get("image") or find_thumbnail_for_model(model.get("model_path") or model.get("model"))
+    )
+    return resolved or PLACEHOLDER_THUMBNAIL
+
+
+def resolve_project_image_url(project: dict) -> str:
+    for key in ("image_url", "cover_image"):
+        value = str(project.get(key) or "").strip()
+        if is_external_url(value):
+            return value
+    resolved = local_static_url_if_exists(project.get("image_path") or project.get("cover_image"))
+    return resolved or PLACEHOLDER_THUMBNAIL
 
 
 def static_asset_path(path_value: str | None) -> Path | None:
@@ -346,6 +454,8 @@ def static_asset_path(path_value: str | None) -> Path | None:
 
 
 def file_size_mb(path_value: str | None) -> float | None:
+    if is_external_url(path_value):
+        return None
     target = static_asset_path(path_value)
     if not target or not target.exists() or not target.is_file():
         logger.info("Model file is missing or external; size unavailable: %s", path_value)
@@ -403,16 +513,15 @@ def models_from_filesystem(projects: list[dict]) -> list[dict]:
 
 def api_model_payload(model: dict, projects: list[dict]) -> dict:
     enriched = model_with_project(model, projects)
-    image_path = enriched.get("image") or find_thumbnail_for_model(enriched.get("model"))
     return {
         "id": enriched.get("id", ""),
         "name": enriched.get("name", ""),
         "description": enriched.get("description", ""),
-        "model_url": static_asset_url(enriched.get("model")),
-        "thumbnail_url": static_asset_url(image_path),
+        "model_url": resolve_model_url(enriched),
+        "thumbnail_url": resolve_thumbnail_url(enriched),
         "project_id": enriched.get("project_id", ""),
         "project_name": enriched.get("project_name", ""),
-        "size_mb": file_size_mb(enriched.get("model")),
+        "size_mb": file_size_mb(enriched.get("model_path") or enriched.get("model")),
     }
 
 
@@ -439,6 +548,8 @@ def verify_admin_password(password: str) -> bool:
 
 
 def save_admin_password(password: str) -> None:
+    if is_vercel_runtime():
+        abort(400, VERCEL_EDIT_MESSAGE)
     config = load_config()
     config["admin_password_hash"] = generate_password_hash(password)
     save_config(config)
@@ -470,6 +581,8 @@ def unique_asset_name(original_name: str, allowed_extensions: set[str]) -> str:
 
 def delete_static_file(relative_path: str | None) -> None:
     if not relative_path:
+        return
+    if is_external_url(relative_path):
         return
 
     target = static_asset_path(relative_path)
@@ -512,7 +625,7 @@ def parse_float(name: str, default: float) -> float:
 
 @app.route("/")
 def index():
-    projects = load_projects(include_hidden=False)
+    projects = [project_with_urls(project) for project in load_projects(include_hidden=False)]
     models = load_models(include_hidden=False)
     counts = project_model_counts(projects, models)
     return render_template("index.html", projects=projects, model_counts=counts)
@@ -523,6 +636,7 @@ def project_detail(project_id: str):
     project = find_project(project_id)
     if project is None:
         abort(404)
+    project = project_with_urls(project)
     projects = load_projects(include_hidden=False)
     models = [
         model_with_project(model, projects)
@@ -539,26 +653,24 @@ def model_detail(model_id: str):
         abort(404)
     projects = load_projects(include_hidden=False)
     model = model_with_project(model, projects)
-    image_path = model.get("image") or find_thumbnail_for_model(model.get("model"))
     related_models = []
     for item in load_models(include_hidden=False):
         if item.get("project_id") != model.get("project_id") or item.get("id") == model.get("id"):
             continue
         related = model_with_project(item, projects)
-        related_image = related.get("image") or find_thumbnail_for_model(related.get("model"))
-        related["model_url"] = static_asset_url(related.get("model"))
-        related["thumbnail_url"] = static_asset_url(related_image)
-        related["size_mb"] = file_size_mb(related.get("model"))
+        related["model_url"] = resolve_model_url(related)
+        related["thumbnail_url"] = resolve_thumbnail_url(related)
+        related["size_mb"] = file_size_mb(related.get("model_path") or related.get("model"))
         related_models.append(related)
         if len(related_models) >= 4:
             break
     return render_template(
         "model_view.html",
         model=model,
-        model_url=static_asset_url(model.get("model")),
-        thumbnail_url=static_asset_url(image_path),
+        model_url=resolve_model_url(model),
+        thumbnail_url=resolve_thumbnail_url(model),
         model_name=model.get("name", ""),
-        size_mb=file_size_mb(model.get("model")),
+        size_mb=file_size_mb(model.get("model_path") or model.get("model")),
         related_models=related_models,
         mode=request.args.get("mode", "3d"),
     )
@@ -583,7 +695,7 @@ def health():
 @app.route("/admin")
 @admin_required
 def admin():
-    projects = load_projects(include_hidden=True)
+    projects = [project_with_urls(project) for project in load_projects(include_hidden=True)]
     models = [model_with_project(model, projects) for model in load_models(include_hidden=True)]
     counts = project_model_counts(projects, models)
     return render_template("admin.html", projects=projects, models=models, model_counts=counts)
@@ -603,6 +715,8 @@ def admin_login():
                 flash("รหัสผ่านผู้ดูแลต้องมีอย่างน้อย 8 ตัวอักษร", "error")
             elif password != confirm:
                 flash("รหัสผ่านยืนยันไม่ตรงกัน", "error")
+            elif is_vercel_runtime():
+                flash(VERCEL_EDIT_MESSAGE, "error")
             else:
                 save_admin_password(password)
                 session["admin"] = True
@@ -627,11 +741,15 @@ def admin_logout():
 @app.post("/admin/projects")
 @admin_required
 def add_project():
+    if reject_vercel_upload_if_needed("cover_image") or admin_write_blocked_on_vercel():
+        return redirect(url_for("admin"))
+
     name = request.form.get("name", "").strip()
     if not name:
         abort(400, "Project name is required")
 
-    cover_image = save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
+    image_url = request.form.get("image_url", "").strip()
+    cover_image = image_url or save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
     projects = load_projects(include_hidden=True)
     projects.append(
         {
@@ -640,6 +758,8 @@ def add_project():
             "description": request.form.get("description", "").strip(),
             "department": request.form.get("department", "").strip(),
             "cover_image": cover_image,
+            "image_url": image_url,
+            "image_path": "" if image_url else cover_image,
             "visible": form_visible(),
         }
     )
@@ -657,29 +777,38 @@ def edit_project(project_id: str):
         abort(404)
 
     if request.method == "POST":
+        if reject_vercel_upload_if_needed("cover_image") or admin_write_blocked_on_vercel():
+            return redirect(url_for("edit_project", project_id=project_id))
+
         old_cover = project.get("cover_image")
-        new_cover = save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
+        image_url = request.form.get("image_url", "").strip()
+        new_cover = image_url or save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
         project.update(
             {
                 "name": request.form.get("name", "").strip() or project["name"],
                 "description": request.form.get("description", "").strip(),
                 "department": request.form.get("department", "").strip(),
                 "cover_image": new_cover or old_cover,
+                "image_url": image_url,
+                "image_path": "" if image_url else (new_cover or project.get("image_path") or old_cover),
                 "visible": form_visible(),
             }
         )
-        if new_cover and old_cover:
+        if new_cover and old_cover and not image_url:
             delete_static_file(old_cover)
         save_projects(projects)
         flash("บันทึกข้อมูลโครงการแล้ว", "success")
         return redirect(url_for("admin"))
 
-    return render_template("edit_project.html", project=project)
+    return render_template("edit_project.html", project=project_with_urls(project))
 
 
 @app.post("/admin/projects/<project_id>/delete")
 @admin_required
 def delete_project(project_id: str):
+    if admin_write_blocked_on_vercel():
+        return redirect(url_for("admin"))
+
     projects = load_projects(include_hidden=True)
     project = next((item for item in projects if item["id"] == project_id), None)
     if project is None:
@@ -702,6 +831,9 @@ def delete_project(project_id: str):
 @app.post("/admin/models")
 @admin_required
 def add_model():
+    if reject_vercel_upload_if_needed("model_file", "image_file") or admin_write_blocked_on_vercel():
+        return redirect(url_for("admin"))
+
     name = request.form.get("name", "").strip()
     project_id = request.form.get("project_id", "").strip()
     if not name:
@@ -709,14 +841,16 @@ def add_model():
     if find_project(project_id, include_hidden=True) is None:
         abort(400, "Project is required")
 
-    model_path = request.form.get("model_path", "").strip()
+    model_url = request.form.get("model_url", "").strip()
+    model_path = model_url or request.form.get("model_path", "").strip()
     uploaded_model = save_upload(request.files.get("model_file"), MODEL_DIR, "model", MODEL_EXTENSIONS)
     if uploaded_model:
         model_path = uploaded_model
     if not model_path:
         abort(400, "A .glb/.gltf file or model path is required")
 
-    image_path = request.form.get("image_path", "").strip()
+    thumbnail_url = request.form.get("thumbnail_url", "").strip()
+    image_path = thumbnail_url or request.form.get("image_path", "").strip()
     uploaded_image = save_upload(request.files.get("image_file"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
     if uploaded_image:
         image_path = uploaded_image
@@ -730,7 +864,11 @@ def add_model():
             "department": request.form.get("department", "").strip(),
             "project_id": project_id,
             "model": model_path,
+            "model_url": model_url,
+            "model_path": "" if model_url else model_path,
             "image": image_path,
+            "thumbnail_url": thumbnail_url,
+            "thumbnail_path": "" if thumbnail_url else image_path,
             "rotate_x": parse_float("rotate_x", 0),
             "scale": parse_float("scale", 0.2),
             "visible": form_visible(),
@@ -751,6 +889,9 @@ def edit_model(model_id: str):
         abort(404)
 
     if request.method == "POST":
+        if reject_vercel_upload_if_needed("model_file", "image_file") or admin_write_blocked_on_vercel():
+            return redirect(url_for("edit_model", model_id=model_id))
+
         project_id = request.form.get("project_id", "").strip()
         if find_project(project_id, include_hidden=True) is None:
             abort(400, "Project is required")
@@ -759,8 +900,10 @@ def edit_model(model_id: str):
         old_image = model.get("image")
         new_model = save_upload(request.files.get("model_file"), MODEL_DIR, "model", MODEL_EXTENSIONS)
         new_image = save_upload(request.files.get("image_file"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
-        manual_model_path = request.form.get("model_path", "").strip()
-        manual_image_path = request.form.get("image_path", "").strip()
+        model_url = request.form.get("model_url", "").strip()
+        thumbnail_url = request.form.get("thumbnail_url", "").strip()
+        manual_model_path = model_url or request.form.get("model_path", "").strip()
+        manual_image_path = thumbnail_url or request.form.get("image_path", "").strip()
 
         model.update(
             {
@@ -769,7 +912,11 @@ def edit_model(model_id: str):
                 "department": request.form.get("department", "").strip(),
                 "project_id": project_id,
                 "model": new_model or manual_model_path or old_model,
+                "model_url": model_url,
+                "model_path": "" if model_url else (new_model or manual_model_path or model.get("model_path") or old_model),
                 "image": new_image or manual_image_path or old_image,
+                "thumbnail_url": thumbnail_url,
+                "thumbnail_path": "" if thumbnail_url else (new_image or manual_image_path or model.get("thumbnail_path") or old_image),
                 "rotate_x": parse_float("rotate_x", 0),
                 "scale": parse_float("scale", 0.2),
                 "visible": form_visible(),
@@ -783,12 +930,15 @@ def edit_model(model_id: str):
         flash("บันทึกข้อมูลโมเดลแล้ว", "success")
         return redirect(url_for("admin"))
 
-    return render_template("edit_model.html", model=model, projects=projects)
+    return render_template("edit_model.html", model=model_with_project(model, projects), projects=projects)
 
 
 @app.post("/admin/models/<model_id>/delete")
 @admin_required
 def delete_model(model_id: str):
+    if admin_write_blocked_on_vercel():
+        return redirect(url_for("admin"))
+
     models = load_models(include_hidden=True)
     deleted = next((item for item in models if item["id"] == model_id), None)
     if deleted is None:

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-direct-uploads="{{ 'true' if is_supabase else 'false' }}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -95,7 +95,7 @@
             </div>
             <div class="field full">
               <label for="project-cover">ภาพปกโครงการ</label>
-              <input id="project-cover" name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if uploads_disabled else "" }}>
+              <input id="project-cover" name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="project_image" data-upload-target="image_url" {{ "disabled" if uploads_disabled else "" }}>
             </div>
             <div class="field full">
               <label for="project-image-url">External image URL</label>
@@ -135,7 +135,7 @@
             </div>
             <div class="field">
               <label for="model-file">ไฟล์ .glb</label>
-              <input id="model-file" name="model_file" type="file" accept=".glb" {{ "disabled" if uploads_disabled else "" }}>
+              <input id="model-file" name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" {{ "disabled" if uploads_disabled else "" }}>
             </div>
             <div class="field">
               <label for="model-path">หรือระบุ path ไฟล์โมเดล</label>
@@ -147,7 +147,7 @@
             </div>
             <div class="field">
               <label for="image-file">ภาพ Thumbnail</label>
-              <input id="image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if uploads_disabled else "" }}>
+              <input id="image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="thumbnail" data-upload-target="thumbnail_url" {{ "disabled" if uploads_disabled else "" }}>
             </div>
             <div class="field">
               <label for="thumbnail-url">External thumbnail URL</label>
@@ -227,5 +227,6 @@
       });
     });
   </script>
+  <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
 </body>
 </html>

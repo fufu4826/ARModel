@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-direct-uploads="{{ 'true' if is_supabase else 'false' }}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -22,12 +22,13 @@
         <div class="field"><label>ชื่อโครงการ</label><input name="name" value="{{ project.name }}" required></div>
         <div class="field"><label>หน่วยงาน/แผนก</label><input name="department" value="{{ project.department }}"></div>
         <div class="field full"><label>รายละเอียด</label><textarea name="description">{{ project.description }}</textarea></div>
-        <div class="field full"><label>เปลี่ยนภาพปก</label><input name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field full"><label>เปลี่ยนภาพปก</label><input name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="project_image" data-upload-target="image_url" {{ "disabled" if uploads_disabled else "" }}></div>
         <div class="field full"><label>External image URL</label><input name="image_url" type="url" value="{{ project.image_url }}" placeholder="https://example.com/project.jpg" {{ "disabled" if uploads_disabled else "" }}></div>
         <label class="field check"><input name="visible" type="checkbox" {{ "checked" if project.visible else "" }}> เผยแพร่บนหน้าเว็บไซต์</label>
       </div>
       <div class="actions"><button class="btn" type="submit">บันทึก</button><a class="link" href="{{ url_for('admin') }}">ยกเลิก</a></div>
     </form>
   </main>
+  <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
 </body>
 </html>

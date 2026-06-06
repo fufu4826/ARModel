@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-direct-uploads="{{ 'true' if is_supabase else 'false' }}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -24,10 +24,10 @@
         <div class="field"><label>หน่วยงาน/แผนก</label><input name="department" value="{{ model.department }}"></div>
         <div class="field"><label>ขนาด</label><input name="scale" type="number" value="{{ model.scale }}" step="0.01" min="0.001"></div>
         <div class="field full"><label>รายละเอียด</label><textarea name="description">{{ model.description }}</textarea></div>
-        <div class="field"><label>เปลี่ยนไฟล์ .glb</label><input name="model_file" type="file" accept=".glb" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field"><label>เปลี่ยนไฟล์ .glb</label><input name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" {{ "disabled" if uploads_disabled else "" }}></div>
         <div class="field"><label>Path ไฟล์โมเดล</label><input name="model_path" value="{{ model.model_path }}" {{ "disabled" if uploads_disabled else "" }}></div>
         <div class="field full"><label>External .glb model URL</label><input name="model_url" type="url" value="{{ model.model_url }}" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}></div>
-        <div class="field"><label>เปลี่ยน Thumbnail</label><input name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field"><label>เปลี่ยน Thumbnail</label><input name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="thumbnail" data-upload-target="thumbnail_url" {{ "disabled" if uploads_disabled else "" }}></div>
         <div class="field"><label>Path รูปภาพ</label><input name="image_path" value="{{ model.thumbnail_path }}" {{ "disabled" if uploads_disabled else "" }}></div>
         <div class="field full"><label>External thumbnail URL</label><input name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" {{ "disabled" if uploads_disabled else "" }}></div>
         <div class="field"><label>หมุนแกน X</label><input name="rotate_x" type="number" value="{{ model.rotate_x }}" step="0.01"></div>
@@ -36,5 +36,6 @@
       <div class="actions"><button class="btn" type="submit">บันทึก</button><a class="link" href="{{ url_for('admin') }}">ยกเลิก</a></div>
     </form>
   </main>
+  <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
 </body>
 </html>

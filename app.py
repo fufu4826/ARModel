@@ -505,6 +505,19 @@ def supabase_public_url(object_path: str) -> str:
     return f"{supabase_base_url()}/storage/v1/object/public/{quote(supabase_bucket())}/{quote(object_path, safe='/')}"
 
 
+def supabase_signed_upload_url(object_path: str) -> str:
+    response = supabase_request(
+        f"/storage/v1/object/upload/sign/{quote(supabase_bucket())}/{quote(object_path, safe='/')}",
+        method="POST",
+    )
+    upload_url = str((response or {}).get("url") or "").strip()
+    if not upload_url:
+        raise SupabaseError("Supabase did not return a signed upload URL.")
+    if upload_url.startswith("/"):
+        return f"{supabase_base_url()}/storage/v1{upload_url}"
+    return upload_url
+
+
 def upload_to_supabase_storage(file_storage, folder: str) -> tuple[str, float | None]:
     if not file_storage or not file_storage.filename:
         return "", None
@@ -530,6 +543,24 @@ def upload_to_supabase_storage(file_storage, folder: str) -> tuple[str, float | 
         extra_headers={"Cache-Control": "3600", "x-upsert": "false"},
     )
     return supabase_public_url(object_path), round(len(data) / (1024 * 1024), 2)
+
+
+def direct_upload_target(filename: str, kind: str) -> tuple[str, str]:
+    upload_kinds = {
+        "model": ("models", MODEL_EXTENSIONS),
+        "thumbnail": ("thumbnails", IMAGE_EXTENSIONS),
+        "project_image": ("projects", IMAGE_EXTENSIONS),
+    }
+    if kind not in upload_kinds:
+        abort(400, "Unsupported upload kind")
+
+    folder, allowed_extensions = upload_kinds[kind]
+    extension = Path(filename or "").suffix.lower()
+    if extension not in allowed_extensions:
+        abort(400, f"Unsupported file type: {extension or '(none)'}")
+
+    object_path = f"{folder}/{uuid.uuid4().hex}{extension}"
+    return object_path, supabase_public_url(object_path)
 
 
 def create_project(data: dict) -> dict:
@@ -986,6 +1017,36 @@ def admin():
     models = [model_with_project(model, projects) for model in raw_models]
     counts = project_model_counts(projects, models)
     return render_template("admin.html", projects=projects, models=models, model_counts=counts)
+
+
+@app.post("/admin/api/create-upload-url")
+@admin_required
+def create_admin_upload_url():
+    if not is_supabase_enabled():
+        abort(400, "Supabase is not configured.")
+    if admin_write_blocked_on_vercel():
+        abort(403, "Admin uploads are disabled.")
+
+    payload = request.get_json(silent=True) or {}
+    filename = str(payload.get("filename") or "").strip()
+    kind = str(payload.get("kind") or "").strip()
+    if not filename:
+        abort(400, "filename is required")
+
+    object_path, public_url = direct_upload_target(filename, kind)
+    try:
+        upload_url = supabase_signed_upload_url(object_path)
+    except SupabaseError as exc:
+        logger.exception("Unable to create Supabase signed upload URL")
+        abort(502, f"Unable to create upload URL: {exc}")
+
+    return jsonify(
+        {
+            "upload_url": upload_url,
+            "public_url": public_url,
+            "path": object_path,
+        }
+    )
 
 
 @app.route("/admin/login", methods=["GET", "POST"])

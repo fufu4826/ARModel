@@ -70,12 +70,12 @@
 
       viewer.src = modelUrl;
       viewer.poster = card.dataset.thumbnailUrl || "";
-      viewer.alt = card.dataset.name || "3D model";
+      viewer.alt = card.dataset.name || "โมเดลสามมิติ";
 
       if (title) title.textContent = card.dataset.name || "";
-      if (description) description.textContent = card.dataset.description || "3D model for cultural and community learning.";
+      if (description) description.textContent = card.dataset.description || "โมเดลสามมิติสำหรับการเรียนรู้";
       if (projectName) projectName.textContent = card.dataset.project || "";
-      if (size) size.textContent = card.dataset.size || "Unknown";
+      if (size) size.textContent = card.dataset.size || "ไม่ระบุ";
 
       if (thumbnail) {
         if (card.dataset.thumbnailUrl) {

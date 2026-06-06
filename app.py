@@ -509,6 +509,7 @@ def supabase_signed_upload_url(object_path: str) -> str:
     response = supabase_request(
         f"/storage/v1/object/upload/sign/{quote(supabase_bucket())}/{quote(object_path, safe='/')}",
         method="POST",
+        payload={},
     )
     upload_url = str((response or {}).get("url") or "").strip()
     if not upload_url:

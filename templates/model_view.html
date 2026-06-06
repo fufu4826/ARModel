@@ -19,7 +19,10 @@
       </span>
     </a>
     <nav class="nav-actions" aria-label="ลิงก์หลัก">
+      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+      {% if model.has_project %}
       <a href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปโครงการ</a>
+      {% endif %}
       <a href="{{ url_for('index') }}">หน้าแรก</a>
     </nav>
   </header>
@@ -28,7 +31,11 @@
     <nav class="breadcrumb viewer-breadcrumb" aria-label="เส้นทางหน้า">
       <a href="{{ url_for('index') }}">หน้าแรก</a>
       <span aria-hidden="true">/</span>
+      {% if model.has_project %}
       <a href="{{ url_for('project_detail', project_id=model.project_id) }}">{{ model.project_name }}</a>
+      {% else %}
+      <span>{{ model.project_name }}</span>
+      {% endif %}
       <span aria-hidden="true">/</span>
       <span>{{ model.name }}</span>
     </nav>
@@ -91,8 +98,12 @@
       </div>
 
       <div class="action-row">
+        {% if model.has_project %}
         <a class="button secondary" href="{{ url_for('project_detail', project_id=model.project_id) }}">ดูโมเดลในโครงการ</a>
-        <a class="button" href="{{ url_for('index') }}#models">โมเดลทั้งหมด</a>
+        {% else %}
+        <a class="button secondary" href="{{ url_for('models_index') }}">ดูโมเดลทั้งหมด</a>
+        {% endif %}
+        <a class="button" href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
       </div>
     </aside>
 

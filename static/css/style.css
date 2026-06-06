@@ -259,6 +259,11 @@ h3 {
   color: var(--green-dark);
 }
 
+.section-action {
+  justify-content: center;
+  margin-top: 18px;
+}
+
 .hero-media,
 .project-hero-media {
   min-height: 300px;
@@ -340,6 +345,28 @@ h3 {
   background: var(--surface-2);
   font-weight: 800;
   text-align: center;
+}
+
+.models-hero-panel {
+  display: grid;
+  place-items: center;
+  padding: clamp(20px, 4vw, 34px);
+}
+
+.models-hero-panel div {
+  max-width: 420px;
+}
+
+.models-hero-panel strong {
+  display: block;
+  color: var(--green-dark);
+  font-size: clamp(24px, 3vw, 36px);
+  line-height: 1.2;
+}
+
+.models-hero-panel p {
+  margin: 12px 0 0;
+  color: var(--muted);
 }
 
 .card-body {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ project.name }} | ARModel ภูพาน</title>
+  <title>โมเดลทั้งหมด | ARModel ภูพาน</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
@@ -14,11 +14,11 @@
       <span class="brand-symbol">AR</span>
       <span>
         <strong>ARModel ภูพาน</strong>
-        <small>โครงการและโมเดล 3D</small>
+        <small>โมเดล 3D และ AR</small>
       </span>
     </a>
     <nav class="nav-actions" aria-label="ลิงก์หลัก">
-      <a href="{{ url_for('index') }}#projects">โครงการทั้งหมด</a>
+      <a href="{{ url_for('index') }}#projects">โครงการ</a>
       <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
       <a href="{{ url_for('admin_login') }}">ผู้ดูแล</a>
     </nav>
@@ -28,18 +28,18 @@
     <nav class="breadcrumb" aria-label="เส้นทางหน้า">
       <a href="{{ url_for('index') }}">หน้าแรก</a>
       <span aria-hidden="true">/</span>
-      <span>{{ project.name }}</span>
+      <span>โมเดลทั้งหมด</span>
     </nav>
 
-    <section class="project-hero">
+    <section class="project-hero models-hero">
       <div class="project-hero-copy">
-        <p class="eyebrow">{{ project.department or "ศูนย์ศึกษาการพัฒนาภูพาน" }}</p>
-        <h1>{{ project.name }}</h1>
-        <p class="lead">{{ project.description or "รวมโมเดล 3D และ AR สำหรับการเรียนรู้ภายในโครงการนี้" }}</p>
-        <div class="summary-strip" aria-label="สรุปโครงการ">
+        <p class="eyebrow">คลังโมเดล 3D / AR</p>
+        <h1>โมเดลทั้งหมด</h1>
+        <p class="lead">เลือกชมวัตถุและผลิตภัณฑ์ในรูปแบบ 3D และ AR</p>
+        <div class="summary-strip" aria-label="สรุปโมเดล">
           <div>
             <strong>{{ models|length }}</strong>
-            <span>โมเดล 3D</span>
+            <span>โมเดลในระบบ</span>
           </div>
           <div>
             <strong>3D / AR</strong>
@@ -47,13 +47,12 @@
           </div>
         </div>
       </div>
-      <div class="project-hero-media">
-        {% if project.cover_image_url %}
-        <img src="{{ project.cover_image_url }}" alt="ภาพโครงการ {{ project.name }}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
-        <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
-        {% else %}
-        <span class="image-placeholder">ไม่มีรูปภาพ</span>
-        {% endif %}
+      <div class="project-hero-media models-hero-panel">
+        <div>
+          <span class="eyebrow">ARModel</span>
+          <strong>หมุน ซูม และเปิดดูบนมือถือที่รองรับ AR</strong>
+          <p>รายการนี้แสดงทุกโมเดลจากแหล่งข้อมูลปัจจุบัน รวมถึงโมเดลที่ยังไม่ได้จัดอยู่ในโครงการ</p>
+        </div>
       </div>
     </section>
 
@@ -61,9 +60,9 @@
       <div class="section-head">
         <div>
           <p class="eyebrow">รายการโมเดล</p>
-          <h2 id="models-title">โมเดลในโครงการนี้</h2>
+          <h2 id="models-title">เลือกโมเดลที่ต้องการชม</h2>
         </div>
-        <p>เลือกโมเดลเพื่อเปิดดู 3D หรือ AR</p>
+        <p>{{ models|length }} โมเดลพร้อมให้เข้าชม</p>
       </div>
 
       {% if models %}
@@ -72,28 +71,25 @@
         <article class="model-card">
           <a class="card-media square" href="{{ url_for('model_detail', model_id=model.id) }}" aria-label="ดูโมเดล 3D {{ model.name }}">
             {% if model.thumbnail_resolved_url %}
-            <img src="{{ model.thumbnail_resolved_url }}" alt="{{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+            <img src="{{ model.thumbnail_resolved_url }}" alt="ภาพตัวอย่าง {{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
             <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
             {% else %}
             <span class="image-placeholder">ไม่มีรูปภาพ</span>
             {% endif %}
           </a>
           <div class="card-body compact">
-            <span class="badge">{{ model.department or model.project_name }}</span>
+            <span class="badge">{{ model.project_name }}</span>
             <h3><a href="{{ url_for('model_detail', model_id=model.id) }}">{{ model.name }}</a></h3>
             <p>{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้" }}</p>
-            <div class="card-actions">
-              <a class="button small" href="{{ url_for('model_detail', model_id=model.id) }}">ดูโมเดล 3D</a>
-              <a class="button secondary small" href="{{ url_for('model_detail', model_id=model.id, mode='ar') }}">เปิด AR</a>
-            </div>
+            <a class="button small" href="{{ url_for('model_detail', model_id=model.id) }}">ดูโมเดล 3D</a>
           </div>
         </article>
         {% endfor %}
       </div>
       {% else %}
       <div class="empty-state">
-        <h3>ยังไม่มีโมเดลในโครงการนี้</h3>
-        <p>เมื่อเพิ่มโมเดลแล้ว ผู้เข้าชมจะสามารถเปิดดู 3D และ AR ได้จากหน้านี้</p>
+        <h3>ยังไม่มีโมเดลในระบบ</h3>
+        <p>เมื่อเพิ่มโมเดลแล้ว รายการทั้งหมดจะแสดงในหน้านี้</p>
         <a class="button secondary" href="{{ url_for('index') }}">กลับไปหน้าแรก</a>
       </div>
       {% endif %}

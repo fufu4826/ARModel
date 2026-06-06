@@ -23,6 +23,7 @@ MODEL_EXTENSIONS = {".glb"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 VERCEL_UPLOAD_MESSAGE = "File uploads are disabled on Vercel. Use an external URL instead."
 VERCEL_EDIT_MESSAGE = "Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy."
+UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในโครงการ"
 PLACEHOLDER_THUMBNAIL = (
     "data:image/svg+xml;utf8,"
     "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 500'>"
@@ -321,8 +322,9 @@ def model_with_project(model: dict, projects: list[dict]) -> dict:
     project = project_map.get(model.get("project_id"), {})
     enriched = dict(model)
     enriched["project"] = project
-    enriched["project_name"] = project.get("name", "-")
+    enriched["project_name"] = project.get("name") or UNASSIGNED_PROJECT_LABEL
     enriched["project_department"] = project.get("department", "")
+    enriched["has_project"] = bool(project)
     enriched["model_resolved_url"] = resolve_model_url(enriched)
     enriched["thumbnail_resolved_url"] = resolve_thumbnail_url(enriched)
     return enriched
@@ -951,8 +953,16 @@ def index():
         projects=projects,
         model_counts=counts,
         featured_models=featured_models,
-        all_models=all_models,
+        total_model_count=len(all_models),
     )
+
+
+@app.route("/models")
+def models_index():
+    models = get_models(include_hidden=False)
+    projects = [project_with_urls(project, models) for project in get_projects(include_hidden=False)]
+    all_models = [model_with_project(model, projects) for model in models]
+    return render_template("models.html", models=all_models)
 
 
 @app.route("/projects/<project_id>")

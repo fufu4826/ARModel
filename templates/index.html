@@ -88,11 +88,11 @@
       {% endif %}
     </section>
 
-    <section class="content-section" id="models" aria-labelledby="models-title">
+    <section class="content-section" id="models" aria-labelledby="featured-models-title">
       <div class="section-head">
         <div>
           <p class="eyebrow">โมเดลแนะนำ</p>
-          <h2 id="models-title">เริ่มชมโมเดล 3D</h2>
+          <h2 id="featured-models-title">เริ่มชมโมเดล 3D</h2>
         </div>
         <p>กดเข้าโมเดลเพื่อหมุน ดูรายละเอียด หรือเปิด AR บนมือถือ</p>
       </div>
@@ -122,6 +122,44 @@
       <div class="empty-state">
         <h3>ยังไม่มีโมเดลที่เผยแพร่</h3>
         <p>เมื่อมีโมเดลใหม่ ระบบจะแสดงรายการแนะนำที่นี่</p>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="content-section" id="all-models" aria-labelledby="all-models-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">โมเดลทั้งหมด</p>
+          <h2 id="all-models-title">โมเดลทั้งหมด</h2>
+        </div>
+        <p>{{ all_models|length }} โมเดลจากทุกโครงการ</p>
+      </div>
+
+      {% if all_models %}
+      <div class="card-grid model-grid">
+        {% for model in all_models %}
+        <article class="model-card">
+          <a class="card-media square" href="{{ url_for('model_detail', model_id=model.id) }}" aria-label="ดูโมเดล 3D {{ model.name }}">
+            {% if model.thumbnail_resolved_url %}
+            <img src="{{ model.thumbnail_resolved_url }}" alt="{{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+            <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
+            {% else %}
+            <span class="image-placeholder">ไม่มีรูปภาพ</span>
+            {% endif %}
+          </a>
+          <div class="card-body compact">
+            <span class="badge">{{ model.project_name or "ไม่ระบุโครงการ" }}</span>
+            <h3><a href="{{ url_for('model_detail', model_id=model.id) }}">{{ model.name }}</a></h3>
+            <p>{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้" }}</p>
+            <a class="button small" href="{{ url_for('model_detail', model_id=model.id) }}">ดูโมเดล 3D</a>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <h3>ยังไม่มีโมเดลที่เผยแพร่</h3>
+        <p>เมื่อมีโมเดลใหม่ ระบบจะแสดงรายการทั้งหมดที่นี่</p>
       </div>
       {% endif %}
     </section>

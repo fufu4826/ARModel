@@ -944,8 +944,15 @@ def index():
     models = get_models(include_hidden=False)
     projects = [project_with_urls(project, models) for project in get_projects(include_hidden=False)]
     counts = project_model_counts(projects, models)
-    featured_models = [model_with_project(model, projects) for model in models[:6]]
-    return render_template("index.html", projects=projects, model_counts=counts, featured_models=featured_models)
+    all_models = [model_with_project(model, projects) for model in models]
+    featured_models = all_models[:6]
+    return render_template(
+        "index.html",
+        projects=projects,
+        model_counts=counts,
+        featured_models=featured_models,
+        all_models=all_models,
+    )
 
 
 @app.route("/projects/<project_id>")

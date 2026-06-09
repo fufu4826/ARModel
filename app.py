@@ -985,7 +985,9 @@ def index():
         projects=projects,
         model_counts=counts,
         featured_models=featured_models,
+        total_project_count=len(projects),
         total_model_count=len(all_models),
+        uses_online_data=is_supabase_enabled(),
         page_url=public_url_for("index"),
     )
 

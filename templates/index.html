@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ARModel ภูพาน | นิทรรศการโมเดล 3D และ AR</title>
+  <title>PhuPhan AR | นิทรรศการโมเดล 3D และ AR</title>
   {% include "_public_meta.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
@@ -11,40 +11,87 @@
   <a class="skip-link" href="#content">ข้ามไปยังเนื้อหา</a>
 
   <header class="site-nav" aria-label="เมนูหลัก">
-    <a class="brand-mark" href="{{ url_for('index') }}" aria-label="ARModel หน้าแรก">
+    <a class="brand-mark" href="{{ url_for('index') }}" aria-label="PhuPhan AR หน้าแรก">
       <span class="brand-symbol">AR</span>
       <span>
-        <strong>ARModel ภูพาน</strong>
-        <small>ศูนย์ศึกษาการพัฒนาภูพาน</small>
+        <strong>PhuPhan AR</strong>
+        <small>นิทรรศการโมเดล 3D และ AR</small>
       </span>
     </a>
     <nav class="nav-actions" aria-label="ลิงก์หลัก">
       <a href="{{ url_for('index') }}" aria-current="page">หน้าแรก</a>
       <a href="#projects">โครงการ</a>
       <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+      <a href="#ar-guide">วิธีใช้งาน AR</a>
     </nav>
   </header>
 
   <main id="content">
-    <section class="hero-section">
+    <section class="hero-section homepage-hero" aria-labelledby="home-title">
       <div class="hero-copy">
         <p class="eyebrow">นิทรรศการดิจิทัล 3D / AR</p>
-        <h1>เรียนรู้ภูมิปัญญาและผลิตภัณฑ์ชุมชนผ่านโมเดลสามมิติ</h1>
+        <h1 id="home-title">PhuPhan AR</h1>
+        <p class="hero-subtitle">นิทรรศการโมเดล 3D และ AR เพื่อเรียนรู้วัตถุ ผลิตภัณฑ์ และองค์ความรู้ท้องถิ่น</p>
         <p class="lead">
-          สำรวจโครงการของศูนย์ศึกษาการพัฒนาภูพานผ่านโมเดล 3D ที่หมุน ซูม และเปิดดูแบบ AR บนมือถือได้
-          เหมาะสำหรับการเรียนรู้ในห้องเรียน นิทรรศการ และการสาธิตภาคสนาม
+          เลือกชมโมเดล 3D หมุนดูรายละเอียด และเปิด AR บนอุปกรณ์ที่รองรับเพื่อวางโมเดลในพื้นที่จริง
         </p>
         <div class="hero-actions">
-          <a class="button" href="#projects">ดูโครงการทั้งหมด</a>
-          <a class="button secondary" href="{{ url_for('models_index') }}">เริ่มชมโมเดล 3D</a>
+          <a class="button" href="{{ url_for('models_index') }}">เริ่มชมโมเดล 3D</a>
+          <a class="button secondary" href="#projects">ดูโครงการทั้งหมด</a>
         </div>
       </div>
-      <div class="hero-media" aria-label="ตัวอย่างภาพโครงการ">
+      <div class="hero-media" aria-label="ภาพตัวอย่างนิทรรศการ PhuPhan AR">
         {% if projects and projects[0].cover_image_url %}
-        <img src="{{ projects[0].cover_image_url }}" alt="ตัวอย่างภาพจาก {{ projects[0].name }}" />
+        <img src="{{ projects[0].cover_image_url }}" alt="ภาพตัวอย่างจาก {{ projects[0].name }}" />
         {% else %}
-        <div class="image-placeholder">ARModel</div>
+        <div class="image-placeholder">PhuPhan AR</div>
         {% endif %}
+      </div>
+    </section>
+
+    <section class="stats-section" aria-label="ข้อมูลสรุปเว็บไซต์">
+      <div class="stat-card">
+        <strong>{{ total_project_count }}</strong>
+        <span>โครงการ</span>
+      </div>
+      <div class="stat-card">
+        <strong>{{ total_model_count }}</strong>
+        <span>โมเดล</span>
+      </div>
+      <div class="stat-card">
+        <strong>3D/AR</strong>
+        <span>รองรับการชมแบบโต้ตอบ</span>
+      </div>
+      <div class="stat-card">
+        <strong>{{ "ออนไลน์" if uses_online_data else "ท้องถิ่น" }}</strong>
+        <span>{{ "อัปเดตจากระบบออนไลน์" if uses_online_data else "ใช้งานผ่านข้อมูลสำรอง" }}</span>
+      </div>
+    </section>
+
+    <section class="content-section" id="how-it-works" aria-labelledby="how-it-works-title">
+      <div class="section-head centered">
+        <div>
+          <p class="eyebrow">วิธีใช้งาน</p>
+          <h2 id="how-it-works-title">เริ่มเรียนรู้ได้ใน 3 ขั้นตอน</h2>
+        </div>
+        <p>ออกแบบให้เปิดชมได้ง่ายทั้งบนคอมพิวเตอร์ แท็บเล็ต และมือถือ</p>
+      </div>
+      <div class="step-grid">
+        <article class="info-card step-card">
+          <span class="step-number">1</span>
+          <h3>เลือกโครงการหรือโมเดล</h3>
+          <p>เริ่มจากหัวข้อที่สนใจ หรือเปิดหน้ารวมโมเดลเพื่อเลือกวัตถุที่ต้องการสำรวจ</p>
+        </article>
+        <article class="info-card step-card">
+          <span class="step-number">2</span>
+          <h3>หมุน ซูม และสำรวจ</h3>
+          <p>ลากเพื่อหมุนโมเดล บีบนิ้วหรือใช้เมาส์เพื่อซูมดูรายละเอียดในมุมต่าง ๆ</p>
+        </article>
+        <article class="info-card step-card">
+          <span class="step-number">3</span>
+          <h3>กด AR บนอุปกรณ์ที่รองรับ</h3>
+          <p>วางโมเดลในพื้นที่จริงผ่านมือถือหรือแท็บเล็ต เพื่อช่วยให้เข้าใจขนาดและรูปทรงได้ชัดขึ้น</p>
+        </article>
       </div>
     </section>
 
@@ -54,7 +101,7 @@
           <p class="eyebrow">โครงการ</p>
           <h2 id="projects-title">เลือกหัวข้อการเรียนรู้</h2>
         </div>
-        <p>{{ projects|length }} โครงการพร้อมให้เข้าชม</p>
+        <p>{{ total_project_count }} โครงการพร้อมให้เข้าชม</p>
       </div>
 
       {% if projects %}
@@ -76,7 +123,7 @@
             </div>
             <h3><a href="{{ url_for('project_detail', project_id=project.id) }}">{{ project.name }}</a></h3>
             <p>{{ project.description or "รวมโมเดล 3D และ AR สำหรับการเรียนรู้ภายในโครงการนี้" }}</p>
-            <a class="text-link" href="{{ url_for('project_detail', project_id=project.id) }}">ดูรายละเอียดโครงการ</a>
+            <a class="button small" href="{{ url_for('project_detail', project_id=project.id) }}">ดูโครงการ</a>
           </div>
         </article>
         {% endfor %}
@@ -89,13 +136,13 @@
       {% endif %}
     </section>
 
-    <section class="content-section" id="models" aria-labelledby="featured-models-title">
+    <section class="content-section" id="featured-models" aria-labelledby="featured-models-title">
       <div class="section-head">
         <div>
           <p class="eyebrow">โมเดลแนะนำ</p>
           <h2 id="featured-models-title">เริ่มชมโมเดล 3D</h2>
         </div>
-        <p>{{ total_model_count }} โมเดลในระบบ</p>
+        <p>แสดงตัวอย่างสูงสุด 6 รายการจากทั้งหมด {{ total_model_count }} โมเดล</p>
       </div>
 
       {% if featured_models %}
@@ -105,7 +152,7 @@
           {% set card_thumbnail_url = model.thumbnail_url or model.thumbnail_resolved_url %}
           <a class="card-media square" href="{{ url_for('model_detail', model_id=model.id) }}" aria-label="ดูโมเดล 3D {{ model.name }}">
             {% if card_thumbnail_url %}
-            <img src="{{ card_thumbnail_url }}" alt="{{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+            <img src="{{ card_thumbnail_url }}" alt="ภาพตัวอย่าง {{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
             <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
             {% else %}
             <span class="image-placeholder">ไม่มีรูปภาพ</span>
@@ -138,10 +185,57 @@
       </div>
       {% endif %}
     </section>
+
+    <section class="content-section split-section" id="ar-guide" aria-labelledby="ar-guide-title">
+      <div class="info-panel">
+        <p class="eyebrow">AR Guide</p>
+        <h2 id="ar-guide-title">ดูโมเดลด้วย AR ได้อย่างไร</h2>
+        <p>
+          ใช้มือถือหรือแท็บเล็ตที่รองรับ AR เปิดหน้าโมเดล แล้วกดปุ่ม AR หรือ View in your space
+          จากนั้นขยับกล้องเพื่อวางโมเดลในพื้นที่จริง
+        </p>
+        <p class="note-text">หากอุปกรณ์ไม่รองรับ AR ยังสามารถดูโมเดลแบบ 3D บนหน้าเว็บได้</p>
+      </div>
+      <div class="ar-guide-list" aria-label="ขั้นตอนการใช้งาน AR">
+        <div>
+          <strong>1</strong>
+          <span>เปิดหน้าโมเดล</span>
+        </div>
+        <div>
+          <strong>2</strong>
+          <span>กดปุ่ม AR</span>
+        </div>
+        <div>
+          <strong>3</strong>
+          <span>ขยับกล้องเพื่อวางโมเดล</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-section about-section" aria-labelledby="about-title">
+      <div class="info-card">
+        <p class="eyebrow">เกี่ยวกับเว็บไซต์</p>
+        <h2 id="about-title">พื้นที่เรียนรู้วัตถุและองค์ความรู้ผ่านภาพสามมิติ</h2>
+        <p>
+          PhuPhan AR เป็นพื้นที่รวบรวมโมเดล 3D ของวัตถุ ผลิตภัณฑ์ และองค์ความรู้
+          เพื่อให้ผู้ใช้สามารถเรียนรู้ผ่านภาพสามมิติและเทคโนโลยี AR ได้จากทุกที่
+        </p>
+      </div>
+    </section>
   </main>
-  <footer class="site-footer">
-    <span>ARModel ภูพาน</span>
-    <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
+
+  <footer class="site-footer site-footer-rich">
+    <div>
+      <strong>PhuPhan AR</strong>
+      <p>นิทรรศการโมเดล 3D และ AR สำหรับการเรียนรู้วัตถุ ผลิตภัณฑ์ และองค์ความรู้ท้องถิ่น</p>
+      <span>phuphan-ar.vercel.app</span>
+    </div>
+    <nav aria-label="ลิงก์ท้ายเว็บไซต์">
+      <a href="{{ url_for('index') }}">หน้าแรก</a>
+      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+      <a href="#projects">โครงการ</a>
+      <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
+    </nav>
   </footer>
 </body>
 </html>

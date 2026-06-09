@@ -20,7 +20,6 @@
     <nav class="nav-actions" aria-label="ลิงก์หลัก">
       <a href="{{ url_for('index') }}#projects">โครงการทั้งหมด</a>
       <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
-      <a href="{{ url_for('admin_login') }}">ผู้ดูแล</a>
     </nav>
   </header>
 
@@ -99,5 +98,9 @@
       {% endif %}
     </section>
   </main>
+  <footer class="site-footer">
+    <span>ARModel ภูพาน</span>
+    <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
+  </footer>
 </body>
 </html>

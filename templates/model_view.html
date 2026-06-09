@@ -59,14 +59,29 @@
           <button class="ar-button" slot="ar-button" type="button" aria-label="เปิด {{ model_name }} ในโหมด AR">เปิด AR</button>
         </model-viewer>
         <div class="viewer-state is-visible" id="modelLoadingState" role="status" aria-live="polite">กำลังโหลดโมเดล 3D...</div>
-        <div class="viewer-state viewer-error" id="modelErrorState" role="alert" hidden>ไม่สามารถโหลดโมเดลนี้ได้ กรุณาลองใหม่อีกครั้ง</div>
+        <div class="viewer-state viewer-error" id="modelErrorState" role="alert" hidden>
+          <strong>ไม่สามารถโหลดโมเดลนี้ได้</strong>
+          <span>ไฟล์อาจมีขนาดใหญ่หรือเบราว์เซอร์ยังไม่พร้อมสำหรับการแสดงผล 3D ลองรีเฟรชหน้า หรือเลือกเส้นทางอื่นด้านล่าง</span>
+          <div class="viewer-recovery">
+            <a class="button small" href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+            {% if model.has_project %}
+            <a class="button secondary small" href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปโครงการ</a>
+            {% endif %}
+            {% if related_models %}
+            <a class="button secondary small" href="{{ url_for('model_detail', model_id=related_models[0].id) }}">เปิดโมเดลใกล้เคียง</a>
+            {% endif %}
+          </div>
+        </div>
       </div>
 
-      <div class="viewer-help" aria-label="วิธีใช้งานโมเดล">
-        <div><strong>ลากเพื่อหมุน</strong><span>หมุนดูรอบโมเดลด้วยเมาส์หรือนิ้ว</span></div>
-        <div><strong>บีบนิ้วเพื่อซูม</strong><span>ขยายรายละเอียดบนมือถือหรือแทร็กแพด</span></div>
-        <div><strong>กด AR</strong><span>ดูโมเดลในพื้นที่จริงบนมือถือที่รองรับ</span></div>
-      </div>
+      <section class="viewer-help" aria-labelledby="viewer-help-title">
+        <h2 id="viewer-help-title">วิธีใช้งานโมเดล</h2>
+        <ul>
+          <li><strong>ลากเพื่อหมุน</strong><span>หมุนดูรอบโมเดลด้วยเมาส์หรือนิ้ว</span></li>
+          <li><strong>บีบนิ้วเพื่อซูม</strong><span>ขยายรายละเอียดบนมือถือหรือแทร็กแพด</span></li>
+          <li><strong>กด AR</strong><span>ดูโมเดลในพื้นที่จริงบนมือถือที่รองรับ</span></li>
+        </ul>
+      </section>
     </section>
 
     <aside class="info-panel" aria-labelledby="modelTitle">
@@ -75,7 +90,10 @@
       <p class="lead" id="modelDescription">{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้ภูมิปัญญา ผลิตภัณฑ์ และงานพัฒนาพื้นที่" }}</p>
 
       {% if thumbnail_url %}
-      <img class="detail-thumb" id="modelThumbnail" src="{{ thumbnail_url }}" alt="ภาพตัวอย่าง {{ model.name }}" loading="lazy" onerror="this.hidden=true;" />
+      <div class="detail-thumb-wrap">
+        <img class="detail-thumb" id="modelThumbnail" src="{{ thumbnail_url }}" alt="ภาพตัวอย่าง {{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+        <span class="image-placeholder detail-thumb-placeholder" hidden>ไม่มีรูปภาพตัวอย่าง</span>
+      </div>
       {% endif %}
 
       <dl class="meta-list">
@@ -117,14 +135,7 @@
       </div>
       <div class="related-grid">
         {% for item in related_models %}
-        <a class="related-card model-switch"
-           href="{{ url_for('model_detail', model_id=item.id) }}"
-           data-name="{{ item.name }}"
-           data-description="{{ item.description }}"
-           data-project="{{ item.project_name }}"
-           data-model-url="{{ item.model_url }}"
-           data-thumbnail-url="{{ item.thumbnail_url }}"
-           data-size="{{ '%.2f MB'|format(item.size_mb) if item.size_mb is not none else 'ไม่ระบุ' }}">
+        <a class="related-card" href="{{ url_for('model_detail', model_id=item.id) }}">
           <span class="related-thumb">
             {% if item.thumbnail_url %}
             <img src="{{ item.thumbnail_url }}" alt="{{ item.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
@@ -153,5 +164,9 @@
     });
   </script>
   {% endif %}
+  <footer class="site-footer viewer-footer">
+    <span>ARModel ภูพาน</span>
+    <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
+  </footer>
 </body>
 </html>

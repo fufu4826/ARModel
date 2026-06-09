@@ -4,12 +4,26 @@
 
   const loadingState = document.getElementById("modelLoadingState");
   const errorState = document.getElementById("modelErrorState");
-  const title = document.getElementById("modelTitle");
-  const description = document.getElementById("modelDescription");
-  const projectName = document.getElementById("modelProjectName");
-  const thumbnail = document.getElementById("modelThumbnail");
-  const size = document.getElementById("modelSize");
   const arButton = viewer.querySelector(".ar-button");
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let loadTimeout = window.setTimeout(showError, 30000);
+
+  if (prefersReducedMotion) {
+    viewer.removeAttribute("auto-rotate");
+  }
+
+  if (!window.customElements) {
+    showError();
+  } else if (!window.customElements.get("model-viewer")) {
+    window.customElements.whenDefined("model-viewer").catch(showError);
+  }
+
+  function clearLoadTimeout() {
+    if (loadTimeout) {
+      window.clearTimeout(loadTimeout);
+      loadTimeout = null;
+    }
+  }
 
   function showLoading() {
     viewer.setAttribute("aria-busy", "true");
@@ -24,6 +38,7 @@
   }
 
   function hideLoading() {
+    clearLoadTimeout();
     viewer.setAttribute("aria-busy", "false");
     if (loadingState) {
       loadingState.hidden = true;
@@ -31,7 +46,15 @@
     }
   }
 
+  function hideError() {
+    if (errorState) {
+      errorState.hidden = true;
+      errorState.classList.remove("is-visible");
+    }
+  }
+
   function showError() {
+    clearLoadTimeout();
     hideLoading();
     console.warn("Unable to load 3D model:", viewer.src);
     if (errorState) {
@@ -47,10 +70,14 @@
 
   viewer.addEventListener("load", () => {
     hideLoading();
+    hideError();
     setTimeout(updateArButtonAvailability, 250);
   });
   viewer.addEventListener("error", showError);
-  viewer.addEventListener("model-visibility", hideLoading);
+  viewer.addEventListener("model-visibility", () => {
+    hideLoading();
+    hideError();
+  });
   viewer.addEventListener("ar-status", (event) => {
     if (!arButton) return;
     if (event.detail && event.detail.status === "failed") {
@@ -58,36 +85,5 @@
       return;
     }
     updateArButtonAvailability();
-  });
-
-  document.querySelectorAll(".model-switch").forEach((card) => {
-    card.addEventListener("click", (event) => {
-      const modelUrl = card.dataset.modelUrl;
-      if (!modelUrl) return;
-
-      event.preventDefault();
-      showLoading();
-
-      viewer.src = modelUrl;
-      viewer.poster = card.dataset.thumbnailUrl || "";
-      viewer.alt = card.dataset.name || "โมเดลสามมิติ";
-
-      if (title) title.textContent = card.dataset.name || "";
-      if (description) description.textContent = card.dataset.description || "โมเดลสามมิติสำหรับการเรียนรู้";
-      if (projectName) projectName.textContent = card.dataset.project || "";
-      if (size) size.textContent = card.dataset.size || "ไม่ระบุ";
-
-      if (thumbnail) {
-        if (card.dataset.thumbnailUrl) {
-          thumbnail.src = card.dataset.thumbnailUrl;
-          thumbnail.alt = card.dataset.name || "";
-          thumbnail.hidden = false;
-        } else {
-          thumbnail.hidden = true;
-        }
-      }
-
-      window.history.pushState({}, "", card.href);
-    });
   });
 })();

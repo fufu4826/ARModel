@@ -42,6 +42,8 @@ a {
 
 a:focus-visible,
 button:focus-visible,
+input:focus-visible,
+select:focus-visible,
 model-viewer:focus-visible {
   outline: 3px solid rgba(197, 150, 44, 0.65);
   outline-offset: 3px;
@@ -134,6 +136,32 @@ model-viewer:focus-visible {
 
 .nav-actions a:hover {
   background: var(--green-soft);
+}
+
+.site-footer {
+  width: min(1180px, calc(100% - 32px));
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px auto 0;
+  padding: 20px 0 30px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.site-footer a {
+  color: var(--muted);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--green-dark);
+}
+
+.viewer-footer {
+  width: min(1280px, calc(100% - 32px));
 }
 
 main {
@@ -370,7 +398,6 @@ h3 {
 }
 
 .card-body {
-  min-height: 230px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -378,7 +405,7 @@ h3 {
 }
 
 .card-body.compact {
-  min-height: 210px;
+  min-height: 100%;
 }
 
 .card-body h3 a {
@@ -394,6 +421,17 @@ h3 {
   margin: 0;
   color: var(--muted);
   flex: 1;
+}
+
+.card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: auto;
+}
+
+.card-actions .button {
+  width: 100%;
 }
 
 .meta-row {
@@ -485,6 +523,51 @@ h3 {
   color: var(--muted);
 }
 
+.model-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.search-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.search-field input,
+.search-field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+}
+
+.filter-status {
+  min-height: 24px;
+  margin: -4px 0 10px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.filter-empty[hidden],
+[data-model-card][hidden] {
+  display: none;
+}
+
 body.viewer-page main.viewer-shell {
   width: min(1280px, calc(100% - 32px));
 }
@@ -512,7 +595,7 @@ body.viewer-page main.viewer-shell {
 
 model-viewer {
   width: 100%;
-  height: min(68vh, 660px);
+  height: min(64svh, 620px);
   min-height: 430px;
   display: block;
   background: var(--surface-2);
@@ -553,16 +636,42 @@ model-viewer {
   color: var(--danger);
   border-color: #efc3c3;
   background: #fff3f3;
+  display: grid;
+  gap: 8px;
+  max-width: min(620px, calc(100% - 32px));
+  font-weight: 800;
+}
+
+.viewer-error strong,
+.viewer-error span {
+  display: block;
+}
+
+.viewer-recovery {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .viewer-help {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
   margin-top: 12px;
 }
 
-.viewer-help div {
+.viewer-help h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.viewer-help ul {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.viewer-help li {
   padding: 13px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -592,11 +701,25 @@ model-viewer {
 }
 
 .detail-thumb {
+  margin: 0;
+}
+
+.detail-thumb-wrap {
   aspect-ratio: 16 / 10;
+  display: grid;
   margin: 16px 0;
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  overflow: hidden;
   background: var(--surface-2);
+}
+
+.detail-thumb-wrap > * {
+  grid-area: 1 / 1;
+}
+
+.detail-thumb-placeholder {
+  min-height: 100%;
 }
 
 .meta-list {
@@ -683,7 +806,7 @@ model-viewer {
     grid-template-columns: 1fr;
   }
 
-  .viewer-help {
+  .viewer-help ul {
     grid-template-columns: 1fr;
   }
 
@@ -705,9 +828,13 @@ model-viewer {
 
   .nav-actions a,
   .hero-actions .button,
-  .card-actions .button,
   .action-row .button {
     width: 100%;
+  }
+
+  .model-tools,
+  .card-actions {
+    grid-template-columns: 1fr;
   }
 
   main,
@@ -731,8 +858,18 @@ model-viewer {
   }
 
   model-viewer {
-    min-height: 390px;
-    height: 58vh;
+    min-height: 320px;
+    height: 52svh;
+  }
+
+  .viewer-state {
+    position: static;
+    max-width: none;
+    margin: 10px;
+  }
+
+  .viewer-recovery .button {
+    width: 100%;
   }
 }
 
@@ -757,6 +894,20 @@ model-viewer {
   }
 
   model-viewer {
-    min-height: 360px;
+    min-height: 300px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

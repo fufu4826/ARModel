@@ -327,6 +327,7 @@ def model_with_project(model: dict, projects: list[dict]) -> dict:
     enriched["has_project"] = bool(project)
     enriched["model_resolved_url"] = resolve_model_url(enriched)
     enriched["thumbnail_resolved_url"] = resolve_thumbnail_url(enriched)
+    enriched["size_mb"] = model_size_mb(enriched)
     return enriched
 
 
@@ -962,7 +963,15 @@ def models_index():
     models = get_models(include_hidden=False)
     projects = [project_with_urls(project, models) for project in get_projects(include_hidden=False)]
     all_models = [model_with_project(model, projects) for model in models]
-    return render_template("models.html", models=all_models)
+    project_filters = []
+    seen_projects = set()
+    for model in all_models:
+        project_name = model.get("project_name") or UNASSIGNED_PROJECT_LABEL
+        if project_name in seen_projects:
+            continue
+        seen_projects.add(project_name)
+        project_filters.append(project_name)
+    return render_template("models.html", models=all_models, project_filters=project_filters)
 
 
 @app.route("/projects/<project_id>")

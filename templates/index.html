@@ -18,6 +18,7 @@
       </span>
     </a>
     <nav class="nav-actions" aria-label="ลิงก์หลัก">
+      <a href="{{ url_for('index') }}" aria-current="page">หน้าแรก</a>
       <a href="#projects">โครงการ</a>
       <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
     </nav>
@@ -109,7 +110,12 @@
             {% endif %}
           </a>
           <div class="card-body compact">
-            <span class="badge">{{ model.project_name }}</span>
+            <div class="meta-row">
+              <span class="badge">{{ model.project_name }}</span>
+              {% if model.size_mb is not none %}
+              <span class="count-pill">{{ "%.2f MB"|format(model.size_mb) }}</span>
+              {% endif %}
+            </div>
             <h3><a href="{{ url_for('model_detail', model_id=model.id) }}">{{ model.name }}</a></h3>
             <p>{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้" }}</p>
             <div class="card-actions">

@@ -18,8 +18,10 @@
       </span>
     </a>
     <nav class="nav-actions" aria-label="ลิงก์หลัก">
+      <a href="{{ url_for('index') }}">หน้าแรก</a>
       <a href="{{ url_for('index') }}#projects">โครงการ</a>
-      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+      <a href="{{ url_for('models_index') }}" aria-current="page">โมเดลทั้งหมด</a>
+      <a href="{{ url_for('admin_login') }}">ผู้ดูแล</a>
     </nav>
   </header>
 
@@ -42,14 +44,14 @@
           </div>
           <div>
             <strong>3D / AR</strong>
-            <span>รูปแบบการเข้าชม</span>
+            <span>หมุน ซูม และเปิด AR</span>
           </div>
         </div>
       </div>
       <div class="project-hero-media models-hero-panel">
         <div>
           <span class="eyebrow">ARModel</span>
-          <strong>หมุน ซูม และเปิดดูบนมือถือที่รองรับ AR</strong>
+          <strong>ค้นหา เลือกโครงการ แล้วเปิดชมโมเดลที่ต้องการ</strong>
           <p>รายการนี้แสดงทุกโมเดลจากแหล่งข้อมูลปัจจุบัน รวมถึงโมเดลที่ยังไม่ได้จัดอยู่ในโครงการ</p>
         </div>
       </div>
@@ -61,33 +63,31 @@
           <p class="eyebrow">รายการโมเดล</p>
           <h2 id="models-title">เลือกโมเดลที่ต้องการชม</h2>
         </div>
-        <p>{{ models|length }} โมเดลพร้อมให้เข้าชม</p>
+        <p id="modelResultCount" aria-live="polite">แสดง {{ models|length }} จาก {{ models|length }} โมเดล</p>
       </div>
 
       {% if models %}
-      <div class="model-tools" aria-label="ค้นหาและกรองโมเดล">
-        <label class="search-field" for="modelSearch">
-          <span>ค้นหาโมเดล</span>
-          <input id="modelSearch" type="search" placeholder="ค้นหาชื่อโมเดลหรือโครงการ" autocomplete="off" data-model-search>
-        </label>
-        <label class="search-field" for="projectFilter">
-          <span>กรองตามโครงการ</span>
-          <select id="projectFilter" data-project-filter>
-            <option value="">ทุกโครงการ</option>
-            {% set seen_projects = [] %}
-            {% for model in models %}
-              {% if model.project_id not in seen_projects %}
-                {% set _ = seen_projects.append(model.project_id) %}
-                <option value="{{ model.project_id }}">{{ model.project_name }}</option>
-              {% endif %}
+      <form class="filter-panel" role="search" aria-label="ค้นหาและกรองโมเดล">
+        <div class="field-group">
+          <label for="modelSearch">ค้นหาโมเดล</label>
+          <input id="modelSearch" type="search" autocomplete="off" placeholder="ค้นหาชื่อหรือคำอธิบาย" />
+        </div>
+        <div class="field-group">
+          <label for="projectFilter">โครงการ</label>
+          <select id="projectFilter">
+            <option value="">ทั้งหมด</option>
+            {% for project_name in project_filters %}
+            <option value="{{ project_name }}">{{ project_name }}</option>
             {% endfor %}
           </select>
-        </label>
-      </div>
-      <p class="filter-status" data-filter-status aria-live="polite"></p>
-      <div class="card-grid model-grid" data-model-grid>
+        </div>
+      </form>
+
+      <div class="card-grid model-grid" id="modelsGrid" data-total-models="{{ models|length }}">
         {% for model in models %}
-        <article class="model-card" data-model-card data-project-id="{{ model.project_id }}" data-search-text="{{ model.name }} {{ model.project_name }} {{ model.description }}">
+        <article class="model-card searchable-card"
+                 data-project="{{ model.project_name }}"
+                 data-search-text="{{ (model.name ~ ' ' ~ (model.description or '') ~ ' ' ~ model.project_name)|lower }}">
           <a class="card-media square" href="{{ url_for('model_detail', model_id=model.id) }}" aria-label="ดูโมเดล 3D {{ model.name }}">
             {% if model.thumbnail_resolved_url %}
             <img src="{{ model.thumbnail_resolved_url }}" alt="ภาพตัวอย่าง {{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
@@ -97,7 +97,12 @@
             {% endif %}
           </a>
           <div class="card-body compact">
-            <span class="badge">{{ model.project_name }}</span>
+            <div class="meta-row">
+              <span class="badge">{{ model.project_name }}</span>
+              {% if model.size_mb is not none %}
+              <span class="count-pill">{{ "%.2f MB"|format(model.size_mb) }}</span>
+              {% endif %}
+            </div>
             <h3><a href="{{ url_for('model_detail', model_id=model.id) }}">{{ model.name }}</a></h3>
             <p>{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้" }}</p>
             <div class="card-actions">
@@ -108,10 +113,10 @@
         </article>
         {% endfor %}
       </div>
-      <div class="empty-state filter-empty" data-filter-empty hidden>
+
+      <div class="empty-state" id="modelsNoResults" hidden>
         <h3>ไม่พบโมเดลที่ตรงกับการค้นหา</h3>
-        <p>ลองล้างคำค้นหรือเลือกทุกโครงการเพื่อดูรายการทั้งหมด</p>
-        <button class="button secondary" type="button" data-filter-reset>ล้างตัวกรอง</button>
+        <p>ลองลบคำค้นหา หรือเลือกโครงการเป็น “ทั้งหมด”</p>
       </div>
       {% else %}
       <div class="empty-state">
@@ -122,50 +127,11 @@
       {% endif %}
     </section>
   </main>
+
   <footer class="site-footer">
     <span>ARModel ภูพาน</span>
     <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
   </footer>
-  <script>
-    (function () {
-      const search = document.querySelector("[data-model-search]");
-      const projectFilter = document.querySelector("[data-project-filter]");
-      const cards = Array.from(document.querySelectorAll("[data-model-card]"));
-      const empty = document.querySelector("[data-filter-empty]");
-      const status = document.querySelector("[data-filter-status]");
-      const reset = document.querySelector("[data-filter-reset]");
-      if (!search || !projectFilter || !cards.length) return;
-
-      function updateList() {
-        const query = search.value.trim().toLowerCase();
-        const project = projectFilter.value;
-        let visibleCount = 0;
-
-        cards.forEach((card) => {
-          const matchesText = !query || (card.dataset.searchText || "").toLowerCase().includes(query);
-          const matchesProject = !project || card.dataset.projectId === project;
-          const visible = matchesText && matchesProject;
-          card.hidden = !visible;
-          if (visible) visibleCount += 1;
-        });
-
-        if (empty) empty.hidden = visibleCount !== 0;
-        if (status) {
-          status.textContent = visibleCount === cards.length ? "" : `แสดง ${visibleCount} จาก ${cards.length} โมเดล`;
-        }
-      }
-
-      search.addEventListener("input", updateList);
-      projectFilter.addEventListener("change", updateList);
-      if (reset) {
-        reset.addEventListener("click", () => {
-          search.value = "";
-          projectFilter.value = "";
-          updateList();
-          search.focus();
-        });
-      }
-    })();
-  </script>
+  <script src="{{ url_for('static', filename='js/models-filter.js') }}" defer></script>
 </body>
 </html>

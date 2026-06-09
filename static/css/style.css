@@ -134,8 +134,10 @@ model-viewer:focus-visible {
   text-decoration: none;
 }
 
-.nav-actions a:hover {
+.nav-actions a:hover,
+.nav-actions a[aria-current="page"] {
   background: var(--green-soft);
+  color: var(--green-dark);
 }
 
 .site-footer {
@@ -347,6 +349,16 @@ h3 {
 .model-card {
   min-width: 0;
   overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.project-card:hover,
+.model-card:hover,
+.project-card:focus-within,
+.model-card:focus-within {
+  border-color: rgba(31, 107, 69, 0.35);
+  box-shadow: 0 18px 38px rgba(35, 55, 42, 0.14);
+  transform: translateY(-2px);
 }
 
 .card-media {
@@ -361,6 +373,11 @@ h3 {
 
 .card-media.square {
   aspect-ratio: 1 / 1;
+}
+
+.card-media:focus-visible {
+  outline: 3px solid rgba(197, 150, 44, 0.65);
+  outline-offset: -3px;
 }
 
 .image-placeholder {
@@ -395,6 +412,48 @@ h3 {
 .models-hero-panel p {
   margin: 12px 0 0;
   color: var(--muted);
+}
+
+.filter-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.6fr);
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.field-group {
+  display: grid;
+  gap: 6px;
+}
+
+.field-group label {
+  color: var(--green-dark);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.field-group input,
+.field-group select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+}
+
+.field-group input:focus-visible,
+.field-group select:focus-visible {
+  outline: 3px solid rgba(197, 150, 44, 0.65);
+  outline-offset: 2px;
+  border-color: var(--green);
 }
 
 .card-body {
@@ -588,6 +647,21 @@ body.viewer-page main.viewer-shell {
   min-width: 0;
 }
 
+.viewer-intro {
+  margin-bottom: 12px;
+}
+
+.viewer-intro h1 {
+  margin-bottom: 8px;
+  font-size: clamp(26px, 4vw, 42px);
+}
+
+.viewer-intro p:not(.eyebrow) {
+  max-width: 780px;
+  margin: 0;
+  color: var(--muted);
+}
+
 .viewer-card {
   position: relative;
   overflow: hidden;
@@ -651,6 +725,13 @@ model-viewer {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.viewer-error a {
+  display: inline-flex;
+  margin-left: 6px;
+  color: var(--green-dark);
+  font-weight: 900;
 }
 
 .viewer-help {
@@ -853,7 +934,8 @@ model-viewer {
   }
 
   .summary-strip,
-  .action-row {
+  .action-row,
+  .filter-panel {
     grid-template-columns: 1fr;
   }
 

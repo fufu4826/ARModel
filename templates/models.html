@@ -89,9 +89,10 @@
         <article class="model-card searchable-card"
                  data-project="{{ model.project_name }}"
                  data-search-text="{{ (model.name ~ ' ' ~ (model.description or '') ~ ' ' ~ model.project_name)|lower }}">
+          {% set card_thumbnail_url = model.thumbnail_url or model.thumbnail_resolved_url %}
           <a class="card-media square" href="{{ url_for('model_detail', model_id=model.id) }}" aria-label="ดูโมเดล 3D {{ model.name }}">
-            {% if model.thumbnail_resolved_url %}
-            <img src="{{ model.thumbnail_resolved_url }}" alt="ภาพตัวอย่าง {{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+            {% if card_thumbnail_url %}
+            <img src="{{ card_thumbnail_url }}" alt="ภาพตัวอย่าง {{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
             <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
             {% else %}
             <span class="image-placeholder">ไม่มีรูปภาพ</span>

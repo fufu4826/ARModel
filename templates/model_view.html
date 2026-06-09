@@ -12,7 +12,7 @@
   <a class="skip-link" href="#viewer">ข้ามไปยังโมเดล</a>
 
   <header class="site-nav" aria-label="เมนูหลัก">
-    <a class="brand-mark" href="{{ url_for('index') }}" aria-label="ARModel หน้าแรก">
+    <a class="brand-mark" href="{{ url_for('home') }}" aria-label="ARModel หน้าแรก">
       <span class="brand-symbol">AR</span>
       <span>
         <strong>ARModel ภูพาน</strong>
@@ -20,7 +20,7 @@
       </span>
     </a>
     <nav class="nav-actions" aria-label="ลิงก์หลัก">
-      <a href="{{ url_for('index') }}">หน้าแรก</a>
+      <a href="{{ url_for('home') }}">หน้าแรก</a>
       <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
       {% if model.has_project %}
       <a href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปโครงการ</a>
@@ -30,7 +30,7 @@
 
   <main class="viewer-shell">
     <nav class="breadcrumb viewer-breadcrumb" aria-label="เส้นทางหน้า">
-      <a href="{{ url_for('index') }}">หน้าแรก</a>
+      <a href="{{ url_for('home') }}">หน้าแรก</a>
       <span aria-hidden="true">/</span>
       {% if model.has_project %}
       <a href="{{ url_for('project_detail', project_id=model.project_id) }}">{{ model.project_name }}</a>

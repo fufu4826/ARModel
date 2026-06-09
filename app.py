@@ -975,6 +975,20 @@ def parse_float(name: str, default: float) -> float:
 
 @app.route("/")
 def index():
+    landing_image_path = "pic/landing-cover.jpg"
+    if not (STATIC_DIR / landing_image_path).exists():
+        landing_image_path = DEFAULT_META_IMAGE_PATH
+    return render_template(
+        "landing.html",
+        landing_image_url=url_for("static", filename=landing_image_path),
+        page_title="PhuPhan AR | นิทรรศการโมเดล 3D และ AR",
+        page_description="สำรวจวัตถุ ผลิตภัณฑ์ และองค์ความรู้ท้องถิ่นผ่านโมเดล 3D และ AR",
+        page_url=public_url_for("index"),
+    )
+
+
+@app.route("/home")
+def home():
     models = get_models(include_hidden=False)
     projects = [project_with_urls(project, models) for project in get_projects(include_hidden=False)]
     counts = project_model_counts(projects, models)
@@ -988,7 +1002,7 @@ def index():
         total_project_count=len(projects),
         total_model_count=len(all_models),
         uses_online_data=is_supabase_enabled(),
-        page_url=public_url_for("index"),
+        page_url=public_url_for("home"),
     )
 
 
@@ -1157,7 +1171,7 @@ def admin_login():
 def admin_logout():
     session.pop("admin", None)
     flash("ออกจากระบบผู้ดูแลแล้ว", "success")
-    return redirect(url_for("index"))
+    return redirect(url_for("home"))
 
 
 @app.post("/admin/projects")

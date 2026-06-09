@@ -11,7 +11,7 @@
   <a class="skip-link" href="#content">ข้ามไปยังเนื้อหา</a>
 
   <header class="site-nav" aria-label="เมนูหลัก">
-    <a class="brand-mark" href="{{ url_for('index') }}" aria-label="PhuPhan AR หน้าแรก">
+    <a class="brand-mark" href="{{ url_for('home') }}" aria-label="PhuPhan AR หน้าแรก">
       <span class="brand-symbol">AR</span>
       <span>
         <strong>PhuPhan AR</strong>
@@ -19,7 +19,7 @@
       </span>
     </a>
     <nav class="nav-actions" aria-label="ลิงก์หลัก">
-      <a href="{{ url_for('index') }}" aria-current="page">หน้าแรก</a>
+      <a href="{{ url_for('home') }}" aria-current="page">หน้าแรก</a>
       <a href="#projects">โครงการ</a>
       <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
       <a href="#ar-guide">วิธีใช้งาน AR</a>
@@ -231,7 +231,7 @@
       <span>phuphan-ar.vercel.app</span>
     </div>
     <nav aria-label="ลิงก์ท้ายเว็บไซต์">
-      <a href="{{ url_for('index') }}">หน้าแรก</a>
+      <a href="{{ url_for('home') }}">หน้าแรก</a>
       <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
       <a href="#projects">โครงการ</a>
       <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>

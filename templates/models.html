@@ -11,7 +11,7 @@
   <a class="skip-link" href="#content">ข้ามไปยังเนื้อหา</a>
 
   <header class="site-nav" aria-label="เมนูหลัก">
-    <a class="brand-mark" href="{{ url_for('index') }}" aria-label="ARModel หน้าแรก">
+    <a class="brand-mark" href="{{ url_for('home') }}" aria-label="ARModel หน้าแรก">
       <span class="brand-symbol">AR</span>
       <span>
         <strong>ARModel ภูพาน</strong>
@@ -19,8 +19,8 @@
       </span>
     </a>
     <nav class="nav-actions" aria-label="ลิงก์หลัก">
-      <a href="{{ url_for('index') }}">หน้าแรก</a>
-      <a href="{{ url_for('index') }}#projects">โครงการ</a>
+      <a href="{{ url_for('home') }}">หน้าแรก</a>
+      <a href="{{ url_for('home') }}#projects">โครงการ</a>
       <a href="{{ url_for('models_index') }}" aria-current="page">โมเดลทั้งหมด</a>
       <a href="{{ url_for('admin_login') }}">ผู้ดูแล</a>
     </nav>
@@ -28,7 +28,7 @@
 
   <main id="content">
     <nav class="breadcrumb" aria-label="เส้นทางหน้า">
-      <a href="{{ url_for('index') }}">หน้าแรก</a>
+      <a href="{{ url_for('home') }}">หน้าแรก</a>
       <span aria-hidden="true">/</span>
       <span>โมเดลทั้งหมด</span>
     </nav>
@@ -124,7 +124,7 @@
       <div class="empty-state">
         <h3>ยังไม่มีโมเดลในระบบ</h3>
         <p>เมื่อเพิ่มโมเดลแล้ว รายการทั้งหมดจะแสดงในหน้านี้</p>
-        <a class="button secondary" href="{{ url_for('index') }}">กลับไปหน้าแรก</a>
+        <a class="button secondary" href="{{ url_for('home') }}">กลับไปหน้าแรก</a>
       </div>
       {% endif %}
     </section>

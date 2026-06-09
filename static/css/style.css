@@ -202,6 +202,120 @@ main {
   margin: 0 auto;
 }
 
+body.landing-page {
+  min-height: 100svh;
+  background: #10271c;
+}
+
+body.landing-page main {
+  width: 100%;
+  margin: 0;
+}
+
+.landing-hero {
+  position: relative;
+  min-height: 100svh;
+  display: grid;
+  align-items: center;
+  overflow: hidden;
+  padding: clamp(18px, 4vw, 40px);
+  background-image: var(--landing-image);
+  background-position: center;
+  background-size: cover;
+}
+
+.landing-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(16, 39, 28, 0.88), rgba(16, 39, 28, 0.62) 48%, rgba(16, 39, 28, 0.28)),
+    linear-gradient(0deg, rgba(16, 39, 28, 0.38), rgba(16, 39, 28, 0.16));
+}
+
+.landing-topbar,
+.landing-content {
+  position: relative;
+  z-index: 1;
+}
+
+.landing-topbar {
+  position: absolute;
+  top: clamp(18px, 4vw, 34px);
+  left: clamp(18px, 4vw, 40px);
+  right: clamp(18px, 4vw, 40px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.landing-brand {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-weight: 900;
+  text-decoration: none;
+  backdrop-filter: blur(10px);
+}
+
+.landing-brand:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.landing-content {
+  width: min(720px, 100%);
+  padding-top: 72px;
+  color: #ffffff;
+}
+
+.landing-eyebrow {
+  background: rgba(237, 247, 240, 0.95);
+}
+
+.landing-title {
+  margin-bottom: 10px;
+  color: #ffffff;
+  font-size: clamp(46px, 9vw, 92px);
+  line-height: 1;
+}
+
+.landing-subtitle {
+  margin: 0 0 12px;
+  color: #fff4d1;
+  font-size: clamp(22px, 4vw, 36px);
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.landing-description {
+  max-width: 620px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: clamp(17px, 2.2vw, 22px);
+}
+
+.landing-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 28px;
+}
+
+.landing-button {
+  min-width: 180px;
+  min-height: 52px;
+  font-size: 16px;
+}
+
+.landing-actions .button.secondary {
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.92);
+}
+
 .hero-section,
 .project-hero {
   display: grid;
@@ -1153,6 +1267,27 @@ model-viewer {
     min-height: 92px;
   }
 
+  .landing-hero {
+    align-items: end;
+    padding: 24px;
+  }
+
+  .landing-overlay {
+    background:
+      linear-gradient(0deg, rgba(16, 39, 28, 0.92), rgba(16, 39, 28, 0.58) 72%, rgba(16, 39, 28, 0.34)),
+      linear-gradient(90deg, rgba(16, 39, 28, 0.7), rgba(16, 39, 28, 0.2));
+  }
+
+  .landing-content {
+    padding-top: 96px;
+    padding-bottom: 12px;
+  }
+
+  .landing-actions,
+  .landing-button {
+    width: 100%;
+  }
+
   model-viewer {
     min-height: 320px;
     height: 52svh;
@@ -1177,6 +1312,16 @@ model-viewer {
   .brand-symbol {
     width: 38px;
     height: 38px;
+  }
+
+  .landing-hero {
+    padding: 18px;
+  }
+
+  .landing-topbar {
+    top: 14px;
+    left: 18px;
+    right: 18px;
   }
 
   .hero-copy,

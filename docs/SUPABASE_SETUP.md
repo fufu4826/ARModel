@@ -32,6 +32,9 @@ The app uploads objects into these folders:
 models/
 thumbnails/
 projects/
+site/landing/
+site/branding/
+sliders/
 ```
 
 The bucket must allow public reads if model-viewer and browsers should load assets directly from public URLs.
@@ -64,6 +67,25 @@ create table if not exists models (
   updated_at timestamptz default now()
 );
 
+create table if not exists site_settings (
+  id bigint generated always as identity primary key,
+  key text unique not null,
+  value text,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists slider_items (
+  id text primary key,
+  title text not null,
+  description text,
+  image_url text,
+  button_text text,
+  button_url text,
+  sort_order integer not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
 create or replace function set_updated_at()
 returns trigger as $$
 begin
@@ -81,7 +103,14 @@ drop trigger if exists models_set_updated_at on models;
 create trigger models_set_updated_at
 before update on models
 for each row execute function set_updated_at();
+
+drop trigger if exists site_settings_set_updated_at on site_settings;
+create trigger site_settings_set_updated_at
+before update on site_settings
+for each row execute function set_updated_at();
 ```
+
+The complete schema additions for Landing Page, Branding, and Slider management are also available in `docs/supabase_schema.sql`.
 
 ## Migration From JSON
 
@@ -110,11 +139,13 @@ When all Supabase environment variables are configured:
 
 - Public pages read projects and models from Supabase.
 - Admin create/edit/delete writes to Supabase.
+- Landing Page, Branding, and Slider settings write to Supabase.
 - Admin uploads go to Supabase Storage.
 - Vercel does not write to `static/`, `models.json`, or `projects.json`.
 
 When Supabase is not configured:
 
 - Public pages read local JSON files.
+- Landing Page, Branding, and Slider settings read `site_settings.json` and `slider_items.json`.
 - Local development can upload into `static/`.
 - Vercel admin editing remains read-only.

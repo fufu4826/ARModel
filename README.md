@@ -2,6 +2,8 @@
 
 Flask web application for viewing cultural and community 3D models with Google model-viewer AR support.
 
+The admin panel also manages the public Landing Page, site branding, and homepage slider content.
+
 ## Local Development
 
 ```bash
@@ -30,14 +32,14 @@ Vercel serverless functions use a read-only project filesystem at runtime. Uploa
 On Vercel:
 
 - If Supabase is configured, public pages and admin writes use Supabase Database and Supabase Storage.
-- If Supabase is not configured, public pages, `/api/models`, and the AR viewer read committed JSON/static assets.
+- If Supabase is not configured, public pages, `/api/models`, `/api/settings`, `/api/sliders`, and the AR viewer read committed JSON/static assets.
 - If Supabase is not configured, admin editing is read-only and file uploads are disabled.
 - Use external image/model URLs in Supabase or JSON for production assets that are not committed to the repository.
 
 To add files permanently:
 
 1. Add `.glb` files and images locally.
-2. Update `models.json` or `projects.json`.
+2. Update `models.json`, `projects.json`, `site_settings.json`, or `slider_items.json`.
 3. Commit and push to GitHub.
 4. Redeploy on Vercel.
 
@@ -55,7 +57,9 @@ SECRET_KEY
 ADMIN_PASSWORD_HASH
 ```
 
-Uploaded model files are stored under `models/`, model thumbnails under `thumbnails/`, and project images under `projects/` in the configured Supabase Storage bucket. Metadata is stored in the `projects` and `models` Postgres tables.
+Uploaded model files are stored under `models/`, model thumbnails under `thumbnails/`, project images under `projects/`, branding assets under `site/`, and slider images under `sliders/` in the configured Supabase Storage bucket. Metadata is stored in the `projects`, `models`, `site_settings`, and `slider_items` Postgres tables.
+
+Run the SQL in `docs/SUPABASE_SETUP.md` and `docs/supabase_schema.sql` before using the new admin content-management pages against Supabase.
 
 To migrate local JSON/static data into Supabase:
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>โมเดลทั้งหมด | ARModel ภูพาน</title>
+  <title>{{ page_title }}</title>
   {% include "_public_meta.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
@@ -11,12 +11,8 @@
   <a class="skip-link" href="#content">ข้ามไปยังเนื้อหา</a>
 
   <header class="site-nav" aria-label="เมนูหลัก">
-    <a class="brand-mark" href="{{ url_for('home') }}" aria-label="ARModel หน้าแรก">
-      <span class="brand-symbol">AR</span>
-      <span>
-        <strong>ARModel ภูพาน</strong>
-        <small>โมเดล 3D และ AR</small>
-      </span>
+    <a class="brand-mark" href="{{ url_for('home') }}" aria-label="{{ site_settings.site_name }} หน้าแรก">
+      {% include "_brand_mark.html" %}
     </a>
     <nav class="nav-actions" aria-label="ลิงก์หลัก">
       <a href="{{ url_for('home') }}">หน้าแรก</a>

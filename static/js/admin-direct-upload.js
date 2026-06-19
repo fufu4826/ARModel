@@ -4,6 +4,8 @@
   if (!directUploadsEnabled) return;
 
   const uploadEndpoint = "/admin/api/create-upload-url";
+  const managedUploadKinds = new Set(["landing_cover", "site_logo", "favicon", "slider_image"]);
+  const managedUploadMaxBytes = 5 * 1024 * 1024;
 
   function statusFor(input) {
     let status = input.parentElement.querySelector("[data-upload-status]");
@@ -33,6 +35,7 @@
         filename: file.name,
         kind: input.dataset.uploadKind,
         content_type: file.type || "application/octet-stream",
+        file_size: file.size,
       }),
     });
     if (!response.ok) {
@@ -45,6 +48,9 @@
   async function uploadFile(input) {
     const file = input.files && input.files[0];
     if (!file) return;
+    if (managedUploadKinds.has(input.dataset.uploadKind) && file.size > managedUploadMaxBytes) {
+      throw new Error("File must not exceed 5 MB.");
+    }
 
     const target = targetInputFor(input);
     if (!target) {

@@ -23,6 +23,11 @@ MODEL_EXTENSIONS = {".glb"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 VERCEL_UPLOAD_MESSAGE = "File uploads are disabled on Vercel. Use an external URL instead."
 VERCEL_EDIT_MESSAGE = "Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy."
+UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในโครงการ"
+PUBLIC_SITE_URL = os.environ.get("PUBLIC_SITE_URL", "https://phuphan-ar.vercel.app").rstrip("/")
+DEFAULT_META_TITLE = "PhuPhan AR | นิทรรศการโมเดล 3D และ AR"
+DEFAULT_META_DESCRIPTION = "สำรวจวัตถุ ผลิตภัณฑ์ และองค์ความรู้ชุมชนในรูปแบบโมเดล 3D และ AR"
+DEFAULT_META_IMAGE_PATH = "pic/og-cover.jpg"
 PLACEHOLDER_THUMBNAIL = (
     "data:image/svg+xml;utf8,"
     "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 500'>"
@@ -160,6 +165,28 @@ def is_supabase_enabled() -> bool:
     )
 
 
+def public_absolute_url(path_or_url: str | None) -> str:
+    value = str(path_or_url or "").strip()
+    if not value:
+        return ""
+    if is_external_url(value):
+        return value
+    if not value.startswith("/"):
+        value = f"/{value}"
+    return f"{PUBLIC_SITE_URL}{value}"
+
+
+def public_url_for(endpoint: str, **values) -> str:
+    return public_absolute_url(url_for(endpoint, **values))
+
+
+def public_meta_image_url(path_or_url: str | None) -> str:
+    value = str(path_or_url or "").strip()
+    if not value or value.lower().startswith("data:"):
+        return public_absolute_url(url_for("static", filename=DEFAULT_META_IMAGE_PATH))
+    return public_absolute_url(value)
+
+
 @app.context_processor
 def inject_runtime_flags():
     supabase_enabled = is_supabase_enabled()
@@ -167,6 +194,11 @@ def inject_runtime_flags():
         "is_vercel": is_vercel_runtime(),
         "is_supabase": supabase_enabled,
         "uploads_disabled": is_vercel_runtime() and not supabase_enabled,
+        "default_meta_title": DEFAULT_META_TITLE,
+        "default_meta_description": DEFAULT_META_DESCRIPTION,
+        "default_meta_image": public_meta_image_url(""),
+        "default_site_name": "PhuPhan AR",
+        "public_site_url": PUBLIC_SITE_URL,
     }
 
 
@@ -321,10 +353,12 @@ def model_with_project(model: dict, projects: list[dict]) -> dict:
     project = project_map.get(model.get("project_id"), {})
     enriched = dict(model)
     enriched["project"] = project
-    enriched["project_name"] = project.get("name", "-")
+    enriched["project_name"] = project.get("name") or UNASSIGNED_PROJECT_LABEL
     enriched["project_department"] = project.get("department", "")
+    enriched["has_project"] = bool(project)
     enriched["model_resolved_url"] = resolve_model_url(enriched)
     enriched["thumbnail_resolved_url"] = resolve_thumbnail_url(enriched)
+    enriched["size_mb"] = model_size_mb(enriched)
     return enriched
 
 
@@ -941,10 +975,51 @@ def parse_float(name: str, default: float) -> float:
 
 @app.route("/")
 def index():
+    landing_image_path = "pic/landing-cover.jpg"
+    if not (STATIC_DIR / landing_image_path).exists():
+        landing_image_path = DEFAULT_META_IMAGE_PATH
+    return render_template(
+        "landing.html",
+        landing_image_url=url_for("static", filename=landing_image_path),
+        page_title="PhuPhan AR | นิทรรศการโมเดล 3D และ AR",
+        page_description="สำรวจวัตถุ ผลิตภัณฑ์ และองค์ความรู้ท้องถิ่นผ่านโมเดล 3D และ AR",
+        page_url=public_url_for("index"),
+    )
+
+
+@app.route("/home")
+def home():
     models = get_models(include_hidden=False)
     projects = [project_with_urls(project, models) for project in get_projects(include_hidden=False)]
     counts = project_model_counts(projects, models)
-    return render_template("index.html", projects=projects, model_counts=counts)
+    all_models = [model_with_project(model, projects) for model in models]
+    featured_models = all_models[:6]
+    return render_template(
+        "index.html",
+        projects=projects,
+        model_counts=counts,
+        featured_models=featured_models,
+        total_project_count=len(projects),
+        total_model_count=len(all_models),
+        uses_online_data=is_supabase_enabled(),
+        page_url=public_url_for("home"),
+    )
+
+
+@app.route("/models")
+def models_index():
+    models = get_models(include_hidden=False)
+    projects = [project_with_urls(project, models) for project in get_projects(include_hidden=False)]
+    all_models = [model_with_project(model, projects) for model in models]
+    project_filters = []
+    seen_projects = set()
+    for model in all_models:
+        project_name = model.get("project_name") or UNASSIGNED_PROJECT_LABEL
+        if project_name in seen_projects:
+            continue
+        seen_projects.add(project_name)
+        project_filters.append(project_name)
+    return render_template("models.html", models=all_models, project_filters=project_filters, page_url=public_url_for("models_index"))
 
 
 @app.route("/projects/<project_id>")
@@ -959,7 +1034,15 @@ def project_detail(project_id: str):
         if model.get("project_id") == project_id
     ]
     project = project_with_urls(project, models)
-    return render_template("project.html", project=project, models=models)
+    return render_template(
+        "project.html",
+        project=project,
+        models=models,
+        page_title=f"{project.get('name', '')} | PhuPhan AR",
+        page_description=project.get("description") or DEFAULT_META_DESCRIPTION,
+        page_image=public_meta_image_url(project.get("cover_image_url")),
+        page_url=public_url_for("project_detail", project_id=project_id),
+    )
 
 
 @app.route("/models/<model_id>")
@@ -989,6 +1072,10 @@ def model_detail(model_id: str):
         size_mb=model_size_mb(model),
         related_models=related_models,
         mode=request.args.get("mode", "3d"),
+        page_title=f"{model.get('name', '')} | PhuPhan AR",
+        page_description=model.get("description") or DEFAULT_META_DESCRIPTION,
+        page_image=public_meta_image_url(resolve_thumbnail_url(model)),
+        page_url=public_url_for("model_detail", model_id=model_id),
     )
 
 
@@ -1084,7 +1171,7 @@ def admin_login():
 def admin_logout():
     session.pop("admin", None)
     flash("ออกจากระบบผู้ดูแลแล้ว", "success")
-    return redirect(url_for("index"))
+    return redirect(url_for("home"))
 
 
 @app.post("/admin/projects")

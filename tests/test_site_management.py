@@ -3,16 +3,23 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import app as module
 from werkzeug.datastructures import FileStorage
-from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.exceptions import BadRequest, RequestEntityTooLarge
 
 
 class SiteManagementTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         data_dir = Path(self.temp_dir.name)
+        self.original_paths = {
+            "SITE_SETTINGS_FILE": module.SITE_SETTINGS_FILE,
+            "SLIDER_ITEMS_FILE": module.SLIDER_ITEMS_FILE,
+            "SITE_UPLOAD_DIR": module.SITE_UPLOAD_DIR,
+            "SLIDER_UPLOAD_DIR": module.SLIDER_UPLOAD_DIR,
+        }
         module.SITE_SETTINGS_FILE = data_dir / "site_settings.json"
         module.SLIDER_ITEMS_FILE = data_dir / "slider_items.json"
         module.SITE_UPLOAD_DIR = data_dir / "static" / "uploads" / "site"
@@ -24,6 +31,9 @@ class SiteManagementTests(unittest.TestCase):
         self.client = module.app.test_client()
 
     def tearDown(self):
+        for name, value in self.original_paths.items():
+            setattr(module, name, value)
+        module._JSON_CACHE.clear()
         self.temp_dir.cleanup()
 
     def sign_in(self):
@@ -45,6 +55,10 @@ class SiteManagementTests(unittest.TestCase):
         for route, expected in expected_statuses.items():
             with self.subTest(route=route):
                 self.assertEqual(self.client.get(route).status_code, expected)
+
+        settings = self.client.get("/api/settings").get_json()
+        self.assertEqual(settings["site_name"], "PhuPhan-AR")
+        self.assertTrue(settings["landing_cover_url"].endswith("/static/pic/og-cover.jpg"))
 
     def test_admin_management_routes_require_login(self):
         for route in ("/admin", "/admin/landing", "/admin/branding", "/admin/sliders"):
@@ -70,6 +84,24 @@ class SiteManagementTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(module.load_site_settings()["landing_headline"], "Test headline")
+
+        response = self.client.post(
+            "/admin/settings",
+            data={
+                "section": "branding",
+                "return_to": "/admin/branding",
+                "site_name": "Test Brand",
+                "meta_description": "Test metadata description",
+                "site_logo": "",
+                "favicon": "favicon.ico",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(module.load_site_settings()["site_name"], "Test Brand")
+        home_html = self.client.get("/home").get_data(as_text=True)
+        self.assertIn("<title>Test Brand | Test subheadline</title>", home_html)
+        self.assertIn('content="Test metadata description"', home_html)
+        self.assertIn('href="/static/favicon.ico"', home_html)
 
         response = self.client.post(
             "/admin/sliders",
@@ -107,6 +139,51 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(module.load_slider_items(), [])
 
+    def test_content_links_reject_unsafe_schemes(self):
+        self.sign_in()
+        landing_response = self.client.post(
+            "/admin/settings",
+            data={
+                "section": "landing",
+                "return_to": "/admin/landing",
+                "landing_cover": "pic/og-cover.jpg",
+                "landing_headline": "Test headline",
+                "landing_subheadline": "Test subheadline",
+                "landing_description": "Test description",
+                "landing_cta_text": "Enter",
+                "landing_cta_url": "javascript:alert(1)",
+            },
+        )
+        self.assertEqual(landing_response.status_code, 400)
+
+        slider_response = self.client.post(
+            "/admin/sliders",
+            data={
+                "title": "Unsafe slide",
+                "image_url": "pic/og-cover.jpg",
+                "button_text": "Open",
+                "button_url": "data:text/html,unsafe",
+                "sort_order": "0",
+                "visible": "on",
+            },
+        )
+        self.assertEqual(slider_response.status_code, 400)
+
+    def test_slider_button_text_and_url_must_be_paired(self):
+        self.sign_in()
+        response = self.client.post(
+            "/admin/sliders",
+            data={
+                "title": "Incomplete CTA",
+                "image_url": "pic/og-cover.jpg",
+                "button_text": "Open",
+                "button_url": "",
+                "sort_order": "0",
+                "visible": "on",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
     def test_managed_upload_rejects_files_over_five_mb(self):
         upload = FileStorage(
             stream=io.BytesIO(b"x" * (5 * 1024 * 1024 + 1)),
@@ -120,6 +197,51 @@ class SiteManagementTests(unittest.TestCase):
                 "uploads/site",
                 module.IMAGE_EXTENSIONS,
             )
+
+    def test_managed_upload_rejects_invalid_file_type(self):
+        upload = FileStorage(
+            stream=io.BytesIO(b"not-an-image"),
+            filename="payload.exe",
+            content_type="application/octet-stream",
+        )
+        with self.assertRaises(BadRequest):
+            module.save_site_upload(
+                upload,
+                module.SITE_UPLOAD_DIR,
+                "uploads/site",
+                module.IMAGE_EXTENSIONS,
+            )
+
+    def test_direct_upload_uses_random_names_and_rejects_invalid_types(self):
+        with module.app.test_request_context():
+            first_path, _ = module.direct_upload_target("cover.png", "landing_cover", 1024)
+            second_path, _ = module.direct_upload_target("cover.png", "landing_cover", 1024)
+            self.assertNotEqual(first_path, second_path)
+            self.assertTrue(first_path.startswith("site/landing/"))
+            self.assertTrue(first_path.endswith(".png"))
+            with self.assertRaises(BadRequest):
+                module.direct_upload_target("payload.exe", "landing_cover", 1024)
+
+    def test_supabase_read_failure_falls_back_to_local_json(self):
+        module.save_site_settings({**module.DEFAULT_SITE_SETTINGS, "site_name": "Fallback Brand"})
+        module.save_slider_items(
+            [
+                {
+                    "id": "fallback-slide",
+                    "title": "Fallback slide",
+                    "image_url": "pic/og-cover.jpg",
+                    "sort_order": 1,
+                    "active": True,
+                }
+            ]
+        )
+        with (
+            patch.object(module, "is_supabase_enabled", return_value=True),
+            patch.object(module, "fetch_supabase_site_settings", side_effect=module.SupabaseError("missing table")),
+            patch.object(module, "fetch_supabase_slider_items", side_effect=module.SupabaseError("missing table")),
+        ):
+            self.assertEqual(module.get_site_settings()["site_name"], "Fallback Brand")
+            self.assertEqual(module.get_slider_items(False)[0]["id"], "fallback-slide")
 
     def test_active_slider_renders_on_landing_and_home(self):
         module.save_slider_items(
@@ -143,6 +265,22 @@ class SiteManagementTests(unittest.TestCase):
 
         payload = json.loads(self.client.get("/api/sliders").get_data(as_text=True))
         self.assertEqual(payload[0]["id"], "test-slide")
+
+    def test_supabase_schema_is_hardened_and_non_destructive(self):
+        sql = (Path(module.BASE_DIR) / "docs" / "supabase_schema.sql").read_text(encoding="utf-8").lower()
+        for forbidden in ("drop table", "truncate", "delete from", "alter table site_settings drop", "alter table slider_items drop"):
+            self.assertNotIn(forbidden, sql)
+        for required in (
+            "begin;",
+            "commit;",
+            "armodel_site_content_set_updated_at",
+            "add column if not exists updated_at",
+            "slider_items_active_sort_idx",
+            "on conflict (key) do nothing",
+            "alter table site_settings enable row level security",
+            "alter table slider_items enable row level security",
+        ):
+            self.assertIn(required, sql)
 
 
 if __name__ == "__main__":

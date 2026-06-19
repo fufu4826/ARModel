@@ -1169,6 +1169,20 @@ def parse_float(name: str, default: float) -> float:
         abort(400, f"{name} must be a number")
 
 
+def validated_content_url(value: str | None, field_name: str, default: str = "") -> str:
+    candidate = str(value or "").strip() or default
+    if not candidate:
+        return ""
+    lowered = candidate.lower()
+    if candidate.startswith("/") and not candidate.startswith("//"):
+        return candidate
+    if candidate.startswith("#"):
+        return candidate
+    if lowered.startswith(("https://", "http://")):
+        return candidate
+    abort(400, f"{field_name} must be an internal path, anchor, or HTTP(S) URL")
+
+
 def setting_asset_from_request(
     settings: dict,
     key: str,
@@ -1211,13 +1225,17 @@ def slider_data_from_request(existing: dict | None = None) -> dict:
         sort_order = int(request.form.get("sort_order") or 0)
     except ValueError:
         abort(400, "sort_order must be an integer")
+    button_text = request.form.get("button_text", "").strip()
+    button_url = validated_content_url(request.form.get("button_url"), "button_url")
+    if bool(button_text) != bool(button_url):
+        abort(400, "button_text and button_url must be provided together")
     return {
         "id": existing.get("id") or uuid.uuid4().hex,
         "title": request.form.get("title", "").strip(),
         "description": request.form.get("description", "").strip(),
         "image_url": image_url,
-        "button_text": request.form.get("button_text", "").strip(),
-        "button_url": request.form.get("button_url", "").strip(),
+        "button_text": button_text,
+        "button_url": button_url,
         "sort_order": sort_order,
         "active": form_visible(),
         "created_at": existing.get("created_at", ""),
@@ -1493,7 +1511,11 @@ def update_admin_settings():
                 "landing_subheadline": request.form.get("landing_subheadline", "").strip() or DEFAULT_SITE_SETTINGS["landing_subheadline"],
                 "landing_description": request.form.get("landing_description", "").strip() or DEFAULT_SITE_SETTINGS["landing_description"],
                 "landing_cta_text": request.form.get("landing_cta_text", "").strip() or DEFAULT_SITE_SETTINGS["landing_cta_text"],
-                "landing_cta_url": request.form.get("landing_cta_url", "").strip() or DEFAULT_SITE_SETTINGS["landing_cta_url"],
+                "landing_cta_url": validated_content_url(
+                    request.form.get("landing_cta_url"),
+                    "landing_cta_url",
+                    DEFAULT_SITE_SETTINGS["landing_cta_url"],
+                ),
             }
         )
         settings["landing_cover"] = setting_asset_from_request(

@@ -3,373 +3,239 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ศูนย์ศึกษาการพัฒนาภูพาน</title>
-  <style>
-    :root {
-      --green: #1f5f3b;
-      --green-2: #2f7d4b;
-      --gold: #d6a846;
-      --earth: #efe8d8;
-      --cream: #fbfaf5;
-      --text: #1d2a22;
-      --muted: #66756b;
-      --line: #dfe7dc;
-      --panel: #ffffff;
-      --shadow: 0 16px 40px rgba(36, 57, 42, 0.12);
-      --radius: 8px;
-    }
-
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-
-    body {
-      margin: 0;
-      background: var(--cream);
-      color: var(--text);
-      font-family: Arial, "Noto Sans Thai", sans-serif;
-    }
-
-    a { color: inherit; }
-
-    .splash {
-      position: fixed;
-      inset: 0;
-      z-index: 20;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-      background: #000000;
-      transition: opacity 0.45s ease, visibility 0.45s ease;
-    }
-
-    .splash.hidden {
-      opacity: 0;
-      visibility: hidden;
-    }
-
-    .splash-card {
-      width: min(760px, 100%);
-      text-align: center;
-    }
-
-    .logo-stage {
-      position: relative;
-      width: min(280px, 68vw);
-      aspect-ratio: 1;
-      justify-content: center;
-      align-items: center;
-      margin: 0 auto 28px;
-    }
-
-    .logo-box {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      aspect-ratio: 1;
-      display: grid;
-      place-items: center;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.96);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      box-shadow: 0 22px 70px rgba(0, 0, 0, 0.5);
-      opacity: 0;
-      transform: translateY(16px) scale(0.94);
-      animation: logoSequence 1.7s ease forwards;
-      overflow: hidden;
-    }
-
-    .logo-box:nth-child(2) { animation-delay: 1.75s; }
-    .logo-box:nth-child(3) { animation-delay: 3.5s; }
-
-    .logo-box img {
-      max-width: 82%;
-      max-height: 82%;
-      object-fit: contain;
-    }
-
-    .logo-fallback {
-      display: none;
-      color: var(--green);
-      font-weight: 800;
-      font-size: 13px;
-      padding: 12px;
-    }
-
-    @keyframes logoSequence {
-      0% { opacity: 0; transform: translateY(16px) scale(0.94); }
-      18% { opacity: 1; transform: translateY(0) scale(1); }
-      70% { opacity: 1; transform: translateY(0) scale(1); }
-      100% { opacity: 0; transform: translateY(-14px) scale(0.98); }
-    }
-
-    @keyframes contentIn {
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .splash h1 {
-      margin: 0 0 10px;
-      font-size: clamp(28px, 5vw, 46px);
-      letter-spacing: 0;
-      color: #ffffff;
-      opacity: 0;
-      transform: translateY(12px);
-      animation: contentIn 0.55s ease 5.25s forwards;
-    }
-
-    .splash p {
-      margin: 0 auto 24px;
-      max-width: 620px;
-      color: rgba(255, 255, 255, 0.72);
-      line-height: 1.65;
-      opacity: 0;
-      transform: translateY(12px);
-      animation: contentIn 0.55s ease 5.36s forwards;
-    }
-
-    .enter-btn, .admin-link, .project-link {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 44px;
-      border-radius: var(--radius);
-      border: 0;
-      text-decoration: none;
-      font: inherit;
-      font-weight: 800;
-      cursor: pointer;
-    }
-
-    .enter-btn {
-      padding: 12px 22px;
-      color: #fff;
-      background: var(--green);
-      box-shadow: var(--shadow);
-      opacity: 0;
-      transform: translateY(12px);
-      animation: contentIn 0.55s ease 5.5s forwards;
-    }
-
-    .page {
-      min-height: 100vh;
-      padding: 22px 16px 42px;
-    }
-
-    .shell {
-      width: min(1180px, 100%);
-      margin: 0 auto;
-    }
-
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      padding-bottom: 18px;
-      margin-bottom: 26px;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .brand h2 {
-      margin: 0 0 4px;
-      color: var(--green);
-      font-size: clamp(24px, 4vw, 38px);
-      letter-spacing: 0;
-    }
-
-    .brand p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.55;
-    }
-
-    .admin-link {
-      padding: 10px 14px;
-      color: var(--green);
-      background: #fff;
-      border: 1px solid var(--line);
-      white-space: nowrap;
-    }
-
-    .section-head {
-      margin: 0 0 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: end;
-      gap: 16px;
-    }
-
-    .section-head h3 {
-      margin: 0;
-      font-size: 22px;
-      color: var(--text);
-    }
-
-    .section-head p {
-      margin: 4px 0 0;
-      color: var(--muted);
-    }
-
-    .project-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 18px;
-    }
-
-    .project-card {
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      min-width: 0;
-      border-radius: var(--radius);
-      border: 1px solid var(--line);
-      background: var(--panel);
-      box-shadow: var(--shadow);
-    }
-
-    .cover {
-      aspect-ratio: 16 / 10;
-      background: var(--earth);
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      color: var(--muted);
-      font-weight: 700;
-    }
-
-    .cover img {
-      width: 100%;
-      height: 100%;
-      display: block;
-      object-fit: cover;
-    }
-
-    .project-body {
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      flex: 1;
-    }
-
-    .badge {
-      width: fit-content;
-      padding: 5px 9px;
-      border-radius: 999px;
-      background: #eef7eb;
-      color: var(--green);
-      font-size: 12px;
-      font-weight: 800;
-    }
-
-    .project-body h4 {
-      margin: 0;
-      font-size: 20px;
-      line-height: 1.3;
-    }
-
-    .project-body p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.55;
-      flex: 1;
-    }
-
-    .project-link {
-      margin-top: 6px;
-      padding: 11px 14px;
-      background: var(--green);
-      color: #fff;
-    }
-
-    .empty {
-      padding: 30px;
-      text-align: center;
-      color: var(--muted);
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-    }
-
-    @media (max-width: 680px) {
-      .topbar, .section-head { display: block; }
-      .admin-link { margin-top: 14px; width: 100%; }
-    }
-  </style>
+  <title>PhuPhan AR | นิทรรศการโมเดล 3D และ AR</title>
+  {% include "_public_meta.html" %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
-  <div class="splash" id="splash">
-    <div class="splash-card">
-      <div class="logo-stage" aria-label="โลโก้หน่วยงาน">
-        {% for logo in ["logo1.png", "logo2.png", "logo3.png"] %}
-        <div class="logo-box">
-          <img src="{{ url_for('static', filename=logo) }}" alt="Logo {{ loop.index }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-          <span class="logo-fallback">LOGO {{ loop.index }}</span>
+  <a class="skip-link" href="#content">ข้ามไปยังเนื้อหา</a>
+
+  <header class="site-nav" aria-label="เมนูหลัก">
+    <a class="brand-mark" href="{{ url_for('home') }}" aria-label="PhuPhan AR หน้าแรก">
+      <span class="brand-symbol">AR</span>
+      <span>
+        <strong>PhuPhan AR</strong>
+        <small>นิทรรศการโมเดล 3D และ AR</small>
+      </span>
+    </a>
+    <nav class="nav-actions" aria-label="ลิงก์หลัก">
+      <a href="{{ url_for('home') }}" aria-current="page">หน้าแรก</a>
+      <a href="#projects">โครงการ</a>
+      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+      <a href="#ar-guide">วิธีใช้งาน AR</a>
+    </nav>
+  </header>
+
+  <main id="content">
+    <section class="hero-section homepage-hero" aria-labelledby="home-title">
+      <div class="hero-copy">
+        <p class="eyebrow">นิทรรศการดิจิทัล 3D / AR</p>
+        <h1 id="home-title">PhuPhan AR</h1>
+        <p class="hero-subtitle">นิทรรศการโมเดล 3D และ AR เพื่อเรียนรู้วัตถุ ผลิตภัณฑ์ และองค์ความรู้ท้องถิ่น</p>
+        <p class="lead">
+          เลือกชมโมเดล 3D หมุนดูรายละเอียด และเปิด AR บนอุปกรณ์ที่รองรับเพื่อวางโมเดลในพื้นที่จริง
+        </p>
+        <div class="hero-actions">
+          <a class="button" href="{{ url_for('models_index') }}">เริ่มชมโมเดล 3D</a>
+          <a class="button secondary" href="#projects">ดูโครงการทั้งหมด</a>
         </div>
+      </div>
+      <div class="hero-media" aria-label="ภาพตัวอย่างนิทรรศการ PhuPhan AR">
+        {% if projects and projects[0].cover_image_url %}
+        <img src="{{ projects[0].cover_image_url }}" alt="ภาพตัวอย่างจาก {{ projects[0].name }}" />
+        {% else %}
+        <div class="image-placeholder">PhuPhan AR</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="stats-section" aria-label="ข้อมูลสรุปเว็บไซต์">
+      <div class="stat-card">
+        <strong>{{ total_project_count }}</strong>
+        <span>โครงการ</span>
+      </div>
+      <div class="stat-card">
+        <strong>{{ total_model_count }}</strong>
+        <span>โมเดล</span>
+      </div>
+      <div class="stat-card">
+        <strong>3D/AR</strong>
+        <span>รองรับการชมแบบโต้ตอบ</span>
+      </div>
+      <div class="stat-card">
+        <strong>{{ "ออนไลน์" if uses_online_data else "ท้องถิ่น" }}</strong>
+        <span>{{ "อัปเดตจากระบบออนไลน์" if uses_online_data else "ใช้งานผ่านข้อมูลสำรอง" }}</span>
+      </div>
+    </section>
+
+    <section class="content-section" id="how-it-works" aria-labelledby="how-it-works-title">
+      <div class="section-head centered">
+        <div>
+          <p class="eyebrow">วิธีใช้งาน</p>
+          <h2 id="how-it-works-title">เริ่มเรียนรู้ได้ใน 3 ขั้นตอน</h2>
+        </div>
+        <p>ออกแบบให้เปิดชมได้ง่ายทั้งบนคอมพิวเตอร์ แท็บเล็ต และมือถือ</p>
+      </div>
+      <div class="step-grid">
+        <article class="info-card step-card">
+          <span class="step-number">1</span>
+          <h3>เลือกโครงการหรือโมเดล</h3>
+          <p>เริ่มจากหัวข้อที่สนใจ หรือเปิดหน้ารวมโมเดลเพื่อเลือกวัตถุที่ต้องการสำรวจ</p>
+        </article>
+        <article class="info-card step-card">
+          <span class="step-number">2</span>
+          <h3>หมุน ซูม และสำรวจ</h3>
+          <p>ลากเพื่อหมุนโมเดล บีบนิ้วหรือใช้เมาส์เพื่อซูมดูรายละเอียดในมุมต่าง ๆ</p>
+        </article>
+        <article class="info-card step-card">
+          <span class="step-number">3</span>
+          <h3>กด AR บนอุปกรณ์ที่รองรับ</h3>
+          <p>วางโมเดลในพื้นที่จริงผ่านมือถือหรือแท็บเล็ต เพื่อช่วยให้เข้าใจขนาดและรูปทรงได้ชัดขึ้น</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="content-section" id="projects" aria-labelledby="projects-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">โครงการ</p>
+          <h2 id="projects-title">เลือกหัวข้อการเรียนรู้</h2>
+        </div>
+        <p>{{ total_project_count }} โครงการพร้อมให้เข้าชม</p>
+      </div>
+
+      {% if projects %}
+      <div class="card-grid project-grid">
+        {% for project in projects %}
+        <article class="project-card">
+          <a class="card-media" href="{{ url_for('project_detail', project_id=project.id) }}" aria-label="ดูโครงการ {{ project.name }}">
+            {% if project.cover_image_url %}
+            <img src="{{ project.cover_image_url }}" alt="{{ project.name }}" loading="{{ 'eager' if loop.first else 'lazy' }}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+            <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
+            {% else %}
+            <span class="image-placeholder">ไม่มีรูปภาพ</span>
+            {% endif %}
+          </a>
+          <div class="card-body">
+            <div class="meta-row">
+              <span class="badge">{{ project.department or "ศูนย์ศึกษาการพัฒนาภูพาน" }}</span>
+              <span class="count-pill">{{ model_counts.get(project.id, 0) }} โมเดล</span>
+            </div>
+            <h3><a href="{{ url_for('project_detail', project_id=project.id) }}">{{ project.name }}</a></h3>
+            <p>{{ project.description or "รวมโมเดล 3D และ AR สำหรับการเรียนรู้ภายในโครงการนี้" }}</p>
+            <a class="button small" href="{{ url_for('project_detail', project_id=project.id) }}">ดูโครงการ</a>
+          </div>
+        </article>
         {% endfor %}
       </div>
-      <h1>แหล่งเรียนรู้ ศูนย์ศึกษาการพัฒนาภูพาน ในรูปแบบเสมือนจริง</h1>
-      <p>นิทรรศการโมเดลสามมิติและ AR สำหรับโครงการเรียนรู้ ศูนย์ศึกษาการพัฒนาภูพาน จังหวัดสกลนคร</p>
-      <button class="enter-btn" id="enterBtn" type="button">Enter Website</button>
-    </div>
-  </div>
+      {% else %}
+      <div class="empty-state">
+        <h3>ยังไม่มีโครงการที่เผยแพร่</h3>
+        <p>เมื่อมีข้อมูลโครงการ ระบบจะแสดงรายการสำหรับเข้าชมโมเดล 3D ที่นี่</p>
+      </div>
+      {% endif %}
+    </section>
 
-  <main class="page" id="mainSite">
-    <div class="shell">
-      <header class="topbar">
-        <div class="brand">
-          <h2>ศูนย์ศึกษาการพัฒนาภูพาน AR Showcase</h2>
-          <p>เลือกโครงการเพื่อดูรายการโมเดล 3D และเปิดใช้งาน AR ได้ทันที</p>
+    <section class="content-section" id="featured-models" aria-labelledby="featured-models-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">โมเดลแนะนำ</p>
+          <h2 id="featured-models-title">เริ่มชมโมเดล 3D</h2>
         </div>
-        <a class="admin-link" href="{{ url_for('admin_login') }}">Admin Login</a>
-      </header>
+        <p>แสดงตัวอย่างสูงสุด 6 รายการจากทั้งหมด {{ total_model_count }} โมเดล</p>
+      </div>
 
-      <section>
-        <div class="section-head">
-          <div>
-            <h3>เลือกโครงการ</h3>
-            <p>Project Selection</p>
-          </div>
-        </div>
-
-        {% if projects %}
-        <div class="project-grid">
-          {% for project in projects %}
-          <article class="project-card">
-            <div class="cover">
-              {% if project.cover_image_url %}
-              <img src="{{ project.cover_image_url }}" alt="{{ project.name }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-              <span style="display:none;">ไม่มีรูปภาพ</span>
-              {% else %}
-              <span>ไม่มีรูปภาพ</span>
+      {% if featured_models %}
+      <div class="card-grid model-grid">
+        {% for model in featured_models %}
+        <article class="model-card">
+          {% set card_thumbnail_url = model.thumbnail_url or model.thumbnail_resolved_url %}
+          <a class="card-media square" href="{{ url_for('model_detail', model_id=model.id) }}" aria-label="ดูโมเดล 3D {{ model.name }}">
+            {% if card_thumbnail_url %}
+            <img src="{{ card_thumbnail_url }}" alt="ภาพตัวอย่าง {{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+            <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
+            {% else %}
+            <span class="image-placeholder">ไม่มีรูปภาพ</span>
+            {% endif %}
+          </a>
+          <div class="card-body compact">
+            <div class="meta-row">
+              <span class="badge">{{ model.project_name }}</span>
+              {% if model.size_mb is not none %}
+              <span class="count-pill">{{ "%.2f MB"|format(model.size_mb) }}</span>
               {% endif %}
             </div>
-            <div class="project-body">
-              <span class="badge">{{ project.department or "ศูนย์ศึกษาการพัฒนาภูพาน" }}</span>
-              <h4>{{ project.name }}</h4>
-              <p>{{ project.description or "เลือกเพื่อดูโมเดลภายในโครงการ" }}</p>
-              <span class="badge">{{ model_counts.get(project.id, 0) }} โมเดล</span>
-              <a class="project-link" href="{{ url_for('project_detail', project_id=project.id) }}">ดูโครงการ</a>
+            <h3><a href="{{ url_for('model_detail', model_id=model.id) }}">{{ model.name }}</a></h3>
+            <p>{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้" }}</p>
+            <div class="card-actions">
+              <a class="button small" href="{{ url_for('model_detail', model_id=model.id) }}">ดูโมเดล 3D</a>
+              <a class="button secondary small" href="{{ url_for('model_detail', model_id=model.id, mode='ar') }}">เปิด AR</a>
             </div>
-          </article>
-          {% endfor %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      <div class="action-row section-action">
+        <a class="button secondary" href="{{ url_for('models_index') }}">ดูโมเดลทั้งหมด</a>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <h3>ยังไม่มีโมเดลที่เผยแพร่</h3>
+        <p>เมื่อมีโมเดลใหม่ ระบบจะแสดงรายการแนะนำที่นี่</p>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="content-section split-section" id="ar-guide" aria-labelledby="ar-guide-title">
+      <div class="info-panel">
+        <p class="eyebrow">AR Guide</p>
+        <h2 id="ar-guide-title">ดูโมเดลด้วย AR ได้อย่างไร</h2>
+        <p>
+          ใช้มือถือหรือแท็บเล็ตที่รองรับ AR เปิดหน้าโมเดล แล้วกดปุ่ม AR หรือ View in your space
+          จากนั้นขยับกล้องเพื่อวางโมเดลในพื้นที่จริง
+        </p>
+        <p class="note-text">หากอุปกรณ์ไม่รองรับ AR ยังสามารถดูโมเดลแบบ 3D บนหน้าเว็บได้</p>
+      </div>
+      <div class="ar-guide-list" aria-label="ขั้นตอนการใช้งาน AR">
+        <div>
+          <strong>1</strong>
+          <span>เปิดหน้าโมเดล</span>
         </div>
-        {% else %}
-        <div class="empty">ยังไม่มีโครงการที่เผยแพร่</div>
-        {% endif %}
-      </section>
-    </div>
+        <div>
+          <strong>2</strong>
+          <span>กดปุ่ม AR</span>
+        </div>
+        <div>
+          <strong>3</strong>
+          <span>ขยับกล้องเพื่อวางโมเดล</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-section about-section" aria-labelledby="about-title">
+      <div class="info-card">
+        <p class="eyebrow">เกี่ยวกับเว็บไซต์</p>
+        <h2 id="about-title">พื้นที่เรียนรู้วัตถุและองค์ความรู้ผ่านภาพสามมิติ</h2>
+        <p>
+          PhuPhan AR เป็นพื้นที่รวบรวมโมเดล 3D ของวัตถุ ผลิตภัณฑ์ และองค์ความรู้
+          เพื่อให้ผู้ใช้สามารถเรียนรู้ผ่านภาพสามมิติและเทคโนโลยี AR ได้จากทุกที่
+        </p>
+      </div>
+    </section>
   </main>
 
-  <script>
-    const splash = document.getElementById('splash');
-    const enterBtn = document.getElementById('enterBtn');
-    if (sessionStorage.getItem('phuphan-entered') === '1') {
-      splash.classList.add('hidden');
-    }
-    enterBtn.addEventListener('click', () => {
-      sessionStorage.setItem('phuphan-entered', '1');
-      splash.classList.add('hidden');
-    });
-  </script>
+  <footer class="site-footer site-footer-rich">
+    <div>
+      <strong>PhuPhan AR</strong>
+      <p>นิทรรศการโมเดล 3D และ AR สำหรับการเรียนรู้วัตถุ ผลิตภัณฑ์ และองค์ความรู้ท้องถิ่น</p>
+      <span>phuphan-ar.vercel.app</span>
+    </div>
+    <nav aria-label="ลิงก์ท้ายเว็บไซต์">
+      <a href="{{ url_for('home') }}">หน้าแรก</a>
+      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+      <a href="#projects">โครงการ</a>
+      <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
+    </nav>
+  </footer>
 </body>
 </html>

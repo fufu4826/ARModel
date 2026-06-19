@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PhuPhan AR | นิทรรศการโมเดล 3D และ AR</title>
+  {% include "_public_meta.html" %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body class="landing-page">
+  <a class="skip-link" href="#landing-content">ข้ามไปยังเนื้อหา</a>
+
+  <main class="landing-hero" style="--landing-image: url('{{ landing_image_url }}');">
+    <div class="landing-overlay" aria-hidden="true"></div>
+    <header class="landing-topbar" aria-label="ชื่อเว็บไซต์">
+      <a href="{{ url_for('index') }}" class="landing-brand">PhuPhan AR</a>
+    </header>
+    <section class="landing-content" id="landing-content" aria-labelledby="landing-title">
+      <p class="eyebrow landing-eyebrow">นิทรรศการดิจิทัล 3D / AR</p>
+      <h1 id="landing-title" class="landing-title">PhuPhan AR</h1>
+      <p class="landing-subtitle">นิทรรศการโมเดล 3D และ AR</p>
+      <p class="landing-description">
+        เรียนรู้วัตถุ ผลิตภัณฑ์ และองค์ความรู้ผ่านโมเดลสามมิติและเทคโนโลยี AR
+      </p>
+      <div class="landing-actions">
+        <a class="button landing-button" href="{{ url_for('home') }}">เข้าสู่เว็บไซต์</a>
+        <a class="button secondary landing-button" href="{{ url_for('models_index') }}">ดูโมเดลทั้งหมด</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="admin-message {{ category }}" role="status">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+{% if uploads_disabled %}
+<div class="admin-message warning">ระบบกำลังทำงานบน Vercel โดยไม่มี Supabase จึงไม่สามารถบันทึกไฟล์หรือข้อมูลจาก Admin ได้</div>
+{% elif is_supabase %}
+<div class="admin-message info">การตั้งค่าและไฟล์จะถูกบันทึกใน Supabase Database และ Storage</div>
+{% endif %}

@@ -1,0 +1,12 @@
+{
+  "landing_cover": "pic/og-cover.jpg",
+  "landing_headline": "PhuPhan AR",
+  "landing_subheadline": "นิทรรศการโมเดล 3D และ AR",
+  "landing_description": "เรียนรู้วัตถุ ผลิตภัณฑ์ และองค์ความรู้ผ่านโมเดลสามมิติและเทคโนโลยี AR",
+  "landing_cta_text": "เข้าสู่เว็บไซต์",
+  "landing_cta_url": "/home",
+  "site_logo": "",
+  "site_name": "PhuPhan-AR",
+  "favicon": "favicon.ico",
+  "meta_description": "สำรวจวัตถุ ผลิตภัณฑ์ และองค์ความรู้ชุมชนในรูปแบบโมเดล 3D และ AR"
+}

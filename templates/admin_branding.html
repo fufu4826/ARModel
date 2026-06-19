@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="th" data-direct-uploads="{{ 'true' if is_supabase else 'false' }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Site Branding - Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+</head>
+<body>
+  <main class="admin-page">
+    <div class="admin-shell">
+      {% include "_admin_nav.html" %}
+      <header class="admin-heading" id="site-settings">
+        <div>
+          <p class="admin-eyebrow">Site Settings</p>
+          <h1>Site Branding</h1>
+          <p>จัดการชื่อเว็บไซต์ โลโก้ favicon และคำอธิบายสำหรับ SEO</p>
+        </div>
+        <a class="button secondary" href="{{ url_for('home') }}" target="_blank" rel="noopener">ดูหน้าเว็บไซต์</a>
+      </header>
+
+      {% include "_admin_messages.html" %}
+
+      <section class="admin-card">
+        <form action="{{ url_for('update_admin_settings') }}" method="post" enctype="multipart/form-data" class="admin-form">
+          <input type="hidden" name="section" value="branding" />
+          <input type="hidden" name="return_to" value="{{ url_for('admin_branding') }}" />
+          <input type="hidden" name="site_logo" value="{{ settings.site_logo }}" />
+          <input type="hidden" name="favicon" value="{{ settings.favicon }}" />
+
+          <div class="field full">
+            <label for="site-name">Site Name</label>
+            <input id="site-name" name="site_name" value="{{ settings.site_name }}" required />
+          </div>
+          <div class="field full">
+            <label for="meta-description">Meta Description</label>
+            <textarea id="meta-description" name="meta_description" rows="4" maxlength="320">{{ settings.meta_description }}</textarea>
+          </div>
+
+          <div class="asset-field">
+            <div class="preview-panel">
+              <div class="logo-preview">
+                {% if settings.site_logo_url %}
+                <img data-image-preview="site-logo-file" src="{{ settings.site_logo_url }}" alt="ตัวอย่างโลโก้เว็บไซต์" />
+                {% else %}
+                <img data-image-preview="site-logo-file" alt="ตัวอย่างโลโก้เว็บไซต์" hidden />
+                <span class="preview-fallback">AR</span>
+                {% endif %}
+              </div>
+              <div><strong>Site Logo</strong><span>JPG, PNG, WebP หรือ SVG ไม่เกิน 5 MB</span></div>
+            </div>
+            <div class="field">
+              <label for="site-logo-file">อัปโหลดโลโก้</label>
+              <input id="site-logo-file" name="site_logo_file" type="file" accept=".jpg,.jpeg,.png,.webp,.svg" data-upload-kind="site_logo" data-upload-target="site_logo" />
+            </div>
+          </div>
+
+          <div class="asset-field">
+            <div class="preview-panel">
+              <div class="favicon-preview">
+                <img data-image-preview="favicon-file" src="{{ settings.favicon_url }}" alt="ตัวอย่าง favicon" />
+              </div>
+              <div><strong>Favicon</strong><span>PNG, ICO หรือ SVG ไม่เกิน 5 MB</span></div>
+            </div>
+            <div class="field">
+              <label for="favicon-file">อัปโหลด favicon</label>
+              <input id="favicon-file" name="favicon_file" type="file" accept=".png,.ico,.svg" data-upload-kind="favicon" data-upload-target="favicon" />
+            </div>
+          </div>
+
+          <div class="form-actions full">
+            <button class="button" type="submit">บันทึก Branding</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </main>
+  <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
+</body>
+</html>

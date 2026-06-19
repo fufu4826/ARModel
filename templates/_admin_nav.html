@@ -1,0 +1,13 @@
+<nav class="admin-nav" aria-label="เมนูผู้ดูแลระบบ">
+  <a href="{{ url_for('admin') }}" class="{{ 'active' if request.endpoint == 'admin' else '' }}">Dashboard</a>
+  <a href="{{ url_for('admin') }}#models">Models</a>
+  <a href="{{ url_for('admin') }}#projects">Projects</a>
+  <a href="{{ url_for('admin_landing') }}" class="{{ 'active' if request.endpoint == 'admin_landing' else '' }}">Landing Page</a>
+  <a href="{{ url_for('admin_sliders') }}" class="{{ 'active' if request.endpoint in ['admin_sliders', 'edit_slider'] else '' }}">Homepage Slider</a>
+  <a href="{{ url_for('admin_branding') }}" class="{{ 'active' if request.endpoint == 'admin_branding' else '' }}">Site Branding</a>
+  <a href="{{ url_for('admin_branding') }}#site-settings">Settings</a>
+  <a href="{{ url_for('home') }}">ดูเว็บไซต์</a>
+  <form action="{{ url_for('admin_logout') }}" method="post">
+    <button type="submit">Logout</button>
+  </form>
+</nav>

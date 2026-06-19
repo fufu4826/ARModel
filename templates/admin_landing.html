@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="th" data-direct-uploads="{{ 'true' if is_supabase else 'false' }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Landing Page - Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+</head>
+<body>
+  <main class="admin-page">
+    <div class="admin-shell">
+      {% include "_admin_nav.html" %}
+      <header class="admin-heading">
+        <div>
+          <p class="admin-eyebrow">Content Management</p>
+          <h1>Landing Page</h1>
+          <p>จัดการภาพหน้าปก ข้อความหลัก และปุ่มเข้าสู่เว็บไซต์</p>
+        </div>
+        <a class="button secondary" href="{{ url_for('index') }}" target="_blank" rel="noopener">ดูหน้า Landing</a>
+      </header>
+
+      {% include "_admin_messages.html" %}
+
+      <section class="admin-card">
+        <form action="{{ url_for('update_admin_settings') }}" method="post" enctype="multipart/form-data" class="admin-form">
+          <input type="hidden" name="section" value="landing" />
+          <input type="hidden" name="return_to" value="{{ url_for('admin_landing') }}" />
+          <input type="hidden" name="landing_cover" value="{{ settings.landing_cover }}" />
+
+          <div class="preview-panel full">
+            <img data-image-preview="landing-cover-file" src="{{ settings.landing_cover_url }}" alt="ตัวอย่างภาพหน้าปก Landing Page" />
+            <div>
+              <strong>Cover Image</strong>
+              <span>JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB</span>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label for="landing-cover-file">อัปโหลดภาพหน้าปก</label>
+            <input id="landing-cover-file" name="landing_cover_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="landing_cover" data-upload-target="landing_cover" />
+          </div>
+          <div class="field full">
+            <label for="landing-headline">Headline</label>
+            <input id="landing-headline" name="landing_headline" value="{{ settings.landing_headline }}" required />
+          </div>
+          <div class="field full">
+            <label for="landing-subheadline">Subheadline</label>
+            <input id="landing-subheadline" name="landing_subheadline" value="{{ settings.landing_subheadline }}" required />
+          </div>
+          <div class="field full">
+            <label for="landing-description">คำอธิบาย</label>
+            <textarea id="landing-description" name="landing_description" rows="4">{{ settings.landing_description }}</textarea>
+          </div>
+          <div class="field">
+            <label for="landing-cta-text">CTA Button Text</label>
+            <input id="landing-cta-text" name="landing_cta_text" value="{{ settings.landing_cta_text }}" required />
+          </div>
+          <div class="field">
+            <label for="landing-cta-url">CTA Button URL</label>
+            <input id="landing-cta-url" name="landing_cta_url" value="{{ settings.landing_cta_url }}" required />
+          </div>
+          <div class="form-actions full">
+            <button class="button" type="submit">บันทึก Landing Page</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </main>
+  <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
+</body>
+</html>

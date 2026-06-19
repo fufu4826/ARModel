@@ -21,6 +21,9 @@ from werkzeug.utils import secure_filename
 
 MODEL_EXTENSIONS = {".glb"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+SITE_LOGO_EXTENSIONS = IMAGE_EXTENSIONS | {".svg"}
+FAVICON_EXTENSIONS = {".png", ".ico", ".svg"}
+SITE_ASSET_MAX_BYTES = 5 * 1024 * 1024
 VERCEL_UPLOAD_MESSAGE = "File uploads are disabled on Vercel. Use an external URL instead."
 VERCEL_EDIT_MESSAGE = "Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy."
 UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในโครงการ"
@@ -28,6 +31,19 @@ PUBLIC_SITE_URL = os.environ.get("PUBLIC_SITE_URL", "https://phuphan-ar.vercel.a
 DEFAULT_META_TITLE = "PhuPhan AR | นิทรรศการโมเดล 3D และ AR"
 DEFAULT_META_DESCRIPTION = "สำรวจวัตถุ ผลิตภัณฑ์ และองค์ความรู้ชุมชนในรูปแบบโมเดล 3D และ AR"
 DEFAULT_META_IMAGE_PATH = "pic/og-cover.jpg"
+DEFAULT_SITE_SETTINGS = {
+    "landing_cover": DEFAULT_META_IMAGE_PATH,
+    "landing_headline": "PhuPhan AR",
+    "landing_subheadline": "นิทรรศการโมเดล 3D และ AR",
+    "landing_description": "เรียนรู้วัตถุ ผลิตภัณฑ์ และองค์ความรู้ผ่านโมเดลสามมิติและเทคโนโลยี AR",
+    "landing_cta_text": "เข้าสู่เว็บไซต์",
+    "landing_cta_url": "/home",
+    "site_logo": "",
+    "site_name": "PhuPhan-AR",
+    "favicon": "favicon.ico",
+    "meta_description": DEFAULT_META_DESCRIPTION,
+}
+DEFAULT_SLIDER_ITEMS = []
 PLACEHOLDER_THUMBNAIL = (
     "data:image/svg+xml;utf8,"
     "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 500'>"
@@ -139,6 +155,10 @@ PIC_DIR = STATIC_DIR / "pic"
 CATALOG_FILE = DATA_DIR / "models.json"
 PROJECTS_FILE = DATA_DIR / "projects.json"
 CONFIG_FILE = DATA_DIR / "config.json"
+SITE_SETTINGS_FILE = DATA_DIR / "site_settings.json"
+SLIDER_ITEMS_FILE = DATA_DIR / "slider_items.json"
+SITE_UPLOAD_DIR = STATIC_DIR / "uploads" / "site"
+SLIDER_UPLOAD_DIR = STATIC_DIR / "uploads" / "sliders"
 _JSON_CACHE: dict[Path, tuple[float | None, object]] = {}
 _DATA_READY = False
 
@@ -190,15 +210,18 @@ def public_meta_image_url(path_or_url: str | None) -> str:
 @app.context_processor
 def inject_runtime_flags():
     supabase_enabled = is_supabase_enabled()
+    settings = get_site_settings()
+    public_settings = site_settings_with_urls(settings)
     return {
         "is_vercel": is_vercel_runtime(),
         "is_supabase": supabase_enabled,
         "uploads_disabled": is_vercel_runtime() and not supabase_enabled,
-        "default_meta_title": DEFAULT_META_TITLE,
-        "default_meta_description": DEFAULT_META_DESCRIPTION,
-        "default_meta_image": public_meta_image_url(""),
-        "default_site_name": "PhuPhan AR",
+        "default_meta_title": f"{settings['site_name']} | นิทรรศการโมเดล 3D และ AR",
+        "default_meta_description": settings["meta_description"],
+        "default_meta_image": public_meta_image_url(public_settings["landing_cover_url"]),
+        "default_site_name": settings["site_name"],
         "public_site_url": PUBLIC_SITE_URL,
+        "site_settings": public_settings,
     }
 
 
@@ -209,7 +232,7 @@ def ensure_data_files() -> None:
     if is_vercel_runtime():
         _DATA_READY = True
         return
-    for directory in (MODEL_DIR, PIC_DIR):
+    for directory in (MODEL_DIR, PIC_DIR, SITE_UPLOAD_DIR, SLIDER_UPLOAD_DIR):
         try:
             directory.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -397,6 +420,58 @@ def save_config(config: dict) -> None:
     write_json(CONFIG_FILE, config)
 
 
+def normalize_site_settings(settings: dict | None) -> dict:
+    normalized = dict(DEFAULT_SITE_SETTINGS)
+    for key in normalized:
+        value = (settings or {}).get(key)
+        if value is not None:
+            normalized[key] = str(value).strip()
+    for key, fallback in DEFAULT_SITE_SETTINGS.items():
+        if not normalized[key]:
+            normalized[key] = fallback
+    return normalized
+
+
+def load_site_settings() -> dict:
+    return normalize_site_settings(read_json(SITE_SETTINGS_FILE, DEFAULT_SITE_SETTINGS))
+
+
+def save_site_settings(settings: dict) -> None:
+    write_json(SITE_SETTINGS_FILE, normalize_site_settings(settings))
+
+
+def normalize_slider_item(item: dict) -> dict:
+    try:
+        sort_order = int(item.get("sort_order") or 0)
+    except (TypeError, ValueError):
+        sort_order = 0
+    return {
+        "id": str(item.get("id") or uuid.uuid4().hex),
+        "title": str(item.get("title") or "").strip(),
+        "description": str(item.get("description") or "").strip(),
+        "image_url": str(item.get("image_url") or item.get("image") or "").strip(),
+        "button_text": str(item.get("button_text") or "").strip(),
+        "button_url": str(item.get("button_url") or "").strip(),
+        "sort_order": sort_order,
+        "active": bool(item.get("active", True)),
+        "created_at": str(item.get("created_at") or "").strip(),
+    }
+
+
+def load_slider_items(include_inactive: bool = True) -> list[dict]:
+    items = [normalize_slider_item(item) for item in read_json(SLIDER_ITEMS_FILE, DEFAULT_SLIDER_ITEMS)]
+    items.sort(key=lambda item: (item["sort_order"], item["id"]))
+    if include_inactive:
+        return items
+    return [item for item in items if item["active"]]
+
+
+def save_slider_items(items: list[dict]) -> None:
+    normalized = [normalize_slider_item(item) for item in items]
+    normalized.sort(key=lambda item: (item["sort_order"], item["id"]))
+    write_json(SLIDER_ITEMS_FILE, normalized)
+
+
 class SupabaseError(RuntimeError):
     pass
 
@@ -517,6 +592,57 @@ def fetch_supabase_models() -> list[dict]:
     return [normalize_supabase_model(row) for row in rows]
 
 
+def fetch_supabase_site_settings() -> dict:
+    rows = supabase_request("/rest/v1/site_settings?select=key,value") or []
+    return normalize_site_settings({row.get("key"): row.get("value") for row in rows})
+
+
+def upsert_supabase_site_settings(settings: dict) -> None:
+    payload = [{"key": key, "value": value} for key, value in normalize_site_settings(settings).items()]
+    supabase_request(
+        "/rest/v1/site_settings?on_conflict=key",
+        method="POST",
+        payload=payload,
+        extra_headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
+    )
+
+
+def fetch_supabase_slider_items(include_inactive: bool = True) -> list[dict]:
+    path = "/rest/v1/slider_items?select=*&order=sort_order.asc,created_at.asc"
+    if not include_inactive:
+        path = "/rest/v1/slider_items?select=*&active=eq.true&order=sort_order.asc,created_at.asc"
+    rows = supabase_request(path) or []
+    return [normalize_slider_item(row) for row in rows]
+
+
+def create_supabase_slider_item(data: dict) -> dict:
+    item = normalize_slider_item(data)
+    payload = {key: item[key] for key in ("id", "title", "description", "image_url", "button_text", "button_url", "sort_order", "active")}
+    rows = supabase_request(
+        "/rest/v1/slider_items",
+        method="POST",
+        payload=payload,
+        extra_headers={"Prefer": "return=representation"},
+    )
+    return normalize_slider_item(rows[0]) if rows else item
+
+
+def update_supabase_slider_item(slider_id: str, data: dict) -> dict:
+    item = normalize_slider_item({"id": slider_id, **data})
+    payload = {key: item[key] for key in ("title", "description", "image_url", "button_text", "button_url", "sort_order", "active")}
+    rows = supabase_request(
+        f"/rest/v1/slider_items?id=eq.{quote(slider_id)}",
+        method="PATCH",
+        payload=payload,
+        extra_headers={"Prefer": "return=representation"},
+    )
+    return normalize_slider_item(rows[0]) if rows else item
+
+
+def delete_supabase_slider_item(slider_id: str) -> None:
+    supabase_request(f"/rest/v1/slider_items?id=eq.{quote(slider_id)}", method="DELETE")
+
+
 def get_projects(include_hidden: bool = True) -> list[dict]:
     if is_supabase_enabled():
         try:
@@ -533,6 +659,24 @@ def get_models(include_hidden: bool = True) -> list[dict]:
         except SupabaseError as exc:
             logger.warning("Falling back to local models.json because Supabase read failed: %s", exc)
     return load_models(include_hidden=include_hidden)
+
+
+def get_site_settings() -> dict:
+    if is_supabase_enabled():
+        try:
+            return fetch_supabase_site_settings()
+        except SupabaseError as exc:
+            logger.warning("Falling back to local site_settings.json because Supabase read failed: %s", exc)
+    return load_site_settings()
+
+
+def get_slider_items(include_inactive: bool = True) -> list[dict]:
+    if is_supabase_enabled():
+        try:
+            return fetch_supabase_slider_items(include_inactive=include_inactive)
+        except SupabaseError as exc:
+            logger.warning("Falling back to local slider_items.json because Supabase read failed: %s", exc)
+    return load_slider_items(include_inactive=include_inactive)
 
 
 def supabase_public_url(object_path: str) -> str:
@@ -553,11 +697,16 @@ def supabase_signed_upload_url(object_path: str) -> str:
     return upload_url
 
 
-def upload_to_supabase_storage(file_storage, folder: str) -> tuple[str, float | None]:
+def upload_to_supabase_storage(
+    file_storage,
+    folder: str,
+    allowed_extensions: set[str] | None = None,
+    max_bytes: int | None = None,
+) -> tuple[str, float | None]:
     if not file_storage or not file_storage.filename:
         return "", None
 
-    allowed_extensions = MODEL_EXTENSIONS if folder == "models" else IMAGE_EXTENSIONS
+    allowed_extensions = allowed_extensions or (MODEL_EXTENSIONS if folder == "models" else IMAGE_EXTENSIONS)
     extension = Path(file_storage.filename).suffix.lower()
     if extension not in allowed_extensions:
         abort(400, f"Unsupported file type: {extension}")
@@ -569,6 +718,8 @@ def upload_to_supabase_storage(file_storage, folder: str) -> tuple[str, float | 
     file_storage.seek(0)
     if not data:
         abort(400, "Uploaded file is empty")
+    if max_bytes and len(data) > max_bytes:
+        abort(413, "File must not exceed 5 MB")
 
     supabase_request(
         f"/storage/v1/object/{quote(supabase_bucket())}/{quote(object_path, safe='/')}",
@@ -580,11 +731,15 @@ def upload_to_supabase_storage(file_storage, folder: str) -> tuple[str, float | 
     return supabase_public_url(object_path), round(len(data) / (1024 * 1024), 2)
 
 
-def direct_upload_target(filename: str, kind: str) -> tuple[str, str]:
+def direct_upload_target(filename: str, kind: str, file_size: int | None = None) -> tuple[str, str]:
     upload_kinds = {
         "model": ("models", MODEL_EXTENSIONS),
         "thumbnail": ("thumbnails", IMAGE_EXTENSIONS),
         "project_image": ("projects", IMAGE_EXTENSIONS),
+        "landing_cover": ("site/landing", IMAGE_EXTENSIONS),
+        "site_logo": ("site/branding", SITE_LOGO_EXTENSIONS),
+        "favicon": ("site/branding", FAVICON_EXTENSIONS),
+        "slider_image": ("sliders", IMAGE_EXTENSIONS),
     }
     if kind not in upload_kinds:
         abort(400, "Unsupported upload kind")
@@ -593,6 +748,11 @@ def direct_upload_target(filename: str, kind: str) -> tuple[str, str]:
     extension = Path(filename or "").suffix.lower()
     if extension not in allowed_extensions:
         abort(400, f"Unsupported file type: {extension or '(none)'}")
+    if kind in {"landing_cover", "site_logo", "favicon", "slider_image"}:
+        if not file_size:
+            abort(400, "file_size is required for managed site uploads")
+        if file_size > SITE_ASSET_MAX_BYTES:
+            abort(413, "File must not exceed 5 MB")
 
     object_path = f"{folder}/{uuid.uuid4().hex}{extension}"
     return object_path, supabase_public_url(object_path)
@@ -734,6 +894,20 @@ def static_asset_url(path_value: str | None) -> str:
     if is_external_url(value):
         return value
     return url_for("static", filename=strip_static_prefix(value))
+
+
+def site_settings_with_urls(settings: dict) -> dict:
+    enriched = normalize_site_settings(settings)
+    enriched["landing_cover_url"] = static_asset_url(enriched["landing_cover"]) or url_for("static", filename=DEFAULT_META_IMAGE_PATH)
+    enriched["site_logo_url"] = static_asset_url(enriched["site_logo"]) if enriched["site_logo"] else ""
+    enriched["favicon_url"] = static_asset_url(enriched["favicon"]) or url_for("static", filename="favicon.ico")
+    return enriched
+
+
+def slider_with_url(item: dict) -> dict:
+    enriched = normalize_slider_item(item)
+    enriched["resolved_image_url"] = static_asset_url(enriched["image_url"]) if enriched["image_url"] else ""
+    return enriched
 
 
 def local_static_url_if_exists(path_value: str | None) -> str:
@@ -960,6 +1134,28 @@ def save_upload(file_storage, directory: Path, relative_folder: str, allowed_ext
     return f"{relative_folder}/{asset_name}"
 
 
+def save_site_upload(file_storage, directory: Path, relative_folder: str, allowed_extensions: set[str]) -> str:
+    if not file_storage or not file_storage.filename:
+        return ""
+    extension = Path(file_storage.filename).suffix.lower()
+    if extension not in allowed_extensions:
+        abort(400, f"Unsupported file type: {extension}")
+    data = file_storage.read(SITE_ASSET_MAX_BYTES + 1)
+    file_storage.seek(0)
+    if not data:
+        abort(400, "Uploaded file is empty")
+    if len(data) > SITE_ASSET_MAX_BYTES:
+        abort(413, "File must not exceed 5 MB")
+    asset_name = unique_asset_name(file_storage.filename, allowed_extensions)
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / asset_name).write_bytes(data)
+    except OSError as exc:
+        logger.exception("Unable to save site asset %s", asset_name)
+        abort(500, f"Unable to save uploaded file: {exc}")
+    return f"{relative_folder}/{asset_name}"
+
+
 def form_visible() -> bool:
     if "visible" not in request.form:
         return False
@@ -973,27 +1169,87 @@ def parse_float(name: str, default: float) -> float:
         abort(400, f"{name} must be a number")
 
 
+def setting_asset_from_request(
+    settings: dict,
+    key: str,
+    file_field: str,
+    folder: str,
+    directory: Path,
+    relative_folder: str,
+    allowed_extensions: set[str],
+) -> str:
+    submitted_url = request.form.get(key, "").strip()
+    file_storage = request.files.get(file_field)
+    if is_supabase_enabled():
+        uploaded_url, _ = upload_to_supabase_storage(
+            file_storage,
+            folder,
+            allowed_extensions=allowed_extensions,
+            max_bytes=SITE_ASSET_MAX_BYTES,
+        )
+        return uploaded_url or submitted_url or settings.get(key, "")
+    uploaded_path = save_site_upload(file_storage, directory, relative_folder, allowed_extensions)
+    return uploaded_path or submitted_url or settings.get(key, "")
+
+
+def slider_data_from_request(existing: dict | None = None) -> dict:
+    existing = existing or {}
+    image_url = request.form.get("image_url", "").strip()
+    file_storage = request.files.get("image_file")
+    if is_supabase_enabled():
+        uploaded_url, _ = upload_to_supabase_storage(
+            file_storage,
+            "sliders",
+            allowed_extensions=IMAGE_EXTENSIONS,
+            max_bytes=SITE_ASSET_MAX_BYTES,
+        )
+        image_url = uploaded_url or image_url or existing.get("image_url", "")
+    else:
+        uploaded_path = save_site_upload(file_storage, SLIDER_UPLOAD_DIR, "uploads/sliders", IMAGE_EXTENSIONS)
+        image_url = uploaded_path or image_url or existing.get("image_url", "")
+    try:
+        sort_order = int(request.form.get("sort_order") or 0)
+    except ValueError:
+        abort(400, "sort_order must be an integer")
+    return {
+        "id": existing.get("id") or uuid.uuid4().hex,
+        "title": request.form.get("title", "").strip(),
+        "description": request.form.get("description", "").strip(),
+        "image_url": image_url,
+        "button_text": request.form.get("button_text", "").strip(),
+        "button_url": request.form.get("button_url", "").strip(),
+        "sort_order": sort_order,
+        "active": form_visible(),
+        "created_at": existing.get("created_at", ""),
+    }
+
+
 @app.route("/")
 def index():
-    landing_image_path = "pic/landing-cover.jpg"
-    if not (STATIC_DIR / landing_image_path).exists():
-        landing_image_path = DEFAULT_META_IMAGE_PATH
+    settings = get_site_settings()
+    public_settings = site_settings_with_urls(settings)
+    sliders = [slider_with_url(item) for item in get_slider_items(include_inactive=False)]
     return render_template(
         "landing.html",
-        landing_image_url=url_for("static", filename=landing_image_path),
-        page_title="PhuPhan AR | นิทรรศการโมเดล 3D และ AR",
-        page_description="สำรวจวัตถุ ผลิตภัณฑ์ และองค์ความรู้ท้องถิ่นผ่านโมเดล 3D และ AR",
+        landing_image_url=public_settings["landing_cover_url"],
+        sliders=sliders,
+        page_title=f"{settings['site_name']} | {settings['landing_subheadline']}",
+        page_description=settings["meta_description"],
+        page_image=public_meta_image_url(public_settings["landing_cover_url"]),
         page_url=public_url_for("index"),
     )
 
 
 @app.route("/home")
 def home():
+    settings = get_site_settings()
+    public_settings = site_settings_with_urls(settings)
     models = get_models(include_hidden=False)
     projects = [project_with_urls(project, models) for project in get_projects(include_hidden=False)]
     counts = project_model_counts(projects, models)
     all_models = [model_with_project(model, projects) for model in models]
     featured_models = all_models[:6]
+    sliders = [slider_with_url(item) for item in get_slider_items(include_inactive=False)]
     return render_template(
         "index.html",
         projects=projects,
@@ -1002,12 +1258,17 @@ def home():
         total_project_count=len(projects),
         total_model_count=len(all_models),
         uses_online_data=is_supabase_enabled(),
+        sliders=sliders,
+        page_title=f"{settings['site_name']} | {settings['landing_subheadline']}",
+        page_description=settings["meta_description"],
+        page_image=public_meta_image_url(public_settings["landing_cover_url"]),
         page_url=public_url_for("home"),
     )
 
 
 @app.route("/models")
 def models_index():
+    settings = get_site_settings()
     models = get_models(include_hidden=False)
     projects = [project_with_urls(project, models) for project in get_projects(include_hidden=False)]
     all_models = [model_with_project(model, projects) for model in models]
@@ -1019,11 +1280,19 @@ def models_index():
             continue
         seen_projects.add(project_name)
         project_filters.append(project_name)
-    return render_template("models.html", models=all_models, project_filters=project_filters, page_url=public_url_for("models_index"))
+    return render_template(
+        "models.html",
+        models=all_models,
+        project_filters=project_filters,
+        page_title=f"โมเดลทั้งหมด | {settings['site_name']}",
+        page_description=settings["meta_description"],
+        page_url=public_url_for("models_index"),
+    )
 
 
 @app.route("/projects/<project_id>")
 def project_detail(project_id: str):
+    settings = get_site_settings()
     project = find_project(project_id)
     if project is None:
         abort(404)
@@ -1038,8 +1307,8 @@ def project_detail(project_id: str):
         "project.html",
         project=project,
         models=models,
-        page_title=f"{project.get('name', '')} | PhuPhan AR",
-        page_description=project.get("description") or DEFAULT_META_DESCRIPTION,
+        page_title=f"{project.get('name', '')} | {settings['site_name']}",
+        page_description=project.get("description") or settings["meta_description"],
         page_image=public_meta_image_url(project.get("cover_image_url")),
         page_url=public_url_for("project_detail", project_id=project_id),
     )
@@ -1047,6 +1316,7 @@ def project_detail(project_id: str):
 
 @app.route("/models/<model_id>")
 def model_detail(model_id: str):
+    settings = get_site_settings()
     model = find_model(model_id)
     if model is None:
         abort(404)
@@ -1072,8 +1342,8 @@ def model_detail(model_id: str):
         size_mb=model_size_mb(model),
         related_models=related_models,
         mode=request.args.get("mode", "3d"),
-        page_title=f"{model.get('name', '')} | PhuPhan AR",
-        page_description=model.get("description") or DEFAULT_META_DESCRIPTION,
+        page_title=f"{model.get('name', '')} | {settings['site_name']}",
+        page_description=model.get("description") or settings["meta_description"],
         page_image=public_meta_image_url(resolve_thumbnail_url(model)),
         page_url=public_url_for("model_detail", model_id=model_id),
     )
@@ -1089,6 +1359,16 @@ def api_models():
             if strip_static_prefix(filesystem_model.get("model")).lower() not in known_paths:
                 models.append(normalize_model(filesystem_model, projects))
     return jsonify([api_model_payload(model, projects) for model in models])
+
+
+@app.get("/api/settings")
+def api_settings():
+    return jsonify(site_settings_with_urls(get_site_settings()))
+
+
+@app.get("/api/sliders")
+def api_sliders():
+    return jsonify([slider_with_url(item) for item in get_slider_items(include_inactive=False)])
 
 
 @app.get("/health")
@@ -1107,6 +1387,160 @@ def admin():
     return render_template("admin.html", projects=projects, models=models, model_counts=counts)
 
 
+@app.route("/admin/landing")
+@admin_required
+def admin_landing():
+    return render_template("admin_landing.html", settings=site_settings_with_urls(get_site_settings()))
+
+
+@app.route("/admin/branding")
+@admin_required
+def admin_branding():
+    return render_template("admin_branding.html", settings=site_settings_with_urls(get_site_settings()))
+
+
+@app.route("/admin/sliders", methods=["GET", "POST"])
+@admin_required
+def admin_sliders():
+    if request.method == "POST":
+        if reject_vercel_upload_if_needed("image_file") or admin_write_blocked_on_vercel():
+            return redirect(url_for("admin_sliders"))
+        data = slider_data_from_request()
+        if not data["title"]:
+            abort(400, "Slider title is required")
+        if not data["image_url"]:
+            abort(400, "Slider image is required")
+        if is_supabase_enabled():
+            try:
+                create_supabase_slider_item(data)
+            except SupabaseError as exc:
+                logger.exception("Unable to create slider in Supabase")
+                flash(f"Unable to save slider to Supabase: {exc}", "error")
+                return redirect(url_for("admin_sliders"))
+        else:
+            items = load_slider_items(include_inactive=True)
+            items.append(data)
+            save_slider_items(items)
+        flash("เพิ่มสไลด์แล้ว", "success")
+        return redirect(url_for("admin_sliders"))
+    sliders = [slider_with_url(item) for item in get_slider_items(include_inactive=True)]
+    return render_template("admin_sliders.html", sliders=sliders)
+
+
+@app.route("/admin/sliders/<slider_id>/edit", methods=["GET", "POST"])
+@admin_required
+def edit_slider(slider_id: str):
+    sliders = get_slider_items(include_inactive=True)
+    slider = next((item for item in sliders if item["id"] == slider_id), None)
+    if slider is None:
+        abort(404)
+    if request.method == "POST":
+        if reject_vercel_upload_if_needed("image_file") or admin_write_blocked_on_vercel():
+            return redirect(url_for("edit_slider", slider_id=slider_id))
+        data = slider_data_from_request(slider)
+        if not data["title"]:
+            abort(400, "Slider title is required")
+        if is_supabase_enabled():
+            try:
+                update_supabase_slider_item(slider_id, data)
+            except SupabaseError as exc:
+                logger.exception("Unable to update slider in Supabase")
+                flash(f"Unable to save slider to Supabase: {exc}", "error")
+                return redirect(url_for("edit_slider", slider_id=slider_id))
+        else:
+            save_slider_items([data if item["id"] == slider_id else item for item in sliders])
+        flash("บันทึกสไลด์แล้ว", "success")
+        return redirect(url_for("admin_sliders"))
+    return render_template("edit_slider.html", slider=slider_with_url(slider))
+
+
+@app.route("/admin/sliders/<slider_id>", methods=["POST", "DELETE"])
+@admin_required
+def delete_slider(slider_id: str):
+    if admin_write_blocked_on_vercel():
+        return redirect(url_for("admin_sliders"))
+    if is_supabase_enabled():
+        try:
+            delete_supabase_slider_item(slider_id)
+        except SupabaseError as exc:
+            logger.exception("Unable to delete slider in Supabase")
+            if request.method == "DELETE":
+                return jsonify({"error": str(exc)}), 502
+            flash(f"Unable to delete slider from Supabase: {exc}", "error")
+            return redirect(url_for("admin_sliders"))
+    else:
+        sliders = load_slider_items(include_inactive=True)
+        if not any(item["id"] == slider_id for item in sliders):
+            abort(404)
+        save_slider_items([item for item in sliders if item["id"] != slider_id])
+    if request.method == "DELETE":
+        return "", 204
+    flash("ลบสไลด์แล้ว", "success")
+    return redirect(url_for("admin_sliders"))
+
+
+@app.post("/admin/settings")
+@admin_required
+def update_admin_settings():
+    if reject_vercel_upload_if_needed("landing_cover_file", "site_logo_file", "favicon_file") or admin_write_blocked_on_vercel():
+        return redirect(request.form.get("return_to") or url_for("admin"))
+    settings = get_site_settings()
+    section = request.form.get("section", "").strip()
+    if section == "landing":
+        settings.update(
+            {
+                "landing_headline": request.form.get("landing_headline", "").strip() or DEFAULT_SITE_SETTINGS["landing_headline"],
+                "landing_subheadline": request.form.get("landing_subheadline", "").strip() or DEFAULT_SITE_SETTINGS["landing_subheadline"],
+                "landing_description": request.form.get("landing_description", "").strip() or DEFAULT_SITE_SETTINGS["landing_description"],
+                "landing_cta_text": request.form.get("landing_cta_text", "").strip() or DEFAULT_SITE_SETTINGS["landing_cta_text"],
+                "landing_cta_url": request.form.get("landing_cta_url", "").strip() or DEFAULT_SITE_SETTINGS["landing_cta_url"],
+            }
+        )
+        settings["landing_cover"] = setting_asset_from_request(
+            settings,
+            "landing_cover",
+            "landing_cover_file",
+            "site/landing",
+            SITE_UPLOAD_DIR,
+            "uploads/site",
+            IMAGE_EXTENSIONS,
+        )
+    elif section == "branding":
+        settings["site_name"] = request.form.get("site_name", "").strip() or DEFAULT_SITE_SETTINGS["site_name"]
+        settings["meta_description"] = request.form.get("meta_description", "").strip() or DEFAULT_SITE_SETTINGS["meta_description"]
+        settings["site_logo"] = setting_asset_from_request(
+            settings,
+            "site_logo",
+            "site_logo_file",
+            "site/branding",
+            SITE_UPLOAD_DIR,
+            "uploads/site",
+            SITE_LOGO_EXTENSIONS,
+        )
+        settings["favicon"] = setting_asset_from_request(
+            settings,
+            "favicon",
+            "favicon_file",
+            "site/branding",
+            SITE_UPLOAD_DIR,
+            "uploads/site",
+            FAVICON_EXTENSIONS,
+        )
+    else:
+        abort(400, "Unsupported settings section")
+    if is_supabase_enabled():
+        try:
+            upsert_supabase_site_settings(settings)
+        except SupabaseError as exc:
+            logger.exception("Unable to save site settings in Supabase")
+            flash(f"Unable to save settings to Supabase: {exc}", "error")
+            return redirect(request.form.get("return_to") or url_for("admin"))
+    else:
+        save_site_settings(settings)
+    flash("บันทึกการตั้งค่าแล้ว", "success")
+    return redirect(request.form.get("return_to") or url_for("admin"))
+
+
 @app.post("/admin/api/create-upload-url")
 @admin_required
 def create_admin_upload_url():
@@ -1118,10 +1552,14 @@ def create_admin_upload_url():
     payload = request.get_json(silent=True) or {}
     filename = str(payload.get("filename") or "").strip()
     kind = str(payload.get("kind") or "").strip()
+    try:
+        file_size = int(payload.get("file_size") or 0)
+    except (TypeError, ValueError):
+        abort(400, "file_size must be an integer")
     if not filename:
         abort(400, "filename is required")
 
-    object_path, public_url = direct_upload_target(filename, kind)
+    object_path, public_url = direct_upload_target(filename, kind, file_size=file_size)
     try:
         upload_url = supabase_signed_upload_url(object_path)
     except SupabaseError as exc:

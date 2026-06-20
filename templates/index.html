@@ -23,8 +23,8 @@
     </button>
     <nav class="nav-actions" id="nav-menu" aria-label="ลิงก์หลัก">
       <a href="{{ url_for('home') }}" aria-current="page">หน้าแรก</a>
-      <a href="#projects">โครงการ</a>
-      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+      <a href="#projects">แหล่งเรียนรู้</a>
+      <a href="{{ url_for('models_index') }}">รายการโมเดล</a>
       <a href="#ar-guide">วิธีใช้งาน AR</a>
     </nav>
   </header>
@@ -40,7 +40,7 @@
         </p>
         <div class="hero-actions">
           <a class="button" href="{{ url_for('models_index') }}">เริ่มชมโมเดล 3D</a>
-          <a class="button secondary" href="#projects">ดูโครงการทั้งหมด</a>
+          <a class="button secondary" href="#projects">ดูแหล่งเรียนรู้ทั้งหมด</a>
         </div>
       </div>
       <div class="hero-media" aria-label="สไลด์ภาพโครงการ">
@@ -75,7 +75,7 @@
     <section class="stats-section" aria-label="ข้อมูลสรุปเว็บไซต์">
       <div class="stat-card">
         <strong>{{ total_project_count }}</strong>
-        <span>โครงการ</span>
+        <span>แหล่งเรียนรู้</span>
       </div>
       <div class="stat-card">
         <strong>{{ total_model_count }}</strong>
@@ -102,7 +102,7 @@
       <div class="step-grid">
         <article class="info-card step-card">
           <span class="step-number">1</span>
-          <h3>เลือกโครงการหรือโมเดล</h3>
+          <h3>เลือกแหล่งเรียนรู้หรือโมเดล</h3>
           <p>เริ่มจากหัวข้อที่สนใจ หรือเปิดหน้ารวมโมเดลเพื่อเลือกวัตถุที่ต้องการสำรวจ</p>
         </article>
         <article class="info-card step-card">
@@ -121,10 +121,10 @@
     <section class="content-section" id="projects" aria-labelledby="projects-title">
       <div class="section-head">
         <div>
-          <p class="eyebrow">โครงการ</p>
+          <p class="eyebrow">แหล่งเรียนรู้</p>
           <h2 id="projects-title">เลือกหัวข้อการเรียนรู้</h2>
         </div>
-        <p>{{ total_project_count }} โครงการพร้อมให้เข้าชม</p>
+        <p>{{ total_project_count }} แหล่งเรียนรู้พร้อมให้เข้าชม</p>
       </div>
 
       {% if projects %}
@@ -199,7 +199,7 @@
         {% endfor %}
       </div>
       <div class="action-row section-action">
-        <a class="button secondary" href="{{ url_for('models_index') }}">ดูโมเดลทั้งหมด</a>
+        <a class="button secondary" href="{{ url_for('models_index') }}">ดูรายการโมเดล</a>
       </div>
       {% else %}
       <div class="empty-state">
@@ -260,8 +260,8 @@
     </div>
     <nav aria-label="ลิงก์ท้ายเว็บไซต์">
       <a href="{{ url_for('home') }}">หน้าแรก</a>
-      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
-      <a href="#projects">โครงการ</a>
+      <a href="{{ url_for('models_index') }}">รายการโมเดล</a>
+      <a href="#projects">แหล่งเรียนรู้</a>
       <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
     </nav>
   </footer>

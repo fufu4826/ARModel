@@ -20,9 +20,9 @@
     </button>
     <nav class="nav-actions" id="nav-menu" aria-label="ลิงก์หลัก">
       <a href="{{ url_for('home') }}">หน้าแรก</a>
-      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+      <a href="{{ url_for('models_index') }}">รายการโมเดล</a>
       {% if model.has_project %}
-      <a href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปโครงการ</a>
+      <a href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปแหล่งเรียนรู้</a>
       {% endif %}
     </nav>
   </header>
@@ -68,12 +68,12 @@
           <strong>ไม่สามารถโหลดโมเดลนี้ได้</strong>
           <span>ไฟล์อาจมีขนาดใหญ่หรือเบราว์เซอร์ยังไม่พร้อมสำหรับการแสดงผล 3D ลองรีเฟรชหน้า หรือเลือกเส้นทางอื่นด้านล่าง</span>
           <div class="viewer-recovery">
-            <a class="button small" href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+            <a class="button small" href="{{ url_for('models_index') }}">รายการโมเดล</a>
             {% if model_url %}
             <a class="button secondary small" href="{{ model_url }}" target="_blank" rel="noopener">เปิดไฟล์โมเดลโดยตรง</a>
             {% endif %}
             {% if model.has_project %}
-            <a class="button secondary small" href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปโครงการ</a>
+            <a class="button secondary small" href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปแหล่งเรียนรู้</a>
             {% endif %}
             {% if related_models %}
             <a class="button secondary small" href="{{ url_for('model_detail', model_id=related_models[0].id) }}">เปิดโมเดลใกล้เคียง</a>
@@ -122,7 +122,7 @@
 
       <dl class="meta-list">
         <div>
-          <dt>โครงการ</dt>
+          <dt>แหล่งเรียนรู้</dt>
           <dd id="modelProjectName">{{ model.project_name }}</dd>
         </div>
         <div>
@@ -144,9 +144,9 @@
         <a class="button secondary" href="{{ model_url }}" target="_blank" rel="noopener">เปิดไฟล์โมเดลโดยตรง</a>
         {% endif %}
         {% if model.has_project %}
-        <a class="button" href="{{ url_for('project_detail', project_id=model.project_id) }}">ดูโมเดลในโครงการ</a>
+        <a class="button" href="{{ url_for('project_detail', project_id=model.project_id) }}">ดูโมเดลในแหล่งเรียนรู้</a>
         {% else %}
-        <a class="button" href="{{ url_for('models_index') }}">ดูโมเดลทั้งหมด</a>
+        <a class="button" href="{{ url_for('models_index') }}">ดูรายการโมเดล</a>
         {% endif %}
       </div>
     </aside>

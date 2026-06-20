@@ -19,8 +19,8 @@
     </button>
     <nav class="nav-actions" id="nav-menu" aria-label="ลิงก์หลัก">
       <a href="{{ url_for('home') }}">หน้าแรก</a>
-      <a href="{{ url_for('home') }}#projects">โครงการทั้งหมด</a>
-      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+      <a href="{{ url_for('home') }}#projects">แหล่งเรียนรู้ทั้งหมด</a>
+      <a href="{{ url_for('models_index') }}">รายการโมเดล</a>
     </nav>
   </header>
 
@@ -35,8 +35,8 @@
       <div class="project-hero-copy">
         <p class="eyebrow">{{ project.department or "ศูนย์ศึกษาการพัฒนาภูพาน" }}</p>
         <h1>{{ project.name }}</h1>
-        <p class="lead">{{ project.description or "รวมโมเดล 3D และ AR สำหรับการเรียนรู้ภายในโครงการนี้" }}</p>
-        <div class="summary-strip" aria-label="สรุปโครงการ">
+        <p class="lead">{{ project.description or "รวมโมเดล 3D และ AR สำหรับการเรียนรู้ภายในแหล่งเรียนรู้นี้" }}</p>
+        <div class="summary-strip" aria-label="สรุปแหล่งเรียนรู้">
           <div>
             <strong>{{ models|length }}</strong>
             <span>โมเดล 3D</span>
@@ -61,7 +61,7 @@
       <div class="section-head">
         <div>
           <p class="eyebrow">รายการโมเดล</p>
-          <h2 id="models-title">โมเดลในโครงการนี้</h2>
+          <h2 id="models-title">โมเดลในแหล่งเรียนรู้นี้</h2>
         </div>
         <p>เลือกโมเดลเพื่อเปิดดู 3D หรือ AR</p>
       </div>
@@ -98,7 +98,7 @@
       </div>
       {% else %}
       <div class="empty-state">
-        <h3>ยังไม่มีโมเดลในโครงการนี้</h3>
+        <h3>ยังไม่มีโมเดลในแหล่งเรียนรู้นี้</h3>
         <p>เมื่อเพิ่มโมเดลแล้ว ผู้เข้าชมจะสามารถเปิดดู 3D และ AR ได้จากหน้านี้</p>
         <a class="button secondary" href="{{ url_for('home') }}">กลับไปหน้าแรก</a>
       </div>

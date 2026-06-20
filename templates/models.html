@@ -19,8 +19,8 @@
     </button>
     <nav class="nav-actions" id="nav-menu" aria-label="ลิงก์หลัก">
       <a href="{{ url_for('home') }}">หน้าแรก</a>
-      <a href="{{ url_for('home') }}#projects">โครงการ</a>
-      <a href="{{ url_for('models_index') }}" aria-current="page">โมเดลทั้งหมด</a>
+      <a href="{{ url_for('home') }}#projects">แหล่งเรียนรู้</a>
+      <a href="{{ url_for('models_index') }}" aria-current="page">รายการโมเดล</a>
       <a href="{{ url_for('admin_login') }}">ผู้ดูแล</a>
     </nav>
   </header>
@@ -29,13 +29,13 @@
     <nav class="breadcrumb" aria-label="เส้นทางหน้า">
       <a href="{{ url_for('home') }}">หน้าแรก</a>
       <span aria-hidden="true">/</span>
-      <span>โมเดลทั้งหมด</span>
+      <span>รายการโมเดล</span>
     </nav>
 
     <section class="project-hero models-hero">
       <div class="project-hero-copy">
         <p class="eyebrow">คลังโมเดล 3D / AR</p>
-        <h1>โมเดลทั้งหมด</h1>
+        <h1>รายการโมเดล</h1>
         <p class="lead">เลือกชมวัตถุและผลิตภัณฑ์ในรูปแบบ 3D และ AR</p>
         <div class="summary-strip" aria-label="สรุปโมเดล">
           <div>
@@ -51,8 +51,8 @@
       <div class="project-hero-media models-hero-panel">
         <div>
           <span class="eyebrow">ARModel</span>
-          <strong>ค้นหา เลือกโครงการ แล้วเปิดชมโมเดลที่ต้องการ</strong>
-          <p>รายการนี้แสดงทุกโมเดลจากแหล่งข้อมูลปัจจุบัน รวมถึงโมเดลที่ยังไม่ได้จัดอยู่ในโครงการ</p>
+          <strong>ค้นหา เลือกแหล่งเรียนรู้ แล้วเปิดชมโมเดลที่ต้องการ</strong>
+          <p>รายการนี้แสดงทุกโมเดลจากแหล่งข้อมูลปัจจุบัน รวมถึงโมเดลที่ยังไม่ได้จัดอยู่ในแหล่งเรียนรู้</p>
         </div>
       </div>
     </section>
@@ -73,7 +73,7 @@
           <input id="modelSearch" type="search" autocomplete="off" placeholder="ค้นหาชื่อหรือคำอธิบาย" />
         </div>
         <div class="field-group">
-          <label for="projectFilter">โครงการ</label>
+          <label for="projectFilter">แหล่งเรียนรู้</label>
           <select id="projectFilter">
             <option value="">ทั้งหมด</option>
             {% for project_name in project_filters %}
@@ -117,7 +117,7 @@
 
       <div class="empty-state" id="modelsNoResults" hidden>
         <h3>ไม่พบโมเดลที่ตรงกับการค้นหา</h3>
-        <p>ลองลบคำค้นหา หรือเลือกโครงการเป็น “ทั้งหมด”</p>
+        <p>ลองลบคำค้นหา หรือเลือกแหล่งเรียนรู้เป็น “ทั้งหมด”</p>
       </div>
       {% else %}
       <div class="empty-state">

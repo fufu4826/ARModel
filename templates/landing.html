@@ -20,6 +20,22 @@
       <a href="{{ url_for('index') }}" class="landing-brand" aria-label="{{ site_settings.site_name }} หน้า Landing">
         {% include "_brand_mark.html" %}
       </a>
+      {% set logo_strip = namespace(has_logos=false) %}
+      {% for index in range(1, 4) %}
+        {% if site_settings["intro_logo_" ~ index ~ "_url"] %}
+          {% set logo_strip.has_logos = true %}
+        {% endif %}
+      {% endfor %}
+      {% if logo_strip.has_logos %}
+      <div class="landing-logo-strip" aria-label="โลโก้หน่วยงาน">
+        {% for index in range(1, 4) %}
+          {% set logo_url = site_settings["intro_logo_" ~ index ~ "_url"] %}
+          {% if logo_url %}
+          <img class="landing-logo-strip__item" src="{{ logo_url }}" alt="โลโก้อินโทร {{ index }}" data-intro-logo-index="{{ index }}" loading="eager" onerror="this.hidden=true;" />
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
     </header>
     <section class="landing-content" id="landing-content" aria-labelledby="landing-title">
       <p class="eyebrow landing-eyebrow">นิทรรศการดิจิทัล 3D / AR</p>

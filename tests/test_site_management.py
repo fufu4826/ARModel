@@ -100,6 +100,14 @@ class SiteManagementTests(unittest.TestCase):
             stylesheet,
         )
 
+    def test_landing_cover_is_right_aligned(self):
+        stylesheet = (
+            Path(module.BASE_DIR) / "static" / "css" / "style.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn(".landing-logo-strip", stylesheet)
+        self.assertIn(".landing-logo-strip__item", stylesheet)
+        self.assertIn("background-position: right center;", stylesheet)
+
     def test_public_seo_metadata_and_structured_data(self):
         landing_html = self.client.get("/").get_data(as_text=True)
         home_html = self.client.get("/home").get_data(as_text=True)
@@ -372,6 +380,14 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("/static/pic/logo-2.webp", landing_html)
         self.assertIn('"durationMs": 1200', landing_html)
         self.assertIn("landingIntroOverlay", landing_html)
+        self.assertIn("landing-logo-strip", landing_html)
+        logo_1_position = landing_html.index('data-intro-logo-index="1"')
+        logo_2_position = landing_html.index('data-intro-logo-index="2"')
+        self.assertLess(logo_1_position, logo_2_position)
+        self.assertNotIn('data-intro-logo-index="3"', landing_html)
+        self.assertIn('alt="โลโก้อินโทร 1"', landing_html)
+        self.assertIn('alt="โลโก้อินโทร 2"', landing_html)
+        self.assertIn('href="/home"', landing_html)
 
         self.sign_in()
         admin_page = self.client.get("/admin/intro")

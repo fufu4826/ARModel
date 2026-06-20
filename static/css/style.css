@@ -225,7 +225,7 @@ body.landing-page main {
   overflow: hidden;
   padding: clamp(18px, 4vw, 40px);
   background-image: var(--landing-image);
-  background-position: center;
+  background-position: right center;
   background-size: cover;
 }
 
@@ -251,6 +251,22 @@ body.landing-page main {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.landing-logo-strip {
+  display: flex;
+  max-width: min(48vw, 360px);
+  align-items: center;
+  justify-content: flex-end;
+  gap: clamp(6px, 1vw, 12px);
+}
+
+.landing-logo-strip__item {
+  width: clamp(38px, 5vw, 64px);
+  height: clamp(38px, 5vw, 64px);
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.34));
 }
 
 .landing-brand {
@@ -1560,6 +1576,16 @@ model-viewer {
   .landing-content {
     padding-top: 96px;
     padding-bottom: 12px;
+  }
+
+  .landing-logo-strip {
+    max-width: 46vw;
+    gap: 5px;
+  }
+
+  .landing-logo-strip__item {
+    width: clamp(32px, 10vw, 46px);
+    height: clamp(32px, 10vw, 46px);
   }
 
   .landing-actions,

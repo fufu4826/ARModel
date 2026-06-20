@@ -821,6 +821,21 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn('data-model-card', models_html)
         self.assertIn('data-search-text', models_html)
 
+    def test_site_wide_kanit_font(self):
+        # 1. Test public pages render successfully and load Kanit Font
+        for path in ("/", "/home", "/models"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                html = response.get_data(as_text=True)
+                self.assertIn("fonts.googleapis.com/css2?family=Kanit", html)
+
+        # 2. Test admin login page renders successfully and loads Kanit Font
+        response = self.client.get("/admin/login")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("fonts.googleapis.com/css2?family=Kanit", html)
+
     def test_supabase_schema_is_hardened_and_non_destructive(self):
         sql = (Path(module.BASE_DIR) / "docs" / "supabase_schema.sql").read_text(encoding="utf-8").lower()
         for forbidden in ("drop table", "truncate", "delete from", "alter table site_settings drop", "alter table slider_items drop"):

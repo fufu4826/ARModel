@@ -10,10 +10,11 @@
   --admin-danger: #a72b22;
   --admin-radius: 8px;
   --admin-shadow: 0 12px 30px rgba(32, 58, 41, 0.09);
+  --font-primary: "Kanit", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--admin-bg); color: var(--admin-text); font-family: Arial, "Noto Sans Thai", sans-serif; }
+body { margin: 0; background: var(--admin-bg); color: var(--admin-text); font-family: var(--font-primary); }
 button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 3px solid #e5b54c; outline-offset: 3px; }

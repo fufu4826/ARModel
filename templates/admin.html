@@ -5,14 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Dashboard - ศูนย์ศึกษาการพัฒนาภูพาน</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  {% include "_fonts.html" %}
   <style>
     :root {
       --green:#1f5f3b; --green-2:#2f7d4b; --gold:#d6a846; --cream:#fbfaf5;
       --text:#1d2a22; --muted:#66756b; --line:#dfe7dc; --panel:#fff;
       --danger:#b42318; --success:#137333; --radius:8px; --shadow:0 14px 34px rgba(36,57,42,.10);
+      --font-primary:"Kanit",system-ui,sans-serif;
     }
     * { box-sizing: border-box; }
-    body { margin:0; background:var(--cream); color:var(--text); font-family:Arial,"Noto Sans Thai",sans-serif; }
+    body { margin:0; background:var(--cream); color:var(--text); font-family:var(--font-primary); }
     button,input,select,textarea { font:inherit; }
     .page { min-height:100vh; padding:22px 16px 42px; }
     .shell { width:min(1240px,100%); margin:0 auto; }

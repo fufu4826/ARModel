@@ -2083,13 +2083,14 @@ model-viewer {
   }
 
   .landing-mobile-hero-title-container {
-    width: 100% !important;
-    max-width: min(90vw, 420px) !important;
-    text-align: left !important;
-    margin-top: auto !important;
-    margin-bottom: 24px !important;
-    position: relative !important;
+    position: absolute !important;
+    left: 20px !important;
+    right: 20px !important;
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
     z-index: 2 !important;
+    max-width: min(88vw, 430px) !important;
+    text-align: left !important;
+    margin: 0 !important;
   }
 
   .landing-mobile-hero-title {
@@ -2170,17 +2171,20 @@ model-viewer {
 
   /* Scroll cue component styling */
   .landing-scroll-cue {
+    position: absolute !important;
+    left: 20px !important;
+    bottom: calc(34px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 2 !important;
+    margin: 0 !important;
+    text-align: left !important;
+    align-items: flex-start !important;
     display: flex !important;
     flex-direction: column !important;
-    align-items: center !important;
     gap: 6px !important;
     color: rgba(255, 255, 255, 0.75) !important;
     font-size: 14px !important;
     font-weight: 500 !important;
-    margin-top: auto !important;
     pointer-events: none !important;
-    position: relative !important;
-    z-index: 2 !important; /* Sits on top of the mobile overlay */
   }
 
   .landing-scroll-cue-arrow {

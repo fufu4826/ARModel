@@ -86,6 +86,7 @@
       <div class="card-grid model-grid" id="modelsGrid" data-total-models="{{ models|length }}">
         {% for model in models %}
         <article class="model-card searchable-card"
+                 data-model-card
                  data-project="{{ model.project_name }}"
                  data-search-text="{{ (model.name ~ ' ' ~ (model.description or '') ~ ' ' ~ model.project_name)|lower }}">
           {% set card_thumbnail_url = model.thumbnail_url or model.thumbnail_resolved_url %}

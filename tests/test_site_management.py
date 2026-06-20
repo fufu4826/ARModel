@@ -804,6 +804,23 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("AR", home_html_no_logos)
         self.assertNotIn('src="https://example.com/site-logo.png"', home_html_no_logos)
 
+    def test_models_search_and_filter(self):
+        models_html = self.client.get("/models").get_data(as_text=True)
+        # Verify search input and filter form elements render
+        self.assertIn('id="modelSearch"', models_html)
+        self.assertIn('id="projectFilter"', models_html)
+        self.assertIn('id="modelsGrid"', models_html)
+        self.assertIn('id="modelsNoResults"', models_html)
+        # Verify script is included
+        self.assertIn('src="/static/js/models-filter.js"', models_html)
+        # Verify Thai labels
+        self.assertIn('<h1>รายการโมเดล</h1>', models_html)
+        self.assertIn('<span>รายการโมเดล</span>', models_html)
+        self.assertIn('<p class="eyebrow">รายการโมเดล</p>', models_html)
+        # Verify model card markup attributes
+        self.assertIn('data-model-card', models_html)
+        self.assertIn('data-search-text', models_html)
+
     def test_supabase_schema_is_hardened_and_non_destructive(self):
         sql = (Path(module.BASE_DIR) / "docs" / "supabase_schema.sql").read_text(encoding="utf-8").lower()
         for forbidden in ("drop table", "truncate", "delete from", "alter table site_settings drop", "alter table slider_items drop"):

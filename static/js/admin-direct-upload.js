@@ -7,6 +7,7 @@
   const managedUploadKinds = new Set([
     "landing_cover",
     "site_logo",
+    "site_social_image",
     "favicon",
     "intro_logo_1",
     "intro_logo_2",

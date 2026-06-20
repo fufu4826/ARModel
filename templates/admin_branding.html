@@ -31,10 +31,12 @@
           <div class="field full">
             <label for="site-name">Site Name</label>
             <input id="site-name" name="site_name" value="{{ settings.site_name }}" required />
+            <span>ชื่อเว็บไซต์นี้ใช้เป็นชื่อบนแท็บและชื่อในการ์ดตัวอย่างเมื่อแชร์ลิงก์หน้า Landing และ Home</span>
           </div>
           <div class="field full">
             <label for="meta-description">Meta Description</label>
             <textarea id="meta-description" name="meta_description" rows="4" maxlength="320">{{ settings.meta_description }}</textarea>
+            <span>คำอธิบายนี้ใช้กับ Google และข้อความอธิบายในการ์ดตัวอย่างเมื่อแชร์ลิงก์</span>
           </div>
 
           <div class="asset-field">
@@ -55,6 +57,33 @@
             </div>
           </div>
 
+          <div class="asset-field full">
+            <div class="preview-panel">
+              {% if settings.site_social_image_url %}
+              <img id="site-social-image-preview" data-image-preview="site-social-image-file" src="{{ settings.site_social_image_url }}" alt="ตัวอย่างรูปภาพเวลาส่งลิงก์" />
+              {% else %}
+              <img id="site-social-image-preview" data-image-preview="site-social-image-file" src="{{ settings.landing_cover_url }}" alt="ตัวอย่างรูปภาพเวลาส่งลิงก์" />
+              {% endif %}
+              <div>
+                <strong>รูปภาพตัวอย่างเวลาส่งลิงก์</strong>
+                <span>ภาพนี้ใช้เป็นรูปใหญ่เมื่อแชร์ลิงก์ใน Facebook, LINE, Discord หรือแพลตฟอร์มอื่น ๆ แนะนำขนาด 1200x630 px</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="site-social-image-file">อัปโหลด Social Preview Image</label>
+              <input id="site-social-image-file" name="site_social_image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="site_social_image" data-upload-target="site_social_image" />
+            </div>
+            <div class="field">
+              <label for="site-social-image">URL หรือ path รูปภาพตัวอย่างเวลาส่งลิงก์</label>
+              <input id="site-social-image" name="site_social_image" value="{{ settings.site_social_image }}" placeholder="https://example.com/social-preview.jpg" data-image-preview-target="site-social-image-preview" />
+              <span>หากเว้นว่าง ระบบจะใช้ภาพหน้าปก Landing Page และ fallback ไปยังโลโก้หรือภาพเริ่มต้น</span>
+            </div>
+            <label class="check-field">
+              <input name="site_social_image_remove" type="checkbox" />
+              ลบรูปภาพตัวอย่างและกลับไปใช้ภาพหน้าปก Landing Page
+            </label>
+          </div>
+
           <div class="asset-field">
             <div class="preview-panel">
               <div class="favicon-preview">
@@ -65,8 +94,13 @@
             <div class="field">
               <label for="favicon-file">อัปโหลด favicon</label>
               <input id="favicon-file" name="favicon_file" type="file" accept=".png,.ico,.svg" data-upload-kind="favicon" data-upload-target="favicon" />
+              <span>Favicon ใช้เป็นไอคอนขนาดเล็กบนแท็บเบราว์เซอร์ ไม่ใช่รูปภาพขนาดใหญ่ในการ์ดแชร์ลิงก์</span>
               <span>หากไอคอนบนแท็บยังไม่เปลี่ยนทันที ให้ลองเปิดหน้าต่างใหม่หรือรีเฟรชแบบล้างแคช เนื่องจากเบราว์เซอร์มักแคช favicon ไว้</span>
             </div>
+          </div>
+
+          <div class="admin-message info full">
+            หลังแก้ข้อมูลแล้ว บางแพลตฟอร์มอาจยังแสดงข้อมูลเก่า เพราะระบบแคชตัวอย่างลิงก์ไว้ ต้องรอสักครู่หรือลองส่งลิงก์ใหม่
           </div>
 
           <div class="form-actions full">

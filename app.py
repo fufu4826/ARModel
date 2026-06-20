@@ -62,6 +62,7 @@ DEFAULT_SITE_SETTINGS = {
     "intro_logo_duration_ms": "1400",
     "site_logo": "",
     "site_name": "PhuPhan-AR | ภูพาน AR สกลนคร",
+    "site_social_image": "",
     "favicon": "favicon.ico",
     "meta_description": DEFAULT_META_DESCRIPTION,
 }
@@ -241,7 +242,7 @@ def inject_runtime_flags():
         "default_meta_title": DEFAULT_META_TITLE,
         "default_meta_description": settings["meta_description"],
         "default_meta_keywords": DEFAULT_META_KEYWORDS,
-        "default_meta_image": public_meta_image_url(public_settings["landing_cover_url"]),
+        "default_meta_image": public_settings["social_image_absolute_url"],
         "default_site_name": settings["site_name"],
         "public_site_url": PUBLIC_SITE_URL,
         "site_settings": public_settings,
@@ -838,6 +839,7 @@ def direct_upload_target(filename: str, kind: str, file_size: int | None = None)
         "project_image": ("projects", IMAGE_EXTENSIONS),
         "landing_cover": ("site/landing", IMAGE_EXTENSIONS),
         "site_logo": ("site/branding", SITE_LOGO_EXTENSIONS),
+        "site_social_image": ("site/social", IMAGE_EXTENSIONS),
         "favicon": ("site/branding", FAVICON_EXTENSIONS),
         "intro_logo_1": ("site/intro", IMAGE_EXTENSIONS),
         "intro_logo_2": ("site/intro", IMAGE_EXTENSIONS),
@@ -854,6 +856,7 @@ def direct_upload_target(filename: str, kind: str, file_size: int | None = None)
     if kind in {
         "landing_cover",
         "site_logo",
+        "site_social_image",
         "favicon",
         "intro_logo_1",
         "intro_logo_2",
@@ -1026,6 +1029,20 @@ def site_settings_with_urls(settings: dict) -> dict:
     enriched = normalize_site_settings(settings)
     enriched["landing_cover_url"] = static_asset_url(enriched["landing_cover"]) or url_for("static", filename=DEFAULT_META_IMAGE_PATH)
     enriched["site_logo_url"] = static_asset_url(enriched["site_logo"]) if enriched["site_logo"] else ""
+    enriched["site_social_image_url"] = (
+        static_asset_url(enriched["site_social_image"])
+        if enriched["site_social_image"]
+        else ""
+    )
+    social_image_fallback = (
+        enriched["site_social_image_url"]
+        or enriched["landing_cover_url"]
+        or enriched["site_logo_url"]
+        or url_for("static", filename=DEFAULT_META_IMAGE_PATH)
+    )
+    enriched["social_image_absolute_url"] = public_meta_image_url(
+        social_image_fallback
+    )
     favicon_url = static_asset_url(enriched["favicon"]) or url_for("static", filename="favicon.ico")
     enriched["favicon_version"] = hashlib.sha256(
         enriched["favicon"].encode("utf-8")
@@ -1460,9 +1477,9 @@ def index():
             models,
         ),
         structured_data=public_structured_data(settings),
-        page_title="ภูพาน AR สกลนคร | ศูนย์ศึกษาการพัฒนาภูพาน",
+        page_title=settings["site_name"],
         page_description=settings["meta_description"],
-        page_image=public_meta_image_url(public_settings["landing_cover_url"]),
+        page_image=public_settings["social_image_absolute_url"],
         page_url=public_url_for("index"),
     )
 
@@ -1487,9 +1504,9 @@ def home():
         uses_online_data=is_supabase_enabled(),
         sliders=sliders,
         structured_data=public_structured_data(settings),
-        page_title="ศูนย์ศึกษาการพัฒนาภูพาน | โมเดล 3D และ AR สกลนคร",
+        page_title=settings["site_name"],
         page_description=settings["meta_description"],
-        page_image=public_meta_image_url(public_settings["landing_cover_url"]),
+        page_image=public_settings["social_image_absolute_url"],
         page_url=public_url_for("home"),
     )
 
@@ -1806,7 +1823,12 @@ def delete_slider(slider_id: str):
 @app.post("/admin/settings")
 @admin_required
 def update_admin_settings():
-    if reject_vercel_upload_if_needed("landing_cover_file", "site_logo_file", "favicon_file") or admin_write_blocked_on_vercel():
+    if reject_vercel_upload_if_needed(
+        "landing_cover_file",
+        "site_logo_file",
+        "site_social_image_file",
+        "favicon_file",
+    ) or admin_write_blocked_on_vercel():
         return redirect(request.form.get("return_to") or url_for("admin"))
     settings = get_site_settings()
     section = request.form.get("section", "").strip()
@@ -1845,6 +1867,18 @@ def update_admin_settings():
             "uploads/site",
             SITE_LOGO_EXTENSIONS,
         )
+        if request.form.get("site_social_image_remove") in {"1", "true", "on", "yes"}:
+            settings["site_social_image"] = ""
+        else:
+            settings["site_social_image"] = setting_asset_from_request(
+                settings,
+                "site_social_image",
+                "site_social_image_file",
+                "site/social",
+                SITE_UPLOAD_DIR / "social",
+                "uploads/site/social",
+                IMAGE_EXTENSIONS,
+            )
         settings["favicon"] = setting_asset_from_request(
             settings,
             "favicon",

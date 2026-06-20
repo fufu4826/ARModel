@@ -70,6 +70,11 @@ class SiteManagementTests(unittest.TestCase):
         settings = self.client.get("/api/settings").get_json()
         self.assertEqual(settings["site_name"], "PhuPhan-AR | ภูพาน AR สกลนคร")
         self.assertTrue(settings["landing_cover_url"].endswith("/static/pic/og-cover.jpg"))
+        self.assertEqual(settings["site_social_image"], "")
+        self.assertEqual(
+            settings["social_image_absolute_url"],
+            "https://phuphan-ar.vercel.app/static/pic/og-cover.jpg",
+        )
         favicon_url = urlparse(settings["favicon_url"])
         self.assertEqual(favicon_url.path, "/static/favicon.ico")
         self.assertIn("v", parse_qs(favicon_url.query))
@@ -100,12 +105,15 @@ class SiteManagementTests(unittest.TestCase):
         home_html = self.client.get("/home").get_data(as_text=True)
         models_html = self.client.get("/models").get_data(as_text=True)
 
-        self.assertIn("<title>ภูพาน AR สกลนคร | ศูนย์ศึกษาการพัฒนาภูพาน</title>", landing_html)
-        self.assertIn(
-            "<title>ศูนย์ศึกษาการพัฒนาภูพาน | โมเดล 3D และ AR สกลนคร</title>",
-            home_html,
-        )
+        self.assertIn("<title>PhuPhan-AR | ภูพาน AR สกลนคร</title>", landing_html)
+        self.assertIn("<title>PhuPhan-AR | ภูพาน AR สกลนคร</title>", home_html)
         self.assertIn("<title>โมเดล 3D ภูพาน | ของดีสกลนครในรูปแบบ AR</title>", models_html)
+        self.assertIn('property="og:title" content="PhuPhan-AR | ภูพาน AR สกลนคร"', landing_html)
+        self.assertIn('property="og:description"', landing_html)
+        self.assertIn(
+            'property="og:image" content="https://phuphan-ar.vercel.app/static/pic/og-cover.jpg"',
+            landing_html,
+        )
         self.assertIn('name="keywords"', landing_html)
         self.assertIn("พูพาน สกลนคร", landing_html)
         self.assertIn('type="application/ld+json"', landing_html)
@@ -141,6 +149,36 @@ class SiteManagementTests(unittest.TestCase):
                 html = self.client.get(route).get_data(as_text=True)
                 self.assertIn(expected_link.replace("&", "&amp;"), html)
                 self.assertNotIn('rel="icon" type="image/png" sizes="192x192"', html)
+
+    def test_social_preview_image_override_and_fallback(self):
+        fallback_html = self.client.get("/").get_data(as_text=True)
+        self.assertIn(
+            'property="og:image" content="https://phuphan-ar.vercel.app/static/pic/og-cover.jpg"',
+            fallback_html,
+        )
+
+        module.save_site_settings(
+            {
+                **module.DEFAULT_SITE_SETTINGS,
+                "site_social_image": "https://cdn.example/social-card.jpg",
+            }
+        )
+        api_settings = self.client.get("/api/settings").get_json()
+        self.assertEqual(
+            api_settings["social_image_absolute_url"],
+            "https://cdn.example/social-card.jpg",
+        )
+        for route in ("/", "/home", "/models", "/projects/garden", "/models/lychee"):
+            with self.subTest(route=route):
+                html = self.client.get(route).get_data(as_text=True)
+                self.assertIn(
+                    'property="og:image" content="https://cdn.example/social-card.jpg"',
+                    html,
+                )
+                self.assertIn(
+                    'name="twitter:image" content="https://cdn.example/social-card.jpg"',
+                    html,
+                )
 
     def test_sitemap_and_robots_include_public_discovery_routes(self):
         sitemap = self.client.get("/sitemap.xml")
@@ -388,19 +426,41 @@ class SiteManagementTests(unittest.TestCase):
                 "site_name": "Test Brand",
                 "meta_description": "Test metadata description",
                 "site_logo": "",
+                "site_social_image": "https://cdn.example/social-preview.jpg",
                 "favicon": "https://cdn.example/test-favicon.png",
             },
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(module.load_site_settings()["site_name"], "Test Brand")
-        home_html = self.client.get("/home").get_data(as_text=True)
-        self.assertIn(
-            "<title>ศูนย์ศึกษาการพัฒนาภูพาน | โมเดล 3D และ AR สกลนคร</title>",
-            home_html,
+        self.assertEqual(
+            module.load_site_settings()["site_social_image"],
+            "https://cdn.example/social-preview.jpg",
         )
+        home_html = self.client.get("/home").get_data(as_text=True)
+        self.assertIn("<title>Test Brand</title>", home_html)
         self.assertIn("Test Brand", home_html)
         self.assertIn('content="Test metadata description"', home_html)
+        self.assertIn(
+            'content="https://cdn.example/social-preview.jpg"',
+            home_html,
+        )
         self.assertIn('href="https://cdn.example/test-favicon.png?v=', home_html)
+
+        response = self.client.post(
+            "/admin/settings",
+            data={
+                "section": "branding",
+                "return_to": "/admin/branding",
+                "site_name": "Test Brand",
+                "meta_description": "Test metadata description",
+                "site_logo": "",
+                "site_social_image": "https://cdn.example/social-preview.jpg",
+                "site_social_image_remove": "on",
+                "favicon": "https://cdn.example/test-favicon.png",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(module.load_site_settings()["site_social_image"], "")
 
         response = self.client.post(
             "/admin/sliders",
@@ -521,6 +581,11 @@ class SiteManagementTests(unittest.TestCase):
             intro_path, _ = module.direct_upload_target("intro.webp", "intro_logo_1", 1024)
             self.assertTrue(intro_path.startswith("site/intro/"))
             self.assertTrue(intro_path.endswith(".webp"))
+            social_path, _ = module.direct_upload_target(
+                "social.jpg", "site_social_image", 1024
+            )
+            self.assertTrue(social_path.startswith("site/social/"))
+            self.assertTrue(social_path.endswith(".jpg"))
             with self.assertRaises(BadRequest):
                 module.direct_upload_target("payload.exe", "landing_cover", 1024)
 

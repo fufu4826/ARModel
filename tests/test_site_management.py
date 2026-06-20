@@ -73,6 +73,13 @@ class SiteManagementTests(unittest.TestCase):
         self.assertFalse(settings["intro_enabled_bool"])
         self.assertEqual(settings["intro_logo_duration_ms_value"], 1400)
 
+    def test_hidden_image_placeholders_do_not_take_space(self):
+        stylesheet = (
+            Path(module.BASE_DIR) / "static" / "css" / "style.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn(".image-placeholder[hidden]", stylesheet)
+        self.assertIn("display: none;", stylesheet)
+
     def test_public_seo_metadata_and_structured_data(self):
         landing_html = self.client.get("/").get_data(as_text=True)
         home_html = self.client.get("/home").get_data(as_text=True)

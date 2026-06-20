@@ -782,6 +782,10 @@ h3 {
   text-align: center;
 }
 
+.image-placeholder[hidden] {
+  display: none;
+}
+
 .models-hero-panel {
   display: grid;
   place-items: center;

@@ -376,6 +376,42 @@ def load_projects(include_hidden: bool = True) -> list[dict]:
     return [project for project in projects if project.get("visible", True)]
 
 
+def normalize_preview_images(value) -> list[str]:
+    if isinstance(value, str):
+        candidate = value.strip()
+        if candidate.startswith("["):
+            try:
+                value = json.loads(candidate)
+            except json.JSONDecodeError:
+                value = candidate.splitlines()
+        else:
+            value = candidate.splitlines()
+    if not isinstance(value, (list, tuple)):
+        return []
+
+    images = []
+    for item in value:
+        image = str(item or "").strip()
+        if image and image not in images:
+            images.append(image)
+    return images
+
+
+def parse_preview_images_field(value: str | None) -> list[str]:
+    images = normalize_preview_images(value or "")
+    for image in images:
+        lowered = image.lower()
+        if lowered.startswith(("https://", "http://")):
+            continue
+        if (
+            image.startswith("//")
+            or lowered.startswith(("data:", "javascript:"))
+            or "://" in image
+        ):
+            abort(400, "Preview images must use HTTP(S) URLs or local static paths")
+    return images
+
+
 def normalize_model(model: dict, projects: list[dict]) -> dict:
     project_ids = {project["id"] for project in projects}
     model_id = str(model.get("id") or uuid.uuid4().hex)
@@ -412,6 +448,7 @@ def normalize_model(model: dict, projects: list[dict]) -> dict:
         "image": thumbnail_url or thumbnail_path,
         "thumbnail_url": thumbnail_url,
         "thumbnail_path": thumbnail_path,
+        "preview_images": normalize_preview_images(model.get("preview_images")),
         "rotate_x": rotate_x,
         "scale": scale,
         "visible": bool(model.get("visible", True)),
@@ -631,6 +668,7 @@ def normalize_supabase_model(row: dict) -> dict:
         "image": thumbnail_url,
         "thumbnail_url": thumbnail_url,
         "thumbnail_path": "",
+        "preview_images": normalize_preview_images(row.get("preview_images")),
         "file_size_mb": size_mb,
         "rotate_x": 0,
         "scale": 0.2,
@@ -861,6 +899,7 @@ def create_model(data: dict) -> dict:
         "description": data.get("description", "").strip(),
         "model_url": data.get("model_url", "").strip(),
         "thumbnail_url": data.get("thumbnail_url", "").strip(),
+        "preview_images": normalize_preview_images(data.get("preview_images")),
         "file_size_mb": data.get("file_size_mb"),
     }
     rows = supabase_request(
@@ -879,6 +918,7 @@ def update_model(model_id: str, data: dict) -> dict:
         "description": data.get("description", "").strip(),
         "model_url": data.get("model_url", "").strip(),
         "thumbnail_url": data.get("thumbnail_url", "").strip(),
+        "preview_images": normalize_preview_images(data.get("preview_images")),
         "file_size_mb": data.get("file_size_mb"),
     }
     rows = supabase_request(
@@ -996,6 +1036,25 @@ def resolve_thumbnail_url(model: dict) -> str:
     return resolved or PLACEHOLDER_THUMBNAIL
 
 
+def resolve_model_preview_images(model: dict) -> list[str]:
+    resolved_images = []
+    for image in normalize_preview_images(model.get("preview_images")):
+        if str(image).lower().startswith(("https://", "http://")):
+            resolved = image
+        else:
+            resolved = local_static_url_if_exists(image)
+        if resolved and resolved not in resolved_images:
+            resolved_images.append(resolved)
+
+    if resolved_images:
+        return resolved_images
+
+    thumbnail_url = resolve_thumbnail_url(model)
+    if thumbnail_url and thumbnail_url != PLACEHOLDER_THUMBNAIL:
+        return [thumbnail_url]
+    return []
+
+
 def resolve_project_image_url(project: dict, models: list[dict] | None = None) -> str:
     for key in ("image_url", "cover_image"):
         value = str(project.get(key) or "").strip()
@@ -1099,6 +1158,7 @@ def api_model_payload(model: dict, projects: list[dict]) -> dict:
         "description": enriched.get("description", ""),
         "model_url": resolve_model_url(enriched),
         "thumbnail_url": resolve_thumbnail_url(enriched),
+        "preview_images": resolve_model_preview_images(enriched),
         "project_id": enriched.get("project_id", ""),
         "project_name": enriched.get("project_name", ""),
         "size_mb": model_size_mb(enriched),
@@ -1418,6 +1478,7 @@ def model_detail(model_id: str):
         model=model,
         model_url=resolve_model_url(model),
         thumbnail_url=resolve_thumbnail_url(model),
+        preview_images=resolve_model_preview_images(model),
         model_name=model.get("name", ""),
         size_mb=model_size_mb(model),
         related_models=related_models,
@@ -1472,13 +1533,22 @@ def sitemap():
         {"loc": public_url_for("model_detail", model_id=model["id"]), "priority": "0.7"}
         for model in models
     )
-    return render_template("sitemap.xml", urls=urls), 200, {"Content-Type": "application/xml; charset=utf-8"}
+    xml_body = render_template("sitemap.xml", urls=urls).lstrip("\ufeff \t\r\n")
+    xml_document = f'<?xml version="1.0" encoding="UTF-8"?>\n{xml_body}'
+    return xml_document, 200, {"Content-Type": "application/xml; charset=utf-8"}
 
 
 @app.get("/robots.txt")
 def robots():
     return render_template("robots.txt", sitemap_url=public_url_for("sitemap")), 200, {
         "Content-Type": "text/plain; charset=utf-8"
+    }
+
+
+@app.get("/googleaf10e1de09a9b1b8.html")
+def google_site_verification():
+    return "google-site-verification: googleaf10e1de09a9b1b8.html", 200, {
+        "Content-Type": "text/html; charset=utf-8"
     }
 
 
@@ -1876,6 +1946,7 @@ def add_model():
 
     model_url = request.form.get("model_url", "").strip()
     thumbnail_url = request.form.get("thumbnail_url", "").strip()
+    preview_images = parse_preview_images_field(request.form.get("preview_images"))
 
     if is_supabase_enabled():
         try:
@@ -1892,6 +1963,7 @@ def add_model():
                     "project_id": project_id,
                     "model_url": final_model_url,
                     "thumbnail_url": final_thumbnail_url,
+                    "preview_images": preview_images,
                     "file_size_mb": model_size_mb,
                 }
             )
@@ -1927,6 +1999,7 @@ def add_model():
             "image": image_path,
             "thumbnail_url": thumbnail_url,
             "thumbnail_path": "" if thumbnail_url else image_path,
+            "preview_images": preview_images,
             "rotate_x": parse_float("rotate_x", 0),
             "scale": parse_float("scale", 0.2),
             "visible": form_visible(),
@@ -1953,6 +2026,7 @@ def edit_model(model_id: str):
         project_id = request.form.get("project_id", "").strip()
         if find_project(project_id, include_hidden=True) is None:
             abort(400, "Project is required")
+        preview_images = parse_preview_images_field(request.form.get("preview_images"))
 
         if is_supabase_enabled():
             try:
@@ -1974,6 +2048,7 @@ def edit_model(model_id: str):
                         "project_id": project_id,
                         "model_url": final_model_url,
                         "thumbnail_url": final_thumbnail_url,
+                        "preview_images": preview_images,
                         "file_size_mb": uploaded_size_mb if uploaded_size_mb is not None else model.get("file_size_mb"),
                     },
                 )
@@ -2005,6 +2080,7 @@ def edit_model(model_id: str):
                 "image": new_image or manual_image_path or old_image,
                 "thumbnail_url": thumbnail_url,
                 "thumbnail_path": "" if thumbnail_url else (new_image or manual_image_path or model.get("thumbnail_path") or old_image),
+                "preview_images": preview_images,
                 "rotate_x": parse_float("rotate_x", 0),
                 "scale": parse_float("scale", 0.2),
                 "visible": form_visible(),

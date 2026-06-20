@@ -64,4 +64,7 @@ on conflict (key) do nothing;
 alter table site_settings enable row level security;
 alter table slider_items enable row level security;
 
+alter table models
+add column if not exists preview_images jsonb not null default '[]'::jsonb;
+
 commit;

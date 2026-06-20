@@ -7,6 +7,7 @@
     "project_id": "wellness",
     "model": "model/lukplakob.glb",
     "image": "pic/lukplakob.JPG",
+    "preview_images": [],
     "rotate_x": 3.141592653589793,
     "scale": 0.15,
     "visible": true
@@ -19,6 +20,7 @@
     "project_id": "rice-and-food",
     "model": "model/audtang.glb",
     "image": "pic/audtang.JPG",
+    "preview_images": [],
     "rotate_x": 0.0,
     "scale": 0.08,
     "visible": true
@@ -31,6 +33,7 @@
     "project_id": "garden",
     "model": "model/Lychee.glb",
     "image": "pic/Lychee.jpg",
+    "preview_images": [],
     "rotate_x": 0.0,
     "scale": 0.25,
     "visible": true
@@ -43,6 +46,7 @@
     "project_id": "garden",
     "model": "model/mond.glb",
     "image": "pic/mond.JPG",
+    "preview_images": [],
     "rotate_x": 0.0,
     "scale": 0.06,
     "visible": true
@@ -55,6 +59,7 @@
     "project_id": "rice-and-food",
     "model": "model/ricephupan.glb",
     "image": "pic/ricephupan.JPG",
+    "preview_images": [],
     "rotate_x": 0.0,
     "scale": 0.04,
     "visible": true

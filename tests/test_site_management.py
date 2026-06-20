@@ -2,8 +2,10 @@ import io
 import json
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 import app as module
 from werkzeug.datastructures import FileStorage
@@ -15,16 +17,22 @@ class SiteManagementTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         data_dir = Path(self.temp_dir.name)
         self.original_paths = {
+            "CATALOG_FILE": module.CATALOG_FILE,
+            "PROJECTS_FILE": module.PROJECTS_FILE,
             "SITE_SETTINGS_FILE": module.SITE_SETTINGS_FILE,
             "SLIDER_ITEMS_FILE": module.SLIDER_ITEMS_FILE,
             "SITE_UPLOAD_DIR": module.SITE_UPLOAD_DIR,
             "SLIDER_UPLOAD_DIR": module.SLIDER_UPLOAD_DIR,
         }
+        module.CATALOG_FILE = data_dir / "models.json"
+        module.PROJECTS_FILE = data_dir / "projects.json"
         module.SITE_SETTINGS_FILE = data_dir / "site_settings.json"
         module.SLIDER_ITEMS_FILE = data_dir / "slider_items.json"
         module.SITE_UPLOAD_DIR = data_dir / "static" / "uploads" / "site"
         module.SLIDER_UPLOAD_DIR = data_dir / "static" / "uploads" / "sliders"
         module._JSON_CACHE.clear()
+        module.write_json(module.CATALOG_FILE, module.DEFAULT_MODELS)
+        module.write_json(module.PROJECTS_FILE, module.DEFAULT_PROJECTS)
         module.write_json(module.SITE_SETTINGS_FILE, module.DEFAULT_SITE_SETTINGS)
         module.write_json(module.SLIDER_ITEMS_FILE, [])
         module.app.config.update(TESTING=True, SECRET_KEY="test-only-key")
@@ -51,6 +59,7 @@ class SiteManagementTests(unittest.TestCase):
             "/api/sliders": 200,
             "/sitemap.xml": 200,
             "/robots.txt": 200,
+            "/googleaf10e1de09a9b1b8.html": 200,
             "/health": 200,
             "/missing-route": 404,
         }
@@ -83,11 +92,20 @@ class SiteManagementTests(unittest.TestCase):
 
     def test_sitemap_and_robots_include_public_discovery_routes(self):
         sitemap = self.client.get("/sitemap.xml")
-        self.assertEqual(sitemap.mimetype, "application/xml")
+        self.assertEqual(sitemap.content_type, "application/xml; charset=utf-8")
+        self.assertTrue(
+            sitemap.data.startswith(b'<?xml version="1.0" encoding="UTF-8"?>\n')
+        )
         sitemap_text = sitemap.get_data(as_text=True)
         for path in ("/", "/home", "/models", "/projects/garden", "/models/lychee"):
             self.assertIn(f"https://phuphan-ar.vercel.app{path}", sitemap_text)
         self.assertNotIn("/admin", sitemap_text)
+        sitemap_xml = ET.fromstring(sitemap.data)
+        namespace = {"sitemap": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        for location in sitemap_xml.findall("sitemap:url/sitemap:loc", namespace):
+            parsed_url = urlparse(location.text)
+            self.assertEqual(parsed_url.scheme, "https")
+            self.assertEqual(parsed_url.netloc, "phuphan-ar.vercel.app")
 
         robots = self.client.get("/robots.txt")
         self.assertEqual(robots.mimetype, "text/plain")
@@ -95,6 +113,146 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("Allow: /", robots_text)
         self.assertIn("Disallow: /admin", robots_text)
         self.assertIn("Sitemap: https://phuphan-ar.vercel.app/sitemap.xml", robots_text)
+
+    def test_google_site_verification_route(self):
+        response = self.client.get("/googleaf10e1de09a9b1b8.html")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content_type, "text/html; charset=utf-8")
+        self.assertEqual(
+            response.get_data(as_text=True),
+            "google-site-verification: googleaf10e1de09a9b1b8.html",
+        )
+
+    def test_model_preview_gallery_and_thumbnail_fallback(self):
+        projects = module.load_projects(include_hidden=True)
+        legacy_model = module.normalize_model(
+            {
+                "id": "legacy",
+                "name": "Legacy model",
+                "project_id": projects[0]["id"],
+                "model": "model/legacy.glb",
+            },
+            projects,
+        )
+        self.assertEqual(legacy_model["preview_images"], [])
+
+        models = module.load_models(include_hidden=True)
+        models.append(
+            {
+                "id": "gallery-model",
+                "name": "Gallery model",
+                "description": "",
+                "department": "",
+                "project_id": projects[0]["id"],
+                "model": "https://example.com/model.glb",
+                "model_url": "https://example.com/model.glb",
+                "model_path": "",
+                "image": "",
+                "thumbnail_url": "",
+                "thumbnail_path": "",
+                "preview_images": [
+                    "https://example.com/preview-1.jpg",
+                    "https://example.com/preview-2.jpg",
+                ],
+                "rotate_x": 0,
+                "scale": 0.2,
+                "visible": True,
+            }
+        )
+        models.append(
+            {
+                "id": "no-preview-model",
+                "name": "No preview model",
+                "project_id": projects[0]["id"],
+                "model": "https://example.com/no-preview.glb",
+                "model_url": "https://example.com/no-preview.glb",
+                "preview_images": [],
+                "visible": True,
+            }
+        )
+        module.save_models(models)
+
+        gallery_html = self.client.get("/models/gallery-model").get_data(as_text=True)
+        self.assertIn("https://example.com/preview-1.jpg", gallery_html)
+        self.assertIn("https://example.com/preview-2.jpg", gallery_html)
+        self.assertIn("model-gallery-thumbnails", gallery_html)
+        no_preview_html = self.client.get("/models/no-preview-model").get_data(as_text=True)
+        self.assertIn("ไม่มีรูปภาพตัวอย่าง", no_preview_html)
+
+        api_models = self.client.get("/api/models").get_json()
+        gallery_payload = next(item for item in api_models if item["id"] == "gallery-model")
+        self.assertEqual(
+            gallery_payload["preview_images"],
+            [
+                "https://example.com/preview-1.jpg",
+                "https://example.com/preview-2.jpg",
+            ],
+        )
+
+        lychee_payload = next(item for item in api_models if item["id"] == "lychee")
+        self.assertEqual(len(lychee_payload["preview_images"]), 1)
+        self.assertTrue(lychee_payload["preview_images"][0].endswith("/static/pic/Lychee.jpg"))
+
+    def test_admin_add_and_edit_model_preview_images(self):
+        self.sign_in()
+        with patch.object(module, "is_supabase_enabled", return_value=False):
+            response = self.client.post(
+                "/admin/models",
+                data={
+                    "name": "Gallery admin model",
+                    "project_id": module.DEFAULT_PROJECTS[0]["id"],
+                    "model_url": "https://example.com/admin-model.glb",
+                    "thumbnail_url": "",
+                    "preview_images": (
+                        "https://example.com/admin-preview-1.jpg\n"
+                        "https://example.com/admin-preview-2.jpg"
+                    ),
+                    "rotate_x": "0",
+                    "scale": "0.2",
+                    "visible": "on",
+                },
+            )
+            self.assertEqual(response.status_code, 302)
+            saved_model = next(
+                item for item in module.load_models(include_hidden=True)
+                if item["name"] == "Gallery admin model"
+            )
+            self.assertEqual(len(saved_model["preview_images"]), 2)
+
+            response = self.client.post(
+                f"/admin/models/{saved_model['id']}/edit",
+                data={
+                    "name": saved_model["name"],
+                    "project_id": saved_model["project_id"],
+                    "model_url": saved_model["model_url"],
+                    "thumbnail_url": "",
+                    "preview_images": "https://example.com/admin-preview-updated.jpg",
+                    "rotate_x": "0",
+                    "scale": "0.2",
+                    "visible": "on",
+                },
+            )
+            self.assertEqual(response.status_code, 302)
+            updated_model = next(
+                item for item in module.load_models(include_hidden=True)
+                if item["id"] == saved_model["id"]
+            )
+            self.assertEqual(
+                updated_model["preview_images"],
+                ["https://example.com/admin-preview-updated.jpg"],
+            )
+
+    def test_supabase_model_preview_images_normalization(self):
+        without_gallery = module.normalize_supabase_model({"id": "one", "name": "One"})
+        with_gallery = module.normalize_supabase_model(
+            {
+                "id": "two",
+                "name": "Two",
+                "preview_images": ["https://example.com/two.jpg"],
+            }
+        )
+        self.assertEqual(without_gallery["preview_images"], [])
+        self.assertEqual(with_gallery["preview_images"], ["https://example.com/two.jpg"])
 
     def test_admin_management_routes_require_login(self):
         for route in ("/admin", "/admin/landing", "/admin/branding", "/admin/sliders"):
@@ -319,6 +477,7 @@ class SiteManagementTests(unittest.TestCase):
             "on conflict (key) do nothing",
             "alter table site_settings enable row level security",
             "alter table slider_items enable row level security",
+            "add column if not exists preview_images jsonb not null default '[]'::jsonb",
         ):
             self.assertIn(required, sql)
 

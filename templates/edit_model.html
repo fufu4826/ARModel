@@ -7,6 +7,7 @@
   <style>
     :root { --green:#1f5f3b; --cream:#fbfaf5; --text:#1d2a22; --muted:#66756b; --line:#dfe7dc; --radius:8px; }
     *{box-sizing:border-box} body{margin:0;background:var(--cream);color:var(--text);font-family:Arial,"Noto Sans Thai",sans-serif}.page{min-height:100vh;padding:24px 16px}.panel{width:min(860px,100%);margin:0 auto;background:white;border:1px solid var(--line);border-radius:var(--radius);padding:22px}h1{margin:0 0 18px;color:var(--green);letter-spacing:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:6px}.full{grid-column:1/-1}label{font-weight:800;color:var(--muted);font-size:13px}input,select,textarea{min-height:42px;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;font:inherit}textarea{min-height:110px}.check{flex-direction:row;align-items:center}.check input{min-height:0}.notice{margin:0 0 16px;padding:12px 14px;border-radius:var(--radius);background:#fff7df;color:#6b4a05;border:1px solid #ead799;font-weight:800;line-height:1.5}.actions{display:flex;gap:10px;margin-top:16px}.btn,.link{min-height:42px;padding:10px 14px;border-radius:var(--radius);font-weight:800;text-decoration:none;border:1px solid var(--line);cursor:pointer}.btn{background:var(--green);color:white;border-color:var(--green)}.link{background:white;color:var(--green)}@media(max-width:620px){.grid{grid-template-columns:1fr}.actions{display:block}.btn,.link{width:100%;display:flex;justify-content:center;margin-top:8px}}
+    .gallery-input-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}.gallery-input-preview img{width:100%;aspect-ratio:4/3;object-fit:cover;border:1px solid var(--line);border-radius:var(--radius);background:#eef1ea}.help{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
   </style>
 </head>
 <body>
@@ -30,6 +31,12 @@
         <div class="field"><label>เปลี่ยน Thumbnail</label><input name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="thumbnail" data-upload-target="thumbnail_url" {{ "disabled" if uploads_disabled else "" }}></div>
         <div class="field"><label>Path รูปภาพ</label><input name="image_path" value="{{ model.thumbnail_path }}" {{ "disabled" if uploads_disabled else "" }}></div>
         <div class="field full"><label>External thumbnail URL</label><input name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field full">
+          <label for="preview-images">รูปภาพตัวอย่างเพิ่มเติม</label>
+          <textarea id="preview-images" name="preview_images" rows="5" data-gallery-input>{{ model.preview_images|join('\n') }}</textarea>
+          <p class="help">ใส่ URL หรือ path รูปภาพ หนึ่งรายการต่อบรรทัด</p>
+          <div class="gallery-input-preview" data-gallery-input-preview aria-live="polite"></div>
+        </div>
         <div class="field"><label>หมุนแกน X</label><input name="rotate_x" type="number" value="{{ model.rotate_x }}" step="0.01"></div>
         <label class="field check"><input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> เผยแพร่โมเดล</label>
       </div>
@@ -37,5 +44,6 @@
     </form>
   </main>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/preview-gallery-input.js') }}" defer></script>
 </body>
 </html>

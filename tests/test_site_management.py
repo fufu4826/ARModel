@@ -114,10 +114,23 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("mobile landing override active", landing_html)
         self.assertIn("landing-mobile-hero", landing_html)
         self.assertIn("landing-mobile-details", landing_html)
-        self.assertIn("ศูนย์ศึกษาการพัฒนาภูพาน", landing_html)
+        self.assertNotIn("mobile-only-title", landing_html)
+        self.assertIn("ภูพาน AR สกลนคร", landing_html)
         self.assertIn("เลื่อนเพื่อดูข้อมูล", landing_html)
         self.assertIn('href="/home"', landing_html)
         self.assertIn('href="/models"', landing_html)
+
+    def test_landing_mobile_headline_dynamic(self):
+        settings = module.load_site_settings()
+        unique_headline = "DYNAMIC_MOBILE_HEADLINE_12345"
+        settings.update({
+            "landing_headline": unique_headline,
+        })
+        module.save_site_settings(settings)
+
+        landing_html = self.client.get("/").get_data(as_text=True)
+        # Verify the unique admin-managed headline is rendered in the mobile hero title markup
+        self.assertIn(f'class="landing-mobile-hero-title">{unique_headline}</h1>', landing_html)
 
     def test_landing_mobile_cover_image(self):
         # 1. Renders admin landing page and includes mobile cover inputs/preview

@@ -24,21 +24,38 @@
 
     </header>
     <section class="landing-content" id="landing-content" aria-labelledby="landing-title">
-      <div class="landing-mobile-screen landing-mobile-hero">
-        <div class="landing-mobile-overlay" aria-hidden="true"></div>
+      <!-- Desktop-only Content Block -->
+      <div class="desktop-only">
         <div class="landing-hero-center">
-          <p class="eyebrow landing-eyebrow desktop-only">นิทรรศการดิจิทัล 3D / AR</p>
-          <h1 id="landing-title" class="landing-title desktop-only">{{ site_settings.landing_headline }}</h1>
-          <h1 class="landing-title mobile-only-title">ศูนย์ศึกษาการพัฒนาภูพาน</h1>
-          <p class="landing-subtitle desktop-only">{{ site_settings.landing_subheadline }}</p>
+          <p class="eyebrow landing-eyebrow">นิทรรศการดิจิทัล 3D / AR</p>
+          <h1 id="landing-title" class="landing-title">{{ site_settings.landing_headline }}</h1>
+          <p class="landing-subtitle">{{ site_settings.landing_subheadline }}</p>
+          <p class="landing-description">{{ site_settings.landing_description }}</p>
+          <div class="landing-actions">
+            <a class="button landing-button" href="{{ site_settings.landing_cta_url }}" data-landing-intro-trigger>{{ site_settings.landing_cta_text }}</a>
+            <a class="button secondary landing-button" href="{{ url_for('models_index') }}">ดูโมเดลทั้งหมด</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile-only Content Block: Screen 1 -->
+      <div class="landing-mobile-screen landing-mobile-hero mobile-only">
+        <div class="landing-mobile-overlay" aria-hidden="true"></div>
+        <div class="landing-mobile-hero-title-container">
+          <h1 class="landing-mobile-hero-title">{{ site_settings.landing_headline }}</h1>
         </div>
         <div class="landing-scroll-cue">
           <span class="landing-scroll-cue-text">เลื่อนเพื่อดูข้อมูล</span>
           <span class="landing-scroll-cue-arrow">↓</span>
         </div>
       </div>
-      <div class="landing-mobile-screen landing-mobile-details">
+
+      <!-- Mobile-only Content Block: Screen 2 -->
+      <div class="landing-mobile-screen landing-mobile-details mobile-only">
         <div class="landing-details-content">
+          {% if site_settings.landing_subheadline %}
+          <p class="landing-mobile-subtitle">{{ site_settings.landing_subheadline }}</p>
+          {% endif %}
           <p class="landing-description">{{ site_settings.landing_description }}</p>
           <div class="landing-actions">
             <a class="button landing-button" href="{{ site_settings.landing_cta_url }}" data-landing-intro-trigger>{{ site_settings.landing_cta_text }}</a>

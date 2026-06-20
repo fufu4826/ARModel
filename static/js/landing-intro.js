@@ -1,5 +1,6 @@
 (function () {
-  const trigger = document.querySelector("[data-landing-intro-trigger]");
+  const triggers = document.querySelectorAll("[data-landing-intro-trigger]");
+  const trigger = triggers[0];
   const configElement = document.getElementById("landingIntroConfig");
   const overlay = document.getElementById("landingIntroOverlay");
   const logo = document.getElementById("landingIntroLogo");
@@ -107,31 +108,33 @@
     return true;
   }
 
-  trigger.addEventListener("click", async (event) => {
-    if (!config.enabled || !logos.length || reducedMotion || active) return;
-    event.preventDefault();
-    active = true;
-    skipped = false;
-    overlay.hidden = false;
-    overlay.setAttribute("aria-hidden", "false");
-    document.body.classList.add("landing-intro-active");
-    overlay.dataset.mode = displayMode;
-    window.requestAnimationFrame(() => overlay.classList.add("is-active"));
-    skipButton.focus();
+  triggers.forEach((trig) => {
+    trig.addEventListener("click", async (event) => {
+      if (!config.enabled || !logos.length || reducedMotion || active) return;
+      event.preventDefault();
+      active = true;
+      skipped = false;
+      overlay.hidden = false;
+      overlay.setAttribute("aria-hidden", "false");
+      document.body.classList.add("landing-intro-active");
+      overlay.dataset.mode = displayMode;
+      window.requestAnimationFrame(() => overlay.classList.add("is-active"));
+      skipButton.focus();
 
-    try {
-      if (displayMode === "all_at_once") {
-        await playAllLogos(logos);
-      } else {
-        for (const url of logos) {
-          if (skipped) return;
-          await playLogo(url);
+      try {
+        if (displayMode === "all_at_once") {
+          await playAllLogos(logos);
+        } else {
+          for (const url of logos) {
+            if (skipped) return;
+            await playLogo(url);
+          }
         }
+        if (!skipped) window.location.assign(trig.href);
+      } catch {
+        window.location.assign(trig.href);
       }
-      if (!skipped) navigate();
-    } catch {
-      navigate();
-    }
+    });
   });
 
   skipButton.addEventListener("click", skip);

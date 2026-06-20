@@ -1472,7 +1472,9 @@ def sitemap():
         {"loc": public_url_for("model_detail", model_id=model["id"]), "priority": "0.7"}
         for model in models
     )
-    return render_template("sitemap.xml", urls=urls), 200, {"Content-Type": "application/xml; charset=utf-8"}
+    xml_body = render_template("sitemap.xml", urls=urls).lstrip("\ufeff \t\r\n")
+    xml_document = f'<?xml version="1.0" encoding="UTF-8"?>\n{xml_body}'
+    return xml_document, 200, {"Content-Type": "application/xml; charset=utf-8"}
 
 
 @app.get("/robots.txt")

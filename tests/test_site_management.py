@@ -2,8 +2,10 @@ import io
 import json
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 import app as module
 from werkzeug.datastructures import FileStorage
@@ -84,11 +86,20 @@ class SiteManagementTests(unittest.TestCase):
 
     def test_sitemap_and_robots_include_public_discovery_routes(self):
         sitemap = self.client.get("/sitemap.xml")
-        self.assertEqual(sitemap.mimetype, "application/xml")
+        self.assertEqual(sitemap.content_type, "application/xml; charset=utf-8")
+        self.assertTrue(
+            sitemap.data.startswith(b'<?xml version="1.0" encoding="UTF-8"?>\n')
+        )
         sitemap_text = sitemap.get_data(as_text=True)
         for path in ("/", "/home", "/models", "/projects/garden", "/models/lychee"):
             self.assertIn(f"https://phuphan-ar.vercel.app{path}", sitemap_text)
         self.assertNotIn("/admin", sitemap_text)
+        sitemap_xml = ET.fromstring(sitemap.data)
+        namespace = {"sitemap": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        for location in sitemap_xml.findall("sitemap:url/sitemap:loc", namespace):
+            parsed_url = urlparse(location.text)
+            self.assertEqual(parsed_url.scheme, "https")
+            self.assertEqual(parsed_url.netloc, "phuphan-ar.vercel.app")
 
         robots = self.client.get("/robots.txt")
         self.assertEqual(robots.mimetype, "text/plain")

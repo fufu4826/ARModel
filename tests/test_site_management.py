@@ -109,6 +109,13 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn(".landing-logo-strip__item", stylesheet)
         self.assertIn("background-position: right center;", stylesheet)
 
+    def test_landing_mobile_layout_elements(self):
+        landing_html = self.client.get("/").get_data(as_text=True)
+        self.assertIn("ศูนย์ศึกษาการพัฒนาภูพาน", landing_html)
+        self.assertIn("เลื่อนเพื่อดูข้อมูล", landing_html)
+        self.assertIn('href="/home"', landing_html)
+        self.assertIn('href="/models"', landing_html)
+
     def test_public_seo_metadata_and_structured_data(self):
         landing_html = self.client.get("/").get_data(as_text=True)
         home_html = self.client.get("/home").get_data(as_text=True)

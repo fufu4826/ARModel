@@ -224,7 +224,7 @@ body.landing-page main {
   align-items: center;
   overflow: hidden;
   padding: clamp(18px, 4vw, 40px);
-  background-image: var(--landing-image);
+  background-image: var(--landing-cover-desktop, var(--landing-image));
   background-position: right center;
   background-size: cover;
 }
@@ -1948,6 +1948,7 @@ model-viewer {
     overflow-x: hidden !important;
     padding: 0 !important; /* Screens handle internal padding */
     min-height: 100svh !important;
+    background-image: var(--landing-cover-mobile, var(--landing-cover-desktop, var(--landing-image))) !important;
   }
 
   /* Make overlay readable and not too heavy on mobile */

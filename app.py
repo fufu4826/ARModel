@@ -46,6 +46,7 @@ DEFAULT_META_KEYWORDS = (
 DEFAULT_META_IMAGE_PATH = "pic/og-cover.jpg"
 DEFAULT_SITE_SETTINGS = {
     "landing_cover": DEFAULT_META_IMAGE_PATH,
+    "landing_mobile_cover_image": "",
     "landing_headline": "ภูพาน AR สกลนคร",
     "landing_subheadline": "เรียนรู้ศูนย์ศึกษาการพัฒนาภูพานผ่านโมเดล 3D และ AR",
     "landing_description": (
@@ -839,6 +840,7 @@ def direct_upload_target(filename: str, kind: str, file_size: int | None = None)
         "thumbnail": ("thumbnails", IMAGE_EXTENSIONS),
         "project_image": ("projects", IMAGE_EXTENSIONS),
         "landing_cover": ("site/landing", IMAGE_EXTENSIONS),
+        "landing_mobile_cover_image": ("site/landing", IMAGE_EXTENSIONS),
         "site_logo": ("site/branding", SITE_LOGO_EXTENSIONS),
         "site_social_image": ("site/social", IMAGE_EXTENSIONS),
         "favicon": ("site/branding", FAVICON_EXTENSIONS),
@@ -856,6 +858,7 @@ def direct_upload_target(filename: str, kind: str, file_size: int | None = None)
         abort(400, f"Unsupported file type: {extension or '(none)'}")
     if kind in {
         "landing_cover",
+        "landing_mobile_cover_image",
         "site_logo",
         "site_social_image",
         "favicon",
@@ -1029,6 +1032,11 @@ def versioned_asset_url(url: str, version_source: str) -> str:
 def site_settings_with_urls(settings: dict) -> dict:
     enriched = normalize_site_settings(settings)
     enriched["landing_cover_url"] = static_asset_url(enriched["landing_cover"]) or url_for("static", filename=DEFAULT_META_IMAGE_PATH)
+    enriched["landing_mobile_cover_image_url"] = (
+        static_asset_url(enriched["landing_mobile_cover_image"])
+        if enriched.get("landing_mobile_cover_image")
+        else enriched["landing_cover_url"]
+    )
     enriched["site_logo_url"] = static_asset_url(enriched["site_logo"]) if enriched["site_logo"] else ""
     enriched["site_social_image_url"] = (
         static_asset_url(enriched["site_social_image"])
@@ -1430,6 +1438,7 @@ def landing_preload_image_urls(
 ) -> list[str]:
     candidates = [
         settings.get("landing_cover_url"),
+        settings.get("landing_mobile_cover_image_url"),
         settings.get("site_logo_url"),
         settings.get("intro_logo_1_url"),
         settings.get("intro_logo_2_url"),
@@ -1445,6 +1454,8 @@ def landing_preload_image_urls(
     for candidate in candidates:
         url = str(candidate or "").strip()
         if not url or url.lower().startswith("data:") or url in urls:
+            continue
+        if url.lower().endswith(".glb"):
             continue
         if not (url.startswith("/") or url.lower().startswith(("https://", "http://"))):
             continue
@@ -1834,6 +1845,7 @@ def delete_slider(slider_id: str):
 def update_admin_settings():
     if reject_vercel_upload_if_needed(
         "landing_cover_file",
+        "landing_mobile_cover_image_file",
         "site_logo_file",
         "site_social_image_file",
         "favicon_file",
@@ -1864,6 +1876,18 @@ def update_admin_settings():
             "uploads/site",
             IMAGE_EXTENSIONS,
         )
+        if request.form.get("landing_mobile_cover_image_remove") in {"1", "true", "on", "yes"}:
+            settings["landing_mobile_cover_image"] = ""
+        else:
+            settings["landing_mobile_cover_image"] = setting_asset_from_request(
+                settings,
+                "landing_mobile_cover_image",
+                "landing_mobile_cover_image_file",
+                "site/landing",
+                SITE_UPLOAD_DIR,
+                "uploads/site",
+                IMAGE_EXTENSIONS,
+            )
     elif section == "branding":
         settings["site_name"] = request.form.get("site_name", "").strip() or DEFAULT_SITE_SETTINGS["site_name"]
         settings["meta_description"] = request.form.get("meta_description", "").strip() or DEFAULT_SITE_SETTINGS["meta_description"]

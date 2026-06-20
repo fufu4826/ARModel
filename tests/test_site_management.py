@@ -116,6 +116,67 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn('href="/home"', landing_html)
         self.assertIn('href="/models"', landing_html)
 
+    def test_landing_mobile_cover_image(self):
+        # 1. Renders admin landing page and includes mobile cover inputs/preview
+        self.sign_in()
+        admin_landing_html = self.client.get("/admin/landing").get_data(as_text=True)
+        self.assertIn('name="landing_mobile_cover_image"', admin_landing_html)
+        self.assertIn('name="landing_mobile_cover_image_file"', admin_landing_html)
+        self.assertIn('name="landing_mobile_cover_image_remove"', admin_landing_html)
+
+        # 2. Saving settings through POST preserves/updates mobile cover URL
+        response = self.client.post(
+            "/admin/settings",
+            data={
+                "section": "landing",
+                "return_to": "/admin/landing",
+                "landing_cover": "pic/og-cover.jpg",
+                "landing_mobile_cover_image": "https://example.com/mobile-cover.jpg",
+                "landing_headline": "Test headline",
+                "landing_subheadline": "Test subheadline",
+                "landing_description": "Test description",
+                "landing_cta_text": "Enter",
+                "landing_cta_url": "/home",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        settings = module.load_site_settings()
+        self.assertEqual(settings["landing_mobile_cover_image"], "https://example.com/mobile-cover.jpg")
+
+        # 3. Landing page includes the mobile cover URL when configured
+        landing_html = self.client.get("/").get_data(as_text=True)
+        self.assertIn("--landing-cover-mobile: url('https://example.com/mobile-cover.jpg')", landing_html)
+
+        # 4. Clear/remove mobile cover image reverts to empty and falls back to desktop cover
+        response = self.client.post(
+            "/admin/settings",
+            data={
+                "section": "landing",
+                "return_to": "/admin/landing",
+                "landing_cover": "pic/og-cover.jpg",
+                "landing_mobile_cover_image_remove": "on",
+                "landing_headline": "Test headline",
+                "landing_subheadline": "Test subheadline",
+                "landing_description": "Test description",
+                "landing_cta_text": "Enter",
+                "landing_cta_url": "/home",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        settings = module.load_site_settings()
+        self.assertEqual(settings["landing_mobile_cover_image"], "")
+
+        # 5. Fallback works when empty (it matches the desktop cover URL)
+        with module.app.test_request_context():
+            public_settings = module.site_settings_with_urls(settings)
+            self.assertEqual(public_settings["landing_mobile_cover_image_url"], public_settings["landing_cover_url"])
+
+            # 6. Preload list includes mobile cover image if configured
+            settings["landing_mobile_cover_image"] = "https://example.com/preload-mobile.jpg"
+            public_settings = module.site_settings_with_urls(settings)
+            preloads = module.landing_preload_image_urls(public_settings, [], [], [])
+            self.assertIn("https://example.com/preload-mobile.jpg", preloads)
+
     def test_public_seo_metadata_and_structured_data(self):
         landing_html = self.client.get("/").get_data(as_text=True)
         home_html = self.client.get("/home").get_data(as_text=True)

@@ -6,6 +6,7 @@
   const uploadEndpoint = "/admin/api/create-upload-url";
   const managedUploadKinds = new Set([
     "landing_cover",
+    "landing_mobile_cover_image",
     "site_logo",
     "site_social_image",
     "favicon",

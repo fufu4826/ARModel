@@ -51,6 +51,7 @@ class SiteManagementTests(unittest.TestCase):
             "/api/sliders": 200,
             "/sitemap.xml": 200,
             "/robots.txt": 200,
+            "/googleaf10e1de09a9b1b8.html": 200,
             "/health": 200,
             "/missing-route": 404,
         }
@@ -95,6 +96,15 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("Allow: /", robots_text)
         self.assertIn("Disallow: /admin", robots_text)
         self.assertIn("Sitemap: https://phuphan-ar.vercel.app/sitemap.xml", robots_text)
+
+    def test_google_site_verification_route(self):
+        response = self.client.get("/googleaf10e1de09a9b1b8.html")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content_type, "text/html; charset=utf-8")
+        self.assertEqual(
+            response.get_data(as_text=True),
+            "google-site-verification: googleaf10e1de09a9b1b8.html",
+        )
 
     def test_admin_management_routes_require_login(self):
         for route in ("/admin", "/admin/landing", "/admin/branding", "/admin/sliders"):

@@ -1482,6 +1482,13 @@ def robots():
     }
 
 
+@app.get("/googleaf10e1de09a9b1b8.html")
+def google_site_verification():
+    return "google-site-verification: googleaf10e1de09a9b1b8.html", 200, {
+        "Content-Type": "text/html; charset=utf-8"
+    }
+
+
 @app.get("/health")
 def health():
     return jsonify({"status": "ok"})

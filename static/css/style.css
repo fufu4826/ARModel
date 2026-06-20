@@ -120,6 +120,19 @@ model-viewer:focus-visible {
   font-size: 12px;
 }
 
+.public-logo-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.public-logo-strip__item {
+  height: 42px;
+  width: auto;
+  object-fit: contain;
+}
+
 .nav-actions {
   display: flex;
   align-items: center;
@@ -1812,6 +1825,15 @@ model-viewer {
     align-items: center;
     justify-content: space-between;
     flex-direction: row !important; /* Override 680px stack */
+  }
+
+  .public-logo-strip {
+    gap: 4px !important;
+  }
+
+  .public-logo-strip__item {
+    height: 32px !important;
+    max-width: 48px !important;
   }
 
   .nav-actions {

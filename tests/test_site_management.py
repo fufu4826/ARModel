@@ -749,6 +749,48 @@ class SiteManagementTests(unittest.TestCase):
         payload = json.loads(self.client.get("/api/sliders").get_data(as_text=True))
         self.assertEqual(payload[0]["id"], "test-slide")
 
+    def test_public_logos_display(self):
+        # 1. Test with intro logos configured
+        settings = module.load_site_settings()
+        settings.update({
+            "intro_logo_1": "https://example.com/logo-1.png",
+            "intro_logo_2": "https://example.com/logo-2.png",
+            "intro_logo_3": "https://example.com/logo-3.png",
+            "site_logo": "https://example.com/site-logo.png",
+        })
+        module.save_site_settings(settings)
+
+        landing_html = self.client.get("/").get_data(as_text=True)
+        self.assertIn("public-logo-strip", landing_html)
+        self.assertIn("landing-logo-strip", landing_html)
+        # Verify the landing page doesn't render site_logo image
+        self.assertNotIn('src="https://example.com/site-logo.png"', landing_html)
+
+        # Check required strings on landing
+        self.assertIn("mobile landing override active", landing_html)
+        self.assertIn("ศูนย์ศึกษาการพัฒนาภูพาน", landing_html)
+        self.assertIn("เลื่อนเพื่อดูข้อมูล", landing_html)
+        self.assertIn('href="/home"', landing_html)
+        self.assertIn('href="/models"', landing_html)
+
+        home_html = self.client.get("/home").get_data(as_text=True)
+        self.assertIn("public-logo-strip", home_html)
+        self.assertNotIn('src="https://example.com/site-logo.png"', home_html)
+
+        # 2. Test without intro logos (fallback clean text)
+        settings.update({
+            "intro_logo_1": "",
+            "intro_logo_2": "",
+            "intro_logo_3": "",
+        })
+        module.save_site_settings(settings)
+
+        home_html_no_logos = self.client.get("/home").get_data(as_text=True)
+        self.assertNotIn("public-logo-strip", home_html_no_logos)
+        self.assertIn("brand-symbol", home_html_no_logos)
+        self.assertIn("AR", home_html_no_logos)
+        self.assertNotIn('src="https://example.com/site-logo.png"', home_html_no_logos)
+
     def test_supabase_schema_is_hardened_and_non_destructive(self):
         sql = (Path(module.BASE_DIR) / "docs" / "supabase_schema.sql").read_text(encoding="utf-8").lower()
         for forbidden in ("drop table", "truncate", "delete from", "alter table site_settings drop", "alter table slider_items drop"):

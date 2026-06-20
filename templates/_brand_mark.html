@@ -1,8 +1,4 @@
-{% if site_settings.site_logo_url %}
-<img class="brand-logo" src="{{ site_settings.site_logo_url }}" alt="" />
-{% else %}
-<span class="brand-symbol">AR</span>
-{% endif %}
+{% include "_public_logo_strip.html" %}
 <span>
   <strong>{{ site_settings.site_name }}</strong>
   <small>นิทรรศการโมเดล 3D และ AR</small>

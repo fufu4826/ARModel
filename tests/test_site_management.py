@@ -49,6 +49,8 @@ class SiteManagementTests(unittest.TestCase):
             "/models/lychee": 200,
             "/api/settings": 200,
             "/api/sliders": 200,
+            "/sitemap.xml": 200,
+            "/robots.txt": 200,
             "/health": 200,
             "/missing-route": 404,
         }
@@ -57,8 +59,40 @@ class SiteManagementTests(unittest.TestCase):
                 self.assertEqual(self.client.get(route).status_code, expected)
 
         settings = self.client.get("/api/settings").get_json()
-        self.assertEqual(settings["site_name"], "PhuPhan-AR")
+        self.assertEqual(settings["site_name"], "PhuPhan-AR | ภูพาน AR สกลนคร")
         self.assertTrue(settings["landing_cover_url"].endswith("/static/pic/og-cover.jpg"))
+
+    def test_public_seo_metadata_and_structured_data(self):
+        landing_html = self.client.get("/").get_data(as_text=True)
+        home_html = self.client.get("/home").get_data(as_text=True)
+        models_html = self.client.get("/models").get_data(as_text=True)
+
+        self.assertIn("<title>ภูพาน AR สกลนคร | ศูนย์ศึกษาการพัฒนาภูพาน</title>", landing_html)
+        self.assertIn(
+            "<title>ศูนย์ศึกษาการพัฒนาภูพาน | โมเดล 3D และ AR สกลนคร</title>",
+            home_html,
+        )
+        self.assertIn("<title>โมเดล 3D ภูพาน | ของดีสกลนครในรูปแบบ AR</title>", models_html)
+        self.assertIn('name="keywords"', landing_html)
+        self.assertIn("พูพาน สกลนคร", landing_html)
+        self.assertIn('type="application/ld+json"', landing_html)
+        self.assertIn("Phu Phan Royal Development Study Centre", landing_html)
+        self.assertIn('rel="canonical" href="https://phuphan-ar.vercel.app/"', landing_html)
+
+    def test_sitemap_and_robots_include_public_discovery_routes(self):
+        sitemap = self.client.get("/sitemap.xml")
+        self.assertEqual(sitemap.mimetype, "application/xml")
+        sitemap_text = sitemap.get_data(as_text=True)
+        for path in ("/", "/home", "/models", "/projects/garden", "/models/lychee"):
+            self.assertIn(f"https://phuphan-ar.vercel.app{path}", sitemap_text)
+        self.assertNotIn("/admin", sitemap_text)
+
+        robots = self.client.get("/robots.txt")
+        self.assertEqual(robots.mimetype, "text/plain")
+        robots_text = robots.get_data(as_text=True)
+        self.assertIn("Allow: /", robots_text)
+        self.assertIn("Disallow: /admin", robots_text)
+        self.assertIn("Sitemap: https://phuphan-ar.vercel.app/sitemap.xml", robots_text)
 
     def test_admin_management_routes_require_login(self):
         for route in ("/admin", "/admin/landing", "/admin/branding", "/admin/sliders"):
@@ -99,7 +133,11 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(module.load_site_settings()["site_name"], "Test Brand")
         home_html = self.client.get("/home").get_data(as_text=True)
-        self.assertIn("<title>Test Brand | Test subheadline</title>", home_html)
+        self.assertIn(
+            "<title>ศูนย์ศึกษาการพัฒนาภูพาน | โมเดล 3D และ AR สกลนคร</title>",
+            home_html,
+        )
+        self.assertIn("Test Brand", home_html)
         self.assertIn('content="Test metadata description"', home_html)
         self.assertIn('href="/static/favicon.ico"', home_html)
 

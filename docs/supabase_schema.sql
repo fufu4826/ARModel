@@ -50,15 +50,15 @@ where active = true;
 insert into site_settings (key, value)
 values
   ('landing_cover', 'pic/og-cover.jpg'),
-  ('landing_headline', 'PhuPhan AR'),
-  ('landing_subheadline', 'นิทรรศการโมเดล 3D และ AR'),
-  ('landing_description', 'เรียนรู้วัตถุ ผลิตภัณฑ์ และองค์ความรู้ผ่านโมเดลสามมิติและเทคโนโลยี AR'),
+  ('landing_headline', 'ภูพาน AR สกลนคร'),
+  ('landing_subheadline', 'เรียนรู้ศูนย์ศึกษาการพัฒนาภูพานผ่านโมเดล 3D และ AR'),
+  ('landing_description', 'เว็บไซต์รวบรวมวัตถุ ผลิตภัณฑ์ องค์ความรู้ และของดีสกลนครจากศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ บ้านนานกเค้า ตำบลห้วยยาง อำเภอเมือง จังหวัดสกลนคร ในรูปแบบโมเดลสามมิติและเทคโนโลยี AR'),
   ('landing_cta_text', 'เข้าสู่เว็บไซต์'),
   ('landing_cta_url', '/home'),
   ('site_logo', ''),
-  ('site_name', 'PhuPhan-AR'),
+  ('site_name', 'PhuPhan-AR | ภูพาน AR สกลนคร'),
   ('favicon', 'favicon.ico'),
-  ('meta_description', 'สำรวจวัตถุ ผลิตภัณฑ์ และองค์ความรู้ชุมชนในรูปแบบโมเดล 3D และ AR')
+  ('meta_description', 'สำรวจศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ จังหวัดสกลนคร ผ่านโมเดล 3D และ AR รวมวัตถุ ผลิตภัณฑ์ ภูมิปัญญา และของดีสกลนครในรูปแบบดิจิทัล')
 on conflict (key) do nothing;
 
 alter table site_settings enable row level security;

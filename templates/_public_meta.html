@@ -3,6 +3,8 @@
 {% set meta_image = page_image|default(default_meta_image, true) %}
 {% set meta_url = page_url|default(public_site_url ~ request.path, true) %}
 <meta name="description" content="{{ meta_description }}" />
+<meta name="keywords" content="{{ default_meta_keywords }}" />
+<meta name="robots" content="index, follow, max-image-preview:large" />
 <link rel="canonical" href="{{ meta_url }}" />
 <meta property="og:title" content="{{ meta_title }}" />
 <meta property="og:description" content="{{ meta_description }}" />

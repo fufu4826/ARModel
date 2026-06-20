@@ -104,10 +104,15 @@ model-viewer:focus-visible {
   display: block;
 }
 
+.brand-mark > span:last-child {
+  min-width: 0;
+}
+
 .brand-mark strong {
   color: var(--green-dark);
   font-size: 17px;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .brand-mark small {
@@ -310,6 +315,29 @@ body.landing-page main {
   margin: 0;
   color: rgba(255, 255, 255, 0.9);
   font-size: clamp(17px, 2.2vw, 22px);
+}
+
+.landing-seo-section {
+  width: min(920px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 56px 0;
+  color: #edf5ef;
+}
+
+.landing-seo-section h2 {
+  margin: 8px 0 14px;
+  color: #fff;
+}
+
+.landing-seo-section p {
+  max-width: 820px;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.75;
+}
+
+.landing-seo-section .search-alias {
+  color: #fff4d1;
+  font-weight: 800;
 }
 
 .landing-actions {

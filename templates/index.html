@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ page_title }}</title>
   {% include "_public_meta.html" %}
+  {% include "_structured_data.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
   {% if sliders %}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
@@ -29,8 +30,8 @@
     <section class="hero-section homepage-hero" aria-labelledby="home-title">
       <div class="hero-copy">
         <p class="eyebrow">นิทรรศการดิจิทัล 3D / AR</p>
-        <h1 id="home-title">{{ site_settings.site_name }}</h1>
-        <p class="hero-subtitle">นิทรรศการโมเดล 3D และ AR เพื่อเรียนรู้วัตถุ ผลิตภัณฑ์ และองค์ความรู้ท้องถิ่น</p>
+        <h1 id="home-title">ศูนย์ศึกษาการพัฒนาภูพาน</h1>
+        <p class="hero-subtitle">โมเดล 3D และ AR ของภูพาน สกลนคร</p>
         <p class="lead">
           เลือกชมโมเดล 3D หมุนดูรายละเอียด และเปิด AR บนอุปกรณ์ที่รองรับเพื่อวางโมเดลในพื้นที่จริง
         </p>
@@ -216,19 +217,21 @@
     <section class="content-section about-section" aria-labelledby="about-title">
       <div class="info-card">
         <p class="eyebrow">เกี่ยวกับเว็บไซต์</p>
-        <h2 id="about-title">พื้นที่เรียนรู้วัตถุและองค์ความรู้ผ่านภาพสามมิติ</h2>
+        <h2 id="about-title">แหล่งเรียนรู้ภูพานและของดีสกลนครผ่านภาพสามมิติ</h2>
         <p>
-          PhuPhan AR เป็นพื้นที่รวบรวมโมเดล 3D ของวัตถุ ผลิตภัณฑ์ และองค์ความรู้
-          เพื่อให้ผู้ใช้สามารถเรียนรู้ผ่านภาพสามมิติและเทคโนโลยี AR ได้จากทุกที่
+          PhuPhan AR เป็นเว็บไซต์การเรียนรู้ที่รวบรวมวัตถุ ผลิตภัณฑ์ ภูมิปัญญา และองค์ความรู้ที่เกี่ยวข้องกับ
+          ศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ บ้านนานกเค้า ตำบลห้วยยาง
+          อำเภอเมือง จังหวัดสกลนคร เพื่อให้เรียนรู้ผ่านโมเดล 3D และเทคโนโลยี AR ได้จากทุกที่
         </p>
+        <p class="note-text">ค้นหาได้ทั้ง ภูพาน, พูพาน, ภูพาน สกลนคร, ศูนย์ภูพาน และ AR สกลนคร</p>
       </div>
     </section>
   </main>
 
   <footer class="site-footer site-footer-rich">
     <div>
-      <strong>PhuPhan AR</strong>
-      <p>นิทรรศการโมเดล 3D และ AR สำหรับการเรียนรู้วัตถุ ผลิตภัณฑ์ และองค์ความรู้ท้องถิ่น</p>
+      <strong>PhuPhan AR | ภูพาน AR สกลนคร</strong>
+      <p>เว็บไซต์เรียนรู้ศูนย์ศึกษาการพัฒนาภูพานและของดีสกลนครผ่านโมเดล 3D และ AR</p>
       <span>phuphan-ar.vercel.app</span>
     </div>
     <nav aria-label="ลิงก์ท้ายเว็บไซต์">

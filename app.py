@@ -54,6 +54,11 @@ DEFAULT_SITE_SETTINGS = {
     ),
     "landing_cta_text": "เข้าสู่เว็บไซต์",
     "landing_cta_url": "/home",
+    "intro_enabled": "false",
+    "intro_logo_1": "",
+    "intro_logo_2": "",
+    "intro_logo_3": "",
+    "intro_logo_duration_ms": "1400",
     "site_logo": "",
     "site_name": "PhuPhan-AR | ภูพาน AR สกลนคร",
     "favicon": "favicon.ico",
@@ -833,6 +838,9 @@ def direct_upload_target(filename: str, kind: str, file_size: int | None = None)
         "landing_cover": ("site/landing", IMAGE_EXTENSIONS),
         "site_logo": ("site/branding", SITE_LOGO_EXTENSIONS),
         "favicon": ("site/branding", FAVICON_EXTENSIONS),
+        "intro_logo_1": ("site/intro", IMAGE_EXTENSIONS),
+        "intro_logo_2": ("site/intro", IMAGE_EXTENSIONS),
+        "intro_logo_3": ("site/intro", IMAGE_EXTENSIONS),
         "slider_image": ("sliders", IMAGE_EXTENSIONS),
     }
     if kind not in upload_kinds:
@@ -842,7 +850,15 @@ def direct_upload_target(filename: str, kind: str, file_size: int | None = None)
     extension = Path(filename or "").suffix.lower()
     if extension not in allowed_extensions:
         abort(400, f"Unsupported file type: {extension or '(none)'}")
-    if kind in {"landing_cover", "site_logo", "favicon", "slider_image"}:
+    if kind in {
+        "landing_cover",
+        "site_logo",
+        "favicon",
+        "intro_logo_1",
+        "intro_logo_2",
+        "intro_logo_3",
+        "slider_image",
+    }:
         if not file_size:
             abort(400, "file_size is required for managed site uploads")
         if file_size > SITE_ASSET_MAX_BYTES:
@@ -997,6 +1013,15 @@ def site_settings_with_urls(settings: dict) -> dict:
     enriched["landing_cover_url"] = static_asset_url(enriched["landing_cover"]) or url_for("static", filename=DEFAULT_META_IMAGE_PATH)
     enriched["site_logo_url"] = static_asset_url(enriched["site_logo"]) if enriched["site_logo"] else ""
     enriched["favicon_url"] = static_asset_url(enriched["favicon"]) or url_for("static", filename="favicon.ico")
+    enriched["intro_enabled_bool"] = enriched["intro_enabled"].lower() in {"1", "true", "on", "yes"}
+    for index in range(1, 4):
+        key = f"intro_logo_{index}"
+        enriched[f"{key}_url"] = static_asset_url(enriched[key]) if enriched[key] else ""
+    try:
+        duration_ms = int(enriched["intro_logo_duration_ms"])
+    except (TypeError, ValueError):
+        duration_ms = int(DEFAULT_SITE_SETTINGS["intro_logo_duration_ms"])
+    enriched["intro_logo_duration_ms_value"] = max(600, min(duration_ms, 1600))
     return enriched
 
 
@@ -1358,15 +1383,64 @@ def slider_data_from_request(existing: dict | None = None) -> dict:
     }
 
 
+def landing_preload_image_urls(
+    settings: dict,
+    sliders: list[dict],
+    projects: list[dict],
+    models: list[dict],
+    limit: int = 50,
+) -> list[str]:
+    candidates = [
+        settings.get("landing_cover_url"),
+        settings.get("site_logo_url"),
+        settings.get("intro_logo_1_url"),
+        settings.get("intro_logo_2_url"),
+        settings.get("intro_logo_3_url"),
+    ]
+    candidates.extend(item.get("resolved_image_url") for item in sliders)
+    candidates.extend(project.get("cover_image_url") for project in projects)
+    for model in models:
+        candidates.append(resolve_thumbnail_url(model))
+        candidates.extend(resolve_model_preview_images(model))
+
+    urls = []
+    for candidate in candidates:
+        url = str(candidate or "").strip()
+        if not url or url.lower().startswith("data:") or url in urls:
+            continue
+        if not (url.startswith("/") or url.lower().startswith(("https://", "http://"))):
+            continue
+        urls.append(url)
+        if len(urls) >= limit:
+            break
+    return urls
+
+
 @app.route("/")
 def index():
     settings = get_site_settings()
     public_settings = site_settings_with_urls(settings)
     sliders = [slider_with_url(item) for item in get_slider_items(include_inactive=False)]
+    models = get_models(include_hidden=False)
+    projects = [
+        project_with_urls(project, models)
+        for project in get_projects(include_hidden=False)
+    ]
     return render_template(
         "landing.html",
         landing_image_url=public_settings["landing_cover_url"],
         sliders=sliders,
+        intro_logos=[
+            public_settings[f"intro_logo_{index}_url"]
+            for index in range(1, 4)
+            if public_settings[f"intro_logo_{index}_url"]
+        ],
+        preload_image_urls=landing_preload_image_urls(
+            public_settings,
+            sliders,
+            projects,
+            models,
+        ),
         structured_data=public_structured_data(settings),
         page_title="ภูพาน AR สกลนคร | ศูนย์ศึกษาการพัฒนาภูพาน",
         page_description=settings["meta_description"],
@@ -1578,6 +1652,57 @@ def admin_landing():
 @admin_required
 def admin_branding():
     return render_template("admin_branding.html", settings=site_settings_with_urls(get_site_settings()))
+
+
+@app.route("/admin/intro", methods=["GET", "POST"])
+@admin_required
+def admin_intro():
+    if request.method == "GET":
+        return render_template(
+            "admin_intro.html",
+            settings=site_settings_with_urls(get_site_settings()),
+        )
+
+    file_fields = tuple(f"intro_logo_{index}_file" for index in range(1, 4))
+    if reject_vercel_upload_if_needed(*file_fields) or admin_write_blocked_on_vercel():
+        return redirect(url_for("admin_intro"))
+
+    settings = get_site_settings()
+    settings["intro_enabled"] = (
+        "true" if request.form.get("intro_enabled") in {"1", "true", "on", "yes"} else "false"
+    )
+    try:
+        duration_ms = int(request.form.get("intro_logo_duration_ms") or 1400)
+    except ValueError:
+        abort(400, "ระยะเวลาแสดงโลโก้ต้องเป็นจำนวนเต็ม")
+    settings["intro_logo_duration_ms"] = str(max(600, min(duration_ms, 1600)))
+
+    for index in range(1, 4):
+        key = f"intro_logo_{index}"
+        if request.form.get(f"{key}_remove") in {"1", "true", "on", "yes"}:
+            settings[key] = ""
+        else:
+            settings[key] = setting_asset_from_request(
+                settings,
+                key,
+                f"{key}_file",
+                "site/intro",
+                SITE_UPLOAD_DIR / "intro",
+                "uploads/site/intro",
+                IMAGE_EXTENSIONS,
+            )
+
+    if is_supabase_enabled():
+        try:
+            upsert_supabase_site_settings(settings)
+        except SupabaseError as exc:
+            logger.exception("Unable to save intro settings in Supabase")
+            flash(f"ไม่สามารถบันทึกการตั้งค่าอินโทรไปยัง Supabase ได้: {exc}", "error")
+            return redirect(url_for("admin_intro"))
+    else:
+        save_site_settings(settings)
+    flash("บันทึกการตั้งค่าอินโทรแล้ว", "success")
+    return redirect(url_for("admin_intro"))
 
 
 @app.route("/admin/sliders", methods=["GET", "POST"])

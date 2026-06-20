@@ -70,6 +70,8 @@ class SiteManagementTests(unittest.TestCase):
         settings = self.client.get("/api/settings").get_json()
         self.assertEqual(settings["site_name"], "PhuPhan-AR | ภูพาน AR สกลนคร")
         self.assertTrue(settings["landing_cover_url"].endswith("/static/pic/og-cover.jpg"))
+        self.assertFalse(settings["intro_enabled_bool"])
+        self.assertEqual(settings["intro_logo_duration_ms_value"], 1400)
 
     def test_public_seo_metadata_and_structured_data(self):
         landing_html = self.client.get("/").get_data(as_text=True)
@@ -255,11 +257,60 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(with_gallery["preview_images"], ["https://example.com/two.jpg"])
 
     def test_admin_management_routes_require_login(self):
-        for route in ("/admin", "/admin/landing", "/admin/branding", "/admin/sliders"):
+        for route in ("/admin", "/admin/landing", "/admin/branding", "/admin/intro", "/admin/sliders"):
             with self.subTest(route=route):
                 response = self.client.get(route)
                 self.assertEqual(response.status_code, 302)
                 self.assertIn("/admin/login", response.headers["Location"])
+
+    def test_landing_intro_settings_and_admin_page(self):
+        landing_html = self.client.get("/").get_data(as_text=True)
+        self.assertIn('href="/home"', landing_html)
+        self.assertIn("data-landing-intro-trigger", landing_html)
+        self.assertIn('"enabled": false', landing_html)
+
+        settings = {
+            **module.DEFAULT_SITE_SETTINGS,
+            "intro_enabled": "true",
+            "intro_logo_1": "https://example.com/logo-1.png",
+            "intro_logo_2": "pic/logo-2.webp",
+            "intro_logo_3": "",
+            "intro_logo_duration_ms": "1200",
+        }
+        module.save_site_settings(settings)
+        landing_html = self.client.get("/").get_data(as_text=True)
+        self.assertIn('"enabled": true', landing_html)
+        self.assertIn("https://example.com/logo-1.png", landing_html)
+        self.assertIn("/static/pic/logo-2.webp", landing_html)
+        self.assertIn('"durationMs": 1200', landing_html)
+        self.assertIn("landingIntroOverlay", landing_html)
+
+        self.sign_in()
+        admin_page = self.client.get("/admin/intro")
+        self.assertEqual(admin_page.status_code, 200)
+        self.assertIn("โลโก้จะแสดงทีละภาพ", admin_page.get_data(as_text=True))
+
+        response = self.client.post(
+            "/admin/intro",
+            data={
+                "intro_enabled": "on",
+                "intro_logo_1": "https://example.com/updated-1.png",
+                "intro_logo_2": "https://example.com/updated-2.webp",
+                "intro_logo_3": "pic/updated-3.png",
+                "intro_logo_duration_ms": "1500",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        saved = module.load_site_settings()
+        self.assertEqual(saved["intro_enabled"], "true")
+        self.assertEqual(saved["intro_logo_1"], "https://example.com/updated-1.png")
+        self.assertEqual(saved["intro_logo_2"], "https://example.com/updated-2.webp")
+        self.assertEqual(saved["intro_logo_3"], "pic/updated-3.png")
+        self.assertEqual(saved["intro_logo_duration_ms"], "1500")
+
+        api_settings = self.client.get("/api/settings").get_json()
+        self.assertTrue(api_settings["intro_enabled_bool"])
+        self.assertEqual(api_settings["intro_logo_duration_ms_value"], 1500)
 
     def test_settings_and_slider_crud(self):
         self.sign_in()
@@ -417,6 +468,9 @@ class SiteManagementTests(unittest.TestCase):
             self.assertNotEqual(first_path, second_path)
             self.assertTrue(first_path.startswith("site/landing/"))
             self.assertTrue(first_path.endswith(".png"))
+            intro_path, _ = module.direct_upload_target("intro.webp", "intro_logo_1", 1024)
+            self.assertTrue(intro_path.startswith("site/intro/"))
+            self.assertTrue(intro_path.endswith(".webp"))
             with self.assertRaises(BadRequest):
                 module.direct_upload_target("payload.exe", "landing_cover", 1024)
 

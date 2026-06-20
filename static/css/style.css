@@ -271,6 +271,64 @@ body.landing-page main {
   background: rgba(255, 255, 255, 0.18);
 }
 
+.landing-intro-active {
+  overflow: hidden;
+}
+
+.landing-intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #000000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 180ms ease;
+}
+
+.landing-intro-overlay.is-active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.landing-intro-logo {
+  width: min(58vw, 440px);
+  max-height: 54vh;
+  object-fit: contain;
+  opacity: 0;
+  transform: scale(0.98);
+  transition: opacity 280ms ease, transform 280ms ease;
+}
+
+.landing-intro-logo.is-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.landing-intro-skip {
+  position: absolute;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(18px, env(safe-area-inset-right));
+  min-width: 64px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.42);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.landing-intro-skip:hover,
+.landing-intro-skip:focus-visible {
+  background: #ffffff;
+  color: #000000;
+}
+
 .landing-brand .brand-logo,
 .landing-brand .brand-symbol {
   width: 34px;

@@ -4,7 +4,15 @@
   if (!directUploadsEnabled) return;
 
   const uploadEndpoint = "/admin/api/create-upload-url";
-  const managedUploadKinds = new Set(["landing_cover", "site_logo", "favicon", "slider_image"]);
+  const managedUploadKinds = new Set([
+    "landing_cover",
+    "site_logo",
+    "favicon",
+    "intro_logo_1",
+    "intro_logo_2",
+    "intro_logo_3",
+    "slider_image",
+  ]);
   const managedUploadMaxBytes = 5 * 1024 * 1024;
 
   function statusFor(input) {

@@ -3,6 +3,7 @@
   <a href="{{ url_for('admin') }}#models">Models</a>
   <a href="{{ url_for('admin') }}#projects">Projects</a>
   <a href="{{ url_for('admin_landing') }}" class="{{ 'active' if request.endpoint == 'admin_landing' else '' }}">Landing Page</a>
+  <a href="{{ url_for('admin_intro') }}" class="{{ 'active' if request.endpoint == 'admin_intro' else '' }}">อินโทร</a>
   <a href="{{ url_for('admin_sliders') }}" class="{{ 'active' if request.endpoint in ['admin_sliders', 'edit_slider'] else '' }}">Homepage Slider</a>
   <a href="{{ url_for('admin_branding') }}" class="{{ 'active' if request.endpoint == 'admin_branding' else '' }}">Site Branding</a>
   <a href="{{ url_for('admin_branding') }}#site-settings">Settings</a>

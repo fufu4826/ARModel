@@ -27,7 +27,7 @@
       <p class="landing-subtitle">{{ site_settings.landing_subheadline }}</p>
       <p class="landing-description">{{ site_settings.landing_description }}</p>
       <div class="landing-actions">
-        <a class="button landing-button" href="{{ site_settings.landing_cta_url }}">{{ site_settings.landing_cta_text }}</a>
+        <a class="button landing-button" href="{{ site_settings.landing_cta_url }}" data-landing-intro-trigger>{{ site_settings.landing_cta_text }}</a>
         <a class="button secondary landing-button" href="{{ url_for('models_index') }}">ดูโมเดลทั้งหมด</a>
       </div>
     </section>
@@ -47,9 +47,20 @@
     </p>
     <p class="search-alias">ค้นหาเว็บไซต์ได้ทั้งคำว่า ภูพาน, พูพาน, ภูพาน สกลนคร และของดีสกลนคร</p>
   </section>
+  <div class="landing-intro-overlay" id="landingIntroOverlay" aria-hidden="true" hidden>
+    <button class="landing-intro-skip" type="button" data-landing-intro-skip>ข้าม</button>
+    <img class="landing-intro-logo" id="landingIntroLogo" alt="" hidden />
+  </div>
+  <script id="landingIntroConfig" type="application/json">{{ {
+    "enabled": site_settings.intro_enabled_bool,
+    "logos": intro_logos,
+    "durationMs": site_settings.intro_logo_duration_ms_value,
+    "preloadUrls": preload_image_urls
+  }|tojson }}</script>
   {% if sliders %}
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/site-carousel.js') }}" defer></script>
   {% endif %}
+  <script src="{{ url_for('static', filename='js/landing-intro.js') }}" defer></script>
 </body>
 </html>

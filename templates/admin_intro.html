@@ -28,6 +28,15 @@
             เปิดใช้งานอินโทรก่อนเข้าสู่เว็บไซต์
           </label>
 
+          <div class="field full">
+            <label for="intro-display-mode">รูปแบบการแสดงอินโทร</label>
+            <select id="intro-display-mode" name="intro_display_mode">
+              <option value="sequence" {{ "selected" if settings.intro_display_mode == "sequence" else "" }}>เล่นโลโก้ทีละภาพตามลำดับ</option>
+              <option value="all_at_once" {{ "selected" if settings.intro_display_mode == "all_at_once" else "" }}>แสดงโลโก้ทั้งหมดพร้อมกัน</option>
+            </select>
+            <span>ใช้โลโก้ 1–3 ชุดเดียวกัน เปลี่ยนเฉพาะวิธีแสดงผลตอนกดเข้าสู่เว็บไซต์</span>
+          </div>
+
           {% for index in range(1, 4) %}
           {% set key = "intro_logo_" ~ index %}
           {% set file_id = key ~ "_file" %}

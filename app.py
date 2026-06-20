@@ -60,6 +60,7 @@ DEFAULT_SITE_SETTINGS = {
     "intro_logo_2": "",
     "intro_logo_3": "",
     "intro_logo_duration_ms": "1400",
+    "intro_display_mode": "sequence",
     "site_logo": "",
     "site_name": "PhuPhan-AR | ภูพาน AR สกลนคร",
     "site_social_image": "",
@@ -1049,6 +1050,8 @@ def site_settings_with_urls(settings: dict) -> dict:
     ).hexdigest()[:10]
     enriched["favicon_url"] = versioned_asset_url(favicon_url, enriched["favicon"])
     enriched["intro_enabled_bool"] = enriched["intro_enabled"].lower() in {"1", "true", "on", "yes"}
+    if enriched["intro_display_mode"] not in {"sequence", "all_at_once"}:
+        enriched["intro_display_mode"] = "sequence"
     for index in range(1, 4):
         key = f"intro_logo_{index}"
         enriched[f"{key}_url"] = static_asset_url(enriched[key]) if enriched[key] else ""
@@ -1705,6 +1708,12 @@ def admin_intro():
     settings = get_site_settings()
     settings["intro_enabled"] = (
         "true" if request.form.get("intro_enabled") in {"1", "true", "on", "yes"} else "false"
+    )
+    intro_display_mode = request.form.get("intro_display_mode", "sequence").strip()
+    settings["intro_display_mode"] = (
+        intro_display_mode
+        if intro_display_mode in {"sequence", "all_at_once"}
+        else "sequence"
     )
     try:
         duration_ms = int(request.form.get("intro_logo_duration_ms") or 1400)

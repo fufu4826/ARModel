@@ -46,7 +46,7 @@ Keep public writes disabled. The browser must never receive the service-role key
 
 The `site_settings` and `slider_items` tables are server-only resources. Flask reads and writes them with `SUPABASE_SERVICE_ROLE_KEY`; browser code does not query these tables directly. The schema enables Row Level Security without adding `anon` or `authenticated` policies, so direct client access remains blocked while the server-side service role continues to work.
 
-Landing intro logos use additional keys in the existing `site_settings` table and objects under `site/intro/`. No new table or SQL schema migration is required for the intro feature.
+Landing intro logos and `intro_display_mode` use additional keys in the existing `site_settings` table and objects under `site/intro/`. No new table or SQL schema migration is required for the intro feature. Supported display modes are `sequence` and `all_at_once`.
 
 The social preview image uses the `site_social_image` key in the existing `site_settings` table and objects under `site/social/`. No new table or SQL schema migration is required. When unset, Open Graph and Twitter metadata fall back to the Landing cover image.
 

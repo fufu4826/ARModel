@@ -304,6 +304,11 @@ body.landing-page main {
   transition: opacity 180ms ease;
 }
 
+.landing-intro-overlay[hidden],
+.landing-intro-logo-group[hidden] {
+  display: none;
+}
+
 .landing-intro-overlay.is-active {
   opacity: 1;
   visibility: visible;
@@ -321,6 +326,29 @@ body.landing-page main {
 .landing-intro-logo.is-visible {
   opacity: 1;
   transform: scale(1);
+}
+
+.landing-intro-logo-group {
+  width: min(88vw, 920px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 4vw, 48px);
+  opacity: 0;
+  transform: scale(0.98);
+  transition: opacity 280ms ease, transform 280ms ease;
+}
+
+.landing-intro-logo-group.is-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.landing-intro-logo-group__item {
+  width: min(24vw, 240px);
+  max-height: 42vh;
+  display: block;
+  object-fit: contain;
 }
 
 .landing-intro-skip {
@@ -1586,6 +1614,16 @@ model-viewer {
   .landing-logo-strip__item {
     width: clamp(32px, 10vw, 46px);
     height: clamp(32px, 10vw, 46px);
+  }
+
+  .landing-intro-logo-group {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .landing-intro-logo-group__item {
+    width: min(38vw, 160px);
+    max-height: 28vh;
   }
 
   .landing-actions,

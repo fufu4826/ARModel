@@ -80,6 +80,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("v", parse_qs(favicon_url.query))
         self.assertFalse(settings["intro_enabled_bool"])
         self.assertEqual(settings["intro_logo_duration_ms_value"], 1400)
+        self.assertEqual(settings["intro_display_mode"], "sequence")
 
     def test_hidden_image_placeholders_do_not_take_space(self):
         stylesheet = (
@@ -364,6 +365,8 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn('href="/home"', landing_html)
         self.assertIn("data-landing-intro-trigger", landing_html)
         self.assertIn('"enabled": false', landing_html)
+        self.assertIn('"mode": "sequence"', landing_html)
+        self.assertIn('data-mode="sequence"', landing_html)
 
         settings = {
             **module.DEFAULT_SITE_SETTINGS,
@@ -372,6 +375,7 @@ class SiteManagementTests(unittest.TestCase):
             "intro_logo_2": "pic/logo-2.webp",
             "intro_logo_3": "",
             "intro_logo_duration_ms": "1200",
+            "intro_display_mode": "all_at_once",
         }
         module.save_site_settings(settings)
         landing_html = self.client.get("/").get_data(as_text=True)
@@ -379,6 +383,9 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("https://example.com/logo-1.png", landing_html)
         self.assertIn("/static/pic/logo-2.webp", landing_html)
         self.assertIn('"durationMs": 1200', landing_html)
+        self.assertIn('"mode": "all_at_once"', landing_html)
+        self.assertIn('data-mode="all_at_once"', landing_html)
+        self.assertIn("landingIntroLogoGroup", landing_html)
         self.assertIn("landingIntroOverlay", landing_html)
         self.assertIn("landing-logo-strip", landing_html)
         logo_1_position = landing_html.index('data-intro-logo-index="1"')
@@ -393,6 +400,8 @@ class SiteManagementTests(unittest.TestCase):
         admin_page = self.client.get("/admin/intro")
         self.assertEqual(admin_page.status_code, 200)
         self.assertIn("โลโก้จะแสดงทีละภาพ", admin_page.get_data(as_text=True))
+        self.assertIn('name="intro_display_mode"', admin_page.get_data(as_text=True))
+        self.assertIn('value="all_at_once"', admin_page.get_data(as_text=True))
 
         response = self.client.post(
             "/admin/intro",
@@ -402,6 +411,7 @@ class SiteManagementTests(unittest.TestCase):
                 "intro_logo_2": "https://example.com/updated-2.webp",
                 "intro_logo_3": "pic/updated-3.png",
                 "intro_logo_duration_ms": "1500",
+                "intro_display_mode": "all_at_once",
             },
         )
         self.assertEqual(response.status_code, 302)
@@ -411,10 +421,29 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(saved["intro_logo_2"], "https://example.com/updated-2.webp")
         self.assertEqual(saved["intro_logo_3"], "pic/updated-3.png")
         self.assertEqual(saved["intro_logo_duration_ms"], "1500")
+        self.assertEqual(saved["intro_display_mode"], "all_at_once")
 
         api_settings = self.client.get("/api/settings").get_json()
         self.assertTrue(api_settings["intro_enabled_bool"])
         self.assertEqual(api_settings["intro_logo_duration_ms_value"], 1500)
+        self.assertEqual(api_settings["intro_display_mode"], "all_at_once")
+
+        response = self.client.post(
+            "/admin/intro",
+            data={
+                "intro_enabled": "on",
+                "intro_logo_1": "https://example.com/updated-1.png",
+                "intro_logo_2": "",
+                "intro_logo_3": "",
+                "intro_logo_duration_ms": "1200",
+                "intro_display_mode": "invalid-mode",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            module.load_site_settings()["intro_display_mode"],
+            "sequence",
+        )
 
     def test_settings_and_slider_crud(self):
         self.sign_in()

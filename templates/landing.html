@@ -63,13 +63,15 @@
     </p>
     <p class="search-alias">ค้นหาเว็บไซต์ได้ทั้งคำว่า ภูพาน, พูพาน, ภูพาน สกลนคร และของดีสกลนคร</p>
   </section>
-  <div class="landing-intro-overlay" id="landingIntroOverlay" aria-hidden="true" hidden>
+  <div class="landing-intro-overlay" id="landingIntroOverlay" data-mode="{{ site_settings.intro_display_mode }}" aria-hidden="true" hidden>
     <button class="landing-intro-skip" type="button" data-landing-intro-skip>ข้าม</button>
     <img class="landing-intro-logo" id="landingIntroLogo" alt="" hidden />
+    <div class="landing-intro-logo-group" id="landingIntroLogoGroup" hidden></div>
   </div>
   <script id="landingIntroConfig" type="application/json">{{ {
     "enabled": site_settings.intro_enabled_bool,
     "logos": intro_logos,
+    "mode": site_settings.intro_display_mode,
     "durationMs": site_settings.intro_logo_duration_ms_value,
     "preloadUrls": preload_image_urls
   }|tojson }}</script>

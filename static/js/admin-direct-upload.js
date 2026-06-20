@@ -49,16 +49,16 @@
     const file = input.files && input.files[0];
     if (!file) return;
     if (managedUploadKinds.has(input.dataset.uploadKind) && file.size > managedUploadMaxBytes) {
-      throw new Error("File must not exceed 5 MB.");
+      throw new Error("ไฟล์รูปภาพต้องมีขนาดไม่เกิน 5 MB");
     }
 
     const target = targetInputFor(input);
     if (!target) {
-      throw new Error("Upload target field is missing.");
+      throw new Error("ไม่พบฟิลด์เป้าหมายสำหรับการอัปโหลดไฟล์");
     }
 
     const status = statusFor(input);
-    status.textContent = `Uploading ${file.name}...`;
+    status.textContent = `กำลังอัปโหลด ${file.name}...`;
     input.disabled = true;
 
     try {
@@ -70,16 +70,16 @@
       });
       if (!response.ok) {
         const message = await response.text();
-        throw new Error(message || "Direct upload failed.");
+        throw new Error(message || "การอัปโหลดไฟล์ไปยังระบบจัดเก็บข้อมูลล้มเหลว");
       }
 
       target.value = upload.public_url;
       input.removeAttribute("name");
-      status.textContent = "Upload complete.";
+      status.textContent = "อัปโหลดไฟล์เสร็จสมบูรณ์";
     } catch (error) {
       input.disabled = false;
       status.style.color = "#b42318";
-      status.textContent = error.message || "Upload failed.";
+      status.textContent = error.message || "การอัปโหลดล้มเหลว";
       throw error;
     }
   }

@@ -22,13 +22,23 @@
         <div class="field"><label>ชื่อโครงการ</label><input name="name" value="{{ project.name }}" required></div>
         <div class="field"><label>หน่วยงาน/แผนก</label><input name="department" value="{{ project.department }}"></div>
         <div class="field full"><label>รายละเอียด</label><textarea name="description">{{ project.description }}</textarea></div>
-        <div class="field full"><label>เปลี่ยนภาพปก</label><input name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="project_image" data-upload-target="image_url" {{ "disabled" if uploads_disabled else "" }}></div>
-        <div class="field full"><label>External image URL</label><input name="image_url" type="url" value="{{ project.image_url }}" placeholder="https://example.com/project.jpg" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field full"><label>เปลี่ยนภาพปก (เลือกไฟล์รูปภาพ)</label><input id="edit-project-cover" name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="project_image" data-upload-target="image_url" {{ "disabled" if uploads_disabled else "" }}><p class="help">แนะนำใช้ไฟล์รูปภาพประเภท JPG, PNG หรือ WebP (ขนาดไม่เกิน 5 MB) ภาพนี้จะแสดงเป็นปกของการ์ดโครงการ</p></div>
+        <div class="field full"><label>หรือระบุลิงก์รูปภาพภายนอก (External image URL)</label><input name="image_url" type="url" value="{{ project.image_url }}" placeholder="https://example.com/project.jpg" data-image-preview-target="edit-project-cover-preview" {{ "disabled" if uploads_disabled else "" }}><p class="help">ใช้เมื่อต้องการดึงรูปภาพออนไลน์ หรือไฟล์รูปภาพบนระบบจัดเก็บ Supabase Storage แล้ว</p></div>
+        <div class="field full">
+          <div style="display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); padding: 12px; border-radius: var(--radius); background: #fdfdfd;">
+            <img id="edit-project-cover-preview" data-image-preview="edit-project-cover" src="{{ project.cover_image_url or '' }}" alt="ตัวอย่างภาพปกโครงการ" style="width: 120px; height: 80px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line);" {% if not project.cover_image_url %}hidden{% endif %}>
+            <div>
+              <strong style="display: block; font-size: 14px; color: var(--green);">ตัวอย่างภาพปกโครงการ</strong>
+              <span style="font-size: 12px; color: var(--muted);">แสดงรูปภาพปกปัจจุบันหรือรูปที่เลือกเพื่อเปลี่ยน</span>
+            </div>
+          </div>
+        </div>
         <label class="field check"><input name="visible" type="checkbox" {{ "checked" if project.visible else "" }}> เผยแพร่บนหน้าเว็บไซต์</label>
       </div>
       <div class="actions"><button class="btn" type="submit">บันทึก</button><a class="link" href="{{ url_for('admin') }}">ยกเลิก</a></div>
     </form>
   </main>
+  <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
 </body>
 </html>

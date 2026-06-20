@@ -98,12 +98,23 @@
               <textarea id="project-desc" name="description"></textarea>
             </div>
             <div class="field full">
-              <label for="project-cover">ภาพปกโครงการ</label>
+              <label for="project-cover">ภาพปกโครงการ (เลือกไฟล์รูปภาพ)</label>
               <input id="project-cover" name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="project_image" data-upload-target="image_url" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta" style="margin-top: 2px;">แนะนำใช้ไฟล์รูปภาพประเภท JPG, PNG หรือ WebP (ขนาดไม่เกิน 5 MB) ภาพนี้จะแสดงเป็นภาพปกของการ์ดโครงการ</p>
             </div>
             <div class="field full">
-              <label for="project-image-url">External image URL</label>
-              <input id="project-image-url" name="image_url" type="url" placeholder="https://example.com/project.jpg" {{ "disabled" if uploads_disabled else "" }}>
+              <label for="project-image-url">หรือระบุลิงก์รูปภาพภายนอก (External image URL)</label>
+              <input id="project-image-url" name="image_url" type="url" placeholder="https://example.com/project.jpg" data-image-preview-target="project-cover-preview" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta" style="margin-top: 2px;">ใช้เมื่อรูปภาพอยู่บนระบบออนไลน์อื่นหรือ Supabase Storage เรียบร้อยแล้ว</p>
+            </div>
+            <div class="field full">
+              <div style="display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); padding: 12px; border-radius: var(--radius); background: #fdfdfd;">
+                <img id="project-cover-preview" data-image-preview="project-cover" alt="ตัวอย่างภาพปกโครงการ" style="width: 120px; height: 80px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line);" hidden>
+                <div>
+                  <strong style="display: block; font-size: 14px; color: var(--green);">ตัวอย่างภาพปกโครงการ</strong>
+                  <span style="font-size: 12px; color: var(--muted);">แสดงภาพจำลองเมื่อเลือกไฟล์หรือระบุ URL ด้านบน</span>
+                </div>
+              </div>
             </div>
             <label class="field check"><input name="visible" type="checkbox" checked> เผยแพร่บนหน้าเว็บไซต์</label>
             <button class="btn" type="submit">เพิ่มโครงการ</button>
@@ -138,34 +149,49 @@
               <textarea id="model-desc" name="description"></textarea>
             </div>
             <div class="field">
-              <label for="model-file">ไฟล์ .glb</label>
+              <label for="model-file">ไฟล์ .glb (เลือกไฟล์โมเดล 3D)</label>
               <input id="model-file" name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta" style="margin-top: 2px;">.glb คือไฟล์โมเดล 3D หลักที่จะแสดงบนเว็บและโหมด AR (ขนาดไม่เกิน 250 MB)</p>
             </div>
             <div class="field">
-              <label for="model-path">หรือระบุ path ไฟล์โมเดล</label>
+              <label for="model-path">หรือระบุ path ไฟล์โมเดลในเครื่อง</label>
               <input id="model-path" name="model_path" placeholder="model/example.glb" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta" style="margin-top: 2px;">ระบุเฉพาะกรณีนำไฟล์โมเดลไปวางในเครื่องแม่ข่ายแล้ว เช่น static/model/example.glb</p>
             </div>
             <div class="field full">
-              <label for="model-url">External .glb model URL</label>
+              <label for="model-url">หรือระบุลิงก์ไฟล์โมเดลภายนอก (External .glb model URL)</label>
               <input id="model-url" name="model_url" type="url" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta" style="margin-top: 2px;">ใช้กรณีที่ไฟล์โมเดลอยู่บนคลาวด์ หรือ Supabase Storage แล้ว</p>
             </div>
             <div class="field">
-              <label for="image-file">ภาพ Thumbnail</label>
+              <label for="image-file">ภาพ Thumbnail (เลือกไฟล์รูปปก)</label>
               <input id="image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="thumbnail" data-upload-target="thumbnail_url" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta" style="margin-top: 2px;">เป็นรูปภาพหน้าปกหลักของโมเดลที่จะแสดงบนหน้าแสดงรายการ แนะนำใช้สัดส่วน 1:1 หรือ 4:3</p>
             </div>
             <div class="field">
-              <label for="thumbnail-url">External thumbnail URL</label>
-              <input id="thumbnail-url" name="thumbnail_url" type="url" placeholder="https://example.com/thumb.jpg" {{ "disabled" if uploads_disabled else "" }}>
+              <label for="thumbnail-url">หรือระบุลิงก์รูปปกหลักภายนอก (External thumbnail URL)</label>
+              <input id="thumbnail-url" name="thumbnail_url" type="url" placeholder="https://example.com/thumb.jpg" data-image-preview-target="model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta" style="margin-top: 2px;">ใช้ระบุ URL ตรงของรูปปกออนไลน์อื่น หรือ Supabase Storage</p>
             </div>
             <div class="field full">
-              <label for="preview-images">รูปภาพตัวอย่างเพิ่มเติม</label>
+              <div style="display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); padding: 12px; border-radius: var(--radius); background: #fdfdfd;">
+                <img id="model-thumbnail-preview" data-image-preview="image-file" alt="ตัวอย่างรูป Thumbnail" style="width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line);" hidden>
+                <div>
+                  <strong style="display: block; font-size: 14px; color: var(--green);">ตัวอย่างภาพ Thumbnail โมเดล</strong>
+                  <span style="font-size: 12px; color: var(--muted);">แสดงภาพจำลองปกโมเดลเมื่อเลือกไฟล์หรือระบุ URL ด้านบน</span>
+                </div>
+              </div>
+            </div>
+            <div class="field full">
+              <label for="preview-images">รูปภาพตัวอย่างเพิ่มเติม (แกลเลอรีรูปภาพ)</label>
               <textarea id="preview-images" name="preview_images" rows="4" placeholder="ใส่ URL หรือ path รูปภาพ หนึ่งรายการต่อบรรทัด" data-gallery-input></textarea>
-              <p>รองรับ URL แบบ HTTP(S) หรือ path ภายใน static เช่น pic/example.jpg</p>
+              <p class="meta" style="margin-top: 2px;">ใช้สำหรับแสดงแกลเลอรีภาพถ่ายประกอบหน้าดูรายละเอียดโมเดล ใส่ path ภายในเครื่อง (เช่น static/pic/example.jpg) หรือ URL รูปออนไลน์ หนึ่งรายการต่อหนึ่งบรรทัด</p>
               <div class="gallery-input-preview" data-gallery-input-preview aria-live="polite"></div>
             </div>
             <div class="field">
-              <label for="rotate-x">หมุนแกน X</label>
+              <label for="rotate-x">หมุนแกน X (องศาในแบบทศนิยม)</label>
               <input id="rotate-x" name="rotate_x" type="number" value="0" step="0.01">
+              <p class="meta" style="margin-top: 2px;">ใช้ปรับมุมเอียงเริ่มต้นในการแสดงผลโมเดล 3D บนหน้าเว็บ</p>
             </div>
             <label class="field check"><input name="visible" type="checkbox" checked> เผยแพร่โมเดล</label>
             <button class="btn" type="submit">เพิ่มโมเดล</button>
@@ -190,7 +216,7 @@
                   <div class="row-actions">
                     <a class="link-btn" href="{{ url_for('edit_project', project_id=project.id) }}">แก้ไข</a>
                     <form action="{{ url_for('delete_project', project_id=project.id) }}" method="post">
-                      <button class="danger-btn" data-confirm="ลบโครงการนี้และโมเดลทั้งหมดในโครงการ?" type="submit">ลบ</button>
+                      <button class="danger-btn" data-confirm="คำเตือน: การลบโครงการนี้จะส่งผลให้โมเดล 3D ทั้งหมดภายใต้โครงการนี้ถูกลบออกไปถาวรทันที! ยืนยันการลบโครงการ?" type="submit">ลบ</button>
                     </form>
                   </div>
                 </td>
@@ -218,7 +244,7 @@
                   <div class="row-actions">
                     <a class="link-btn" href="{{ url_for('edit_model', model_id=model.id) }}">แก้ไข</a>
                     <form action="{{ url_for('delete_model', model_id=model.id) }}" method="post">
-                      <button class="danger-btn" data-confirm="ลบโมเดลนี้?" type="submit">ลบ</button>
+                      <button class="danger-btn" data-confirm="ยืนยันการลบโมเดล 3D นี้ออกจากเว็บไซต์อย่างถาวร?" type="submit">ลบ</button>
                     </form>
                   </div>
                 </td>
@@ -237,6 +263,7 @@
       });
     });
   </script>
+  <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/preview-gallery-input.js') }}" defer></script>
 </body>

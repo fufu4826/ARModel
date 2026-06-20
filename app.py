@@ -24,8 +24,8 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 SITE_LOGO_EXTENSIONS = IMAGE_EXTENSIONS | {".svg"}
 FAVICON_EXTENSIONS = {".png", ".ico", ".svg"}
 SITE_ASSET_MAX_BYTES = 5 * 1024 * 1024
-VERCEL_UPLOAD_MESSAGE = "File uploads are disabled on Vercel. Use an external URL instead."
-VERCEL_EDIT_MESSAGE = "Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy."
+VERCEL_UPLOAD_MESSAGE = "ระบบไม่รองรับการอัปโหลดไฟล์โดยตรงบน Vercel กรุณาระบุรูปภาพหรือไฟล์โมเดลผ่านลิงก์เว็บภายนอก (URL)"
+VERCEL_EDIT_MESSAGE = "ระบบแอดมินทำงานในโหมดอ่านอย่างเดียวบน Vercel (ไม่รองรับการเขียนไฟล์บนคลาวด์) กรุณาแก้ไขไฟล์ข้อมูลภายในเครื่อง แล้ว Commit และ Deploy ใหม่ หรือกำหนดค่าเชื่อมต่อ Supabase ก่อนใช้งาน"
 UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในโครงการ"
 PUBLIC_SITE_URL = (
     os.environ.get("SITE_BASE_URL")
@@ -1340,11 +1340,11 @@ def slider_data_from_request(existing: dict | None = None) -> dict:
     try:
         sort_order = int(request.form.get("sort_order") or 0)
     except ValueError:
-        abort(400, "sort_order must be an integer")
+        abort(400, "ลำดับการแสดงผล (sort_order) ต้องเป็นจำนวนเต็ม")
     button_text = request.form.get("button_text", "").strip()
     button_url = validated_content_url(request.form.get("button_url"), "button_url")
     if bool(button_text) != bool(button_url):
-        abort(400, "button_text and button_url must be provided together")
+        abort(400, "ต้องระบุทั้งข้อความปุ่ม (button_text) และลิงก์ปุ่ม (button_url) คู่กัน")
     return {
         "id": existing.get("id") or uuid.uuid4().hex,
         "title": request.form.get("title", "").strip(),
@@ -1588,15 +1588,15 @@ def admin_sliders():
             return redirect(url_for("admin_sliders"))
         data = slider_data_from_request()
         if not data["title"]:
-            abort(400, "Slider title is required")
+            abort(400, "จำเป็นต้องกรอกชื่อสไลด์เดอร์ (Slider Title)")
         if not data["image_url"]:
-            abort(400, "Slider image is required")
+            abort(400, "จำเป็นต้องระบุรูปภาพสไลด์เดอร์")
         if is_supabase_enabled():
             try:
                 create_supabase_slider_item(data)
             except SupabaseError as exc:
                 logger.exception("Unable to create slider in Supabase")
-                flash(f"Unable to save slider to Supabase: {exc}", "error")
+                flash(f"ไม่สามารถบันทึกสไลด์เดอร์ไปยัง Supabase ได้: {exc}", "error")
                 return redirect(url_for("admin_sliders"))
         else:
             items = load_slider_items(include_inactive=True)
@@ -1620,13 +1620,13 @@ def edit_slider(slider_id: str):
             return redirect(url_for("edit_slider", slider_id=slider_id))
         data = slider_data_from_request(slider)
         if not data["title"]:
-            abort(400, "Slider title is required")
+            abort(400, "จำเป็นต้องกรอกชื่อสไลด์เดอร์ (Slider Title)")
         if is_supabase_enabled():
             try:
                 update_supabase_slider_item(slider_id, data)
             except SupabaseError as exc:
                 logger.exception("Unable to update slider in Supabase")
-                flash(f"Unable to save slider to Supabase: {exc}", "error")
+                flash(f"ไม่สามารถบันทึกสไลด์เดอร์ไปยัง Supabase ได้: {exc}", "error")
                 return redirect(url_for("edit_slider", slider_id=slider_id))
         else:
             save_slider_items([data if item["id"] == slider_id else item for item in sliders])
@@ -1647,7 +1647,7 @@ def delete_slider(slider_id: str):
             logger.exception("Unable to delete slider in Supabase")
             if request.method == "DELETE":
                 return jsonify({"error": str(exc)}), 502
-            flash(f"Unable to delete slider from Supabase: {exc}", "error")
+            flash(f"ไม่สามารถลบสไลด์เดอร์ออกจาก Supabase ได้: {exc}", "error")
             return redirect(url_for("admin_sliders"))
     else:
         sliders = load_slider_items(include_inactive=True)
@@ -1718,7 +1718,7 @@ def update_admin_settings():
             upsert_supabase_site_settings(settings)
         except SupabaseError as exc:
             logger.exception("Unable to save site settings in Supabase")
-            flash(f"Unable to save settings to Supabase: {exc}", "error")
+            flash(f"ไม่สามารถบันทึกการตั้งค่าระบบไปยัง Supabase ได้: {exc}", "error")
             return redirect(request.form.get("return_to") or url_for("admin"))
     else:
         save_site_settings(settings)
@@ -1805,7 +1805,7 @@ def add_project():
 
     name = request.form.get("name", "").strip()
     if not name:
-        abort(400, "Project name is required")
+        abort(400, "จำเป็นต้องกรอกชื่อโครงการ (Project Name)")
 
     image_url = request.form.get("image_url", "").strip()
     if is_supabase_enabled():
@@ -1821,7 +1821,7 @@ def add_project():
             flash(f'เพิ่มโครงการ "{name}" แล้ว', "success")
         except SupabaseError as exc:
             logger.exception("Unable to create project in Supabase")
-            flash(f"Unable to save project to Supabase: {exc}", "error")
+            flash(f"ไม่สามารถบันทึกโครงการไปยัง Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     cover_image = image_url or save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
@@ -1871,7 +1871,7 @@ def edit_project(project_id: str):
                 return redirect(url_for("admin"))
             except SupabaseError as exc:
                 logger.exception("Unable to update project in Supabase")
-                flash(f"Unable to save project to Supabase: {exc}", "error")
+                flash(f"ไม่สามารถบันทึกข้อมูลโครงการไปยัง Supabase ได้: {exc}", "error")
                 return redirect(url_for("edit_project", project_id=project_id))
 
         old_cover = project.get("cover_image")
@@ -1909,7 +1909,7 @@ def delete_project_route(project_id: str):
             flash("ลบโครงการแล้ว", "success")
         except SupabaseError as exc:
             logger.exception("Unable to delete project in Supabase")
-            flash(f"Unable to delete project from Supabase: {exc}", "error")
+            flash(f"ไม่สามารถลบโครงการออกจาก Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     projects = load_projects(include_hidden=True)
@@ -1940,9 +1940,9 @@ def add_model():
     name = request.form.get("name", "").strip()
     project_id = request.form.get("project_id", "").strip()
     if not name:
-        abort(400, "Model name is required")
+        abort(400, "จำเป็นต้องกรอกชื่อโมเดล (Model Name)")
     if find_project(project_id, include_hidden=True) is None:
-        abort(400, "Project is required")
+        abort(400, "จำเป็นต้องเลือกโครงการ (Project)")
 
     model_url = request.form.get("model_url", "").strip()
     thumbnail_url = request.form.get("thumbnail_url", "").strip()
@@ -1955,7 +1955,7 @@ def add_model():
             final_model_url = uploaded_model_url or model_url
             final_thumbnail_url = uploaded_thumbnail_url or thumbnail_url
             if not final_model_url:
-                abort(400, "A .glb file or external model URL is required")
+                abort(400, "จำเป็นต้องอัปโหลดไฟล์โมเดล .glb หรือระบุลิงก์ภายนอก")
             create_model(
                 {
                     "name": name,
@@ -1970,7 +1970,7 @@ def add_model():
             flash(f'เพิ่มโมเดล "{name}" แล้ว', "success")
         except SupabaseError as exc:
             logger.exception("Unable to create model in Supabase")
-            flash(f"Unable to save model to Supabase: {exc}", "error")
+            flash(f"ไม่สามารถบันทึกโมเดลไปยัง Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     model_path = model_url or request.form.get("model_path", "").strip()
@@ -1978,7 +1978,7 @@ def add_model():
     if uploaded_model:
         model_path = uploaded_model
     if not model_path:
-        abort(400, "A .glb/.gltf file or model path is required")
+        abort(400, "จำเป็นต้องอัปโหลดไฟล์โมเดล .glb/.gltf หรือระบุ Path ของโมเดล")
 
     image_path = thumbnail_url or request.form.get("image_path", "").strip()
     uploaded_image = save_upload(request.files.get("image_file"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
@@ -2025,7 +2025,7 @@ def edit_model(model_id: str):
 
         project_id = request.form.get("project_id", "").strip()
         if find_project(project_id, include_hidden=True) is None:
-            abort(400, "Project is required")
+            abort(400, "จำเป็นต้องเลือกโครงการ (Project)")
         preview_images = parse_preview_images_field(request.form.get("preview_images"))
 
         if is_supabase_enabled():
@@ -2039,7 +2039,7 @@ def edit_model(model_id: str):
                     or model.get("thumbnail_url", "")
                 )
                 if not final_model_url:
-                    abort(400, "A .glb file or external model URL is required")
+                    abort(400, "จำเป็นต้องอัปโหลดไฟล์โมเดล .glb หรือระบุลิงก์ภายนอก")
                 update_model(
                     model_id,
                     {
@@ -2056,7 +2056,7 @@ def edit_model(model_id: str):
                 return redirect(url_for("admin"))
             except SupabaseError as exc:
                 logger.exception("Unable to update model in Supabase")
-                flash(f"Unable to save model to Supabase: {exc}", "error")
+                flash(f"ไม่สามารถบันทึกข้อมูลโมเดลไปยัง Supabase ได้: {exc}", "error")
                 return redirect(url_for("edit_model", model_id=model_id))
 
         old_model = model.get("model")
@@ -2109,7 +2109,7 @@ def delete_model_route(model_id: str):
             flash("ลบโมเดลแล้ว", "success")
         except SupabaseError as exc:
             logger.exception("Unable to delete model in Supabase")
-            flash(f"Unable to delete model from Supabase: {exc}", "error")
+            flash(f"ไม่สามารถลบโมเดลออกจาก Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     models = load_models(include_hidden=True)

@@ -25,24 +25,34 @@
         <div class="field"><label>หน่วยงาน/แผนก</label><input name="department" value="{{ model.department }}"></div>
         <div class="field"><label>ขนาด</label><input name="scale" type="number" value="{{ model.scale }}" step="0.01" min="0.001"></div>
         <div class="field full"><label>รายละเอียด</label><textarea name="description">{{ model.description }}</textarea></div>
-        <div class="field"><label>เปลี่ยนไฟล์ .glb</label><input name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" {{ "disabled" if uploads_disabled else "" }}></div>
-        <div class="field"><label>Path ไฟล์โมเดล</label><input name="model_path" value="{{ model.model_path }}" {{ "disabled" if uploads_disabled else "" }}></div>
-        <div class="field full"><label>External .glb model URL</label><input name="model_url" type="url" value="{{ model.model_url }}" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}></div>
-        <div class="field"><label>เปลี่ยน Thumbnail</label><input name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="thumbnail" data-upload-target="thumbnail_url" {{ "disabled" if uploads_disabled else "" }}></div>
-        <div class="field"><label>Path รูปภาพ</label><input name="image_path" value="{{ model.thumbnail_path }}" {{ "disabled" if uploads_disabled else "" }}></div>
-        <div class="field full"><label>External thumbnail URL</label><input name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" {{ "disabled" if uploads_disabled else "" }}></div>
+        <div class="field"><label>เปลี่ยนไฟล์ .glb (เลือกไฟล์โมเดล 3D)</label><input name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" {{ "disabled" if uploads_disabled else "" }}><p class="help">.glb คือไฟล์โมเดล 3D หลัก (ขนาดไม่เกิน 250 MB)</p></div>
+        <div class="field"><label>Path ไฟล์โมเดลในเครื่อง</label><input name="model_path" value="{{ model.model_path }}" {{ "disabled" if uploads_disabled else "" }}><p class="help">ระบุกรณีวางโมเดลในเครื่องแล้ว เช่น static/model/example.glb</p></div>
+        <div class="field full"><label>หรือระบุลิงก์ไฟล์โมเดลภายนอก (External .glb model URL)</label><input name="model_url" type="url" value="{{ model.model_url }}" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}><p class="help">ใช้กรณีที่ไฟล์โมเดลอยู่บนคลาวด์ หรือ Supabase Storage แล้ว</p></div>
+        <div class="field"><label>เปลี่ยน Thumbnail (เลือกไฟล์รูปปก)</label><input id="edit-image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="thumbnail" data-upload-target="thumbnail_url" {{ "disabled" if uploads_disabled else "" }}><p class="help">รูปปกหลักแสดงในหน้ารวม สัดส่วนแนะนำ 1:1 หรือ 4:3</p></div>
+        <div class="field"><label>Path รูปภาพปกหลัก</label><input name="image_path" value="{{ model.thumbnail_path }}" data-image-preview-target="edit-model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}><p class="help">ใช้ระบุพาทโลคอล เช่น static/pic/example.jpg</p></div>
+        <div class="field full"><label>หรือระบุลิงก์รูปปกหลักภายนอก (External thumbnail URL)</label><input name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" data-image-preview-target="edit-model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}><p class="help">ใช้ลิงก์ภาพออนไลน์อื่น หรือ Supabase Storage</p></div>
         <div class="field full">
-          <label for="preview-images">รูปภาพตัวอย่างเพิ่มเติม</label>
+          <div style="display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); padding: 12px; border-radius: var(--radius); background: #fdfdfd;">
+            <img id="edit-model-thumbnail-preview" data-image-preview="edit-image-file" src="{{ model.thumbnail_resolved_url or '' }}" alt="ตัวอย่างรูป Thumbnail" style="width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line);" {% if not model.thumbnail_resolved_url %}hidden{% endif %}>
+            <div>
+              <strong style="display: block; font-size: 14px; color: var(--green);">ตัวอย่างภาพ Thumbnail โมเดล</strong>
+              <span style="font-size: 12px; color: var(--muted);">รูปภาพปกปัจจุบันหรือรูปที่เลือกเพื่อเปลี่ยน</span>
+            </div>
+          </div>
+        </div>
+        <div class="field full">
+          <label for="preview-images">รูปภาพตัวอย่างเพิ่มเติม (แกลเลอรีรูปภาพ)</label>
           <textarea id="preview-images" name="preview_images" rows="5" data-gallery-input>{{ model.preview_images|join('\n') }}</textarea>
-          <p class="help">ใส่ URL หรือ path รูปภาพ หนึ่งรายการต่อบรรทัด</p>
+          <p class="help">ใส่ลิงก์รูปภาพพรีวิวประกอบแกลเลอรีหน้าดูโมเดล หนึ่งภาพต่อหนึ่งบรรทัด</p>
           <div class="gallery-input-preview" data-gallery-input-preview aria-live="polite"></div>
         </div>
-        <div class="field"><label>หมุนแกน X</label><input name="rotate_x" type="number" value="{{ model.rotate_x }}" step="0.01"></div>
+        <div class="field"><label>หมุนแกน X (องศาในแบบทศนิยม)</label><input name="rotate_x" type="number" value="{{ model.rotate_x }}" step="0.01"><p class="help">ปรับความเอียงเริ่มต้นแสดงผลโมเดล 3D</p></div>
         <label class="field check"><input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> เผยแพร่โมเดล</label>
       </div>
       <div class="actions"><button class="btn" type="submit">บันทึก</button><a class="link" href="{{ url_for('admin') }}">ยกเลิก</a></div>
     </form>
   </main>
+  <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/preview-gallery-input.js') }}" defer></script>
 </body>

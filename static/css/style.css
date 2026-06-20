@@ -1647,3 +1647,55 @@ model-viewer {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Project Hero Slideshow */
+.hero-media {
+  position: relative;
+}
+.hero-slideshow {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+}
+.hero-slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 1s ease-in-out;
+  pointer-events: none;
+}
+.hero-slide.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.hero-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.hero-slide-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: clamp(16px, 3vw, 24px) clamp(14px, 3vw, 20px);
+  background: linear-gradient(
+    to top,
+    rgba(23, 77, 52, 0.96) 0%,
+    rgba(23, 77, 52, 0.45) 60%,
+    rgba(23, 77, 52, 0) 100%
+  );
+  color: #ffffff;
+  pointer-events: none;
+}
+.hero-slide-title {
+  display: block;
+  font-size: clamp(15px, 2vw, 19px);
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}

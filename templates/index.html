@@ -43,12 +43,30 @@
           <a class="button secondary" href="#projects">ดูโครงการทั้งหมด</a>
         </div>
       </div>
-      <div class="hero-media" aria-label="ภาพตัวอย่างนิทรรศการ PhuPhan AR">
-        {% if projects and projects[0].cover_image_url %}
-        <img src="{{ projects[0].cover_image_url }}" alt="ภาพตัวอย่างจาก {{ projects[0].name }}" />
-        {% else %}
-        <div class="image-placeholder">PhuPhan AR</div>
-        {% endif %}
+      <div class="hero-media" aria-label="สไลด์ภาพโครงการ">
+        <div class="hero-slideshow" data-hero-slideshow>
+          {% set ns = namespace(has_images=false, first_shown=false) %}
+          {% for p in projects %}
+            {% if p.cover_image_url %}
+              {% set ns.has_images = true %}
+            {% endif %}
+          {% endfor %}
+
+          {% if ns.has_images %}
+            {% for p in projects %}
+              {% if p.cover_image_url %}
+                <div class="hero-slide{% if not ns.first_shown %} is-active{% set ns.first_shown = true %}{% endif %}" data-hero-slide>
+                  <img src="{{ p.cover_image_url }}" alt="ภาพโครงการ {{ p.name }}" />
+                  <div class="hero-slide-overlay">
+                    <span class="hero-slide-title">{{ p.name }}</span>
+                  </div>
+                </div>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <div class="image-placeholder">PhuPhan AR</div>
+          {% endif %}
+        </div>
       </div>
     </section>
 
@@ -252,5 +270,6 @@
   <script src="{{ url_for('static', filename='js/site-carousel.js') }}" defer></script>
   {% endif %}
   <script src="{{ url_for('static', filename='js/mobile-nav.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/project-hero-slideshow.js') }}" defer></script>
 </body>
 </html>

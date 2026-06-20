@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Dashboard - ศูนย์ศึกษาการพัฒนาภูพาน</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
   <style>
     :root {
       --green:#1f5f3b; --green-2:#2f7d4b; --gold:#d6a846; --cream:#fbfaf5;
@@ -54,6 +55,7 @@
 <body>
   <main class="page">
     <div class="shell">
+      {% include "_admin_nav.html" %}
       <header class="topbar">
         <div>
           <h1>Admin Dashboard</h1>
@@ -77,7 +79,7 @@
       <div class="notice">Supabase is configured. Uploaded images and .glb files will be stored in Supabase Storage, and metadata will be stored in Supabase Database.</div>
       {% endif %}
 
-      <section class="grid">
+      <section class="grid" id="dashboard">
         <div class="panel">
           <h2>เพิ่มโครงการ</h2>
           <form class="form-grid" action="{{ url_for('add_project') }}" method="post" enctype="multipart/form-data">
@@ -163,7 +165,7 @@
         </div>
       </section>
 
-      <section>
+      <section id="projects">
         <h2>รายการโครงการ</h2>
         <div class="table-wrap">
           <table>
@@ -191,7 +193,7 @@
         </div>
       </section>
 
-      <section>
+      <section id="models">
         <h2>รายการโมเดล</h2>
         <div class="table-wrap">
           <table>

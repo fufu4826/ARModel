@@ -1,0 +1,26 @@
+{% if sliders %}
+<section class="site-slider-section" aria-label="สไลด์ประชาสัมพันธ์">
+  <div class="swiper site-slider" data-site-slider>
+    <div class="swiper-wrapper">
+      {% for slide in sliders %}
+      <article class="swiper-slide site-slide">
+        {% if slide.resolved_image_url %}
+        <img src="{{ slide.resolved_image_url }}" alt="{{ slide.title }}" loading="{{ 'eager' if loop.first else 'lazy' }}" />
+        {% endif %}
+        <div class="site-slide-overlay"></div>
+        <div class="site-slide-content">
+          <h2>{{ slide.title }}</h2>
+          {% if slide.description %}<p>{{ slide.description }}</p>{% endif %}
+          {% if slide.button_text and slide.button_url %}
+          <a class="button" href="{{ slide.button_url }}">{{ slide.button_text }}</a>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    <button class="swiper-button-prev" type="button" aria-label="สไลด์ก่อนหน้า"></button>
+    <button class="swiper-button-next" type="button" aria-label="สไลด์ถัดไป"></button>
+    <div class="swiper-pagination"></div>
+  </div>
+</section>
+{% endif %}

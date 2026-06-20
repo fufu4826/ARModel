@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="th" data-direct-uploads="{{ 'true' if is_supabase else 'false' }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Homepage Slider - Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+</head>
+<body>
+  <main class="admin-page">
+    <div class="admin-shell">
+      {% include "_admin_nav.html" %}
+      <header class="admin-heading">
+        <div>
+          <p class="admin-eyebrow">Content Management</p>
+          <h1>Homepage Slider</h1>
+          <p>เพิ่ม แก้ไข จัดลำดับ และเปิดหรือปิดสไลด์บนหน้า Landing และ Home</p>
+        </div>
+      </header>
+
+      {% include "_admin_messages.html" %}
+
+      <section class="admin-card">
+        <h2>เพิ่มสไลด์</h2>
+        <form action="{{ url_for('admin_sliders') }}" method="post" enctype="multipart/form-data" class="admin-form">
+          <input type="hidden" name="image_url" value="" />
+          <div class="field">
+            <label for="slider-title">Title</label>
+            <input id="slider-title" name="title" required />
+          </div>
+          <div class="field">
+            <label for="slider-sort-order">Sort Order</label>
+            <input id="slider-sort-order" name="sort_order" type="number" value="0" step="1" />
+          </div>
+          <div class="field full">
+            <label for="slider-description">Description</label>
+            <textarea id="slider-description" name="description" rows="3"></textarea>
+          </div>
+          <div class="field full">
+            <label for="slider-image-file">Image</label>
+            <input id="slider-image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="slider_image" data-upload-target="image_url" required />
+          </div>
+          <div class="preview-panel full compact">
+            <img data-image-preview="slider-image-file" alt="ตัวอย่างภาพสไลด์" hidden />
+            <div><strong>ตัวอย่างภาพสไลด์</strong><span>JPG, PNG หรือ WebP ไม่เกิน 5 MB</span></div>
+          </div>
+          <div class="field">
+            <label for="slider-button-text">Button Text</label>
+            <input id="slider-button-text" name="button_text" />
+          </div>
+          <div class="field">
+            <label for="slider-button-url">Button URL</label>
+            <input id="slider-button-url" name="button_url" />
+          </div>
+          <label class="check-field full"><input name="visible" type="checkbox" checked /> เปิดแสดงผล</label>
+          <div class="form-actions full">
+            <button class="button" type="submit">เพิ่มสไลด์</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="admin-section">
+        <div class="section-heading">
+          <h2>รายการสไลด์</h2>
+          <span>{{ sliders|length }} รายการ</span>
+        </div>
+        {% if sliders %}
+        <div class="slider-admin-grid">
+          {% for slider in sliders %}
+          <article class="slider-admin-card">
+            <div class="slider-admin-image">
+              {% if slider.resolved_image_url %}
+              <img src="{{ slider.resolved_image_url }}" alt="{{ slider.title }}" />
+              {% else %}
+              <span>ไม่มีรูป</span>
+              {% endif %}
+            </div>
+            <div class="slider-admin-body">
+              <div class="slider-card-meta">
+                <span>ลำดับ {{ slider.sort_order }}</span>
+                <span class="status {{ '' if slider.active else 'off' }}">{{ 'เปิด' if slider.active else 'ปิด' }}</span>
+              </div>
+              <h3>{{ slider.title }}</h3>
+              <p>{{ slider.description or 'ไม่มีคำอธิบาย' }}</p>
+              <div class="card-actions">
+                <a class="button secondary" href="{{ url_for('edit_slider', slider_id=slider.id) }}">แก้ไข</a>
+                <form action="{{ url_for('delete_slider', slider_id=slider.id) }}" method="post" onsubmit="return confirm('ยืนยันการลบสไลด์นี้?');">
+                  <button class="button danger" type="submit">ลบ</button>
+                </form>
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <strong>ยังไม่มีสไลด์</strong>
+          <p>เพิ่มสไลด์รายการแรกจากแบบฟอร์มด้านบน</p>
+        </div>
+        {% endif %}
+      </section>
+    </div>
+  </main>
+  <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
+</body>
+</html>

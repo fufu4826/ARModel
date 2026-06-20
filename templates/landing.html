@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ page_title }}</title>
   {% include "_public_meta.html" %}
+  {% include "_structured_data.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
   {% if sliders %}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
@@ -36,6 +37,16 @@
     </div>
     {% endif %}
   </main>
+  <section class="landing-seo-section" aria-labelledby="landing-about-title">
+    <p class="eyebrow">ภูพาน สกลนคร</p>
+    <h2 id="landing-about-title">เรียนรู้ของดีสกลนครผ่านโมเดล 3D และ AR</h2>
+    <p>
+      เนื้อหาในเว็บไซต์เชื่อมโยงกับศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ
+      บ้านนานกเค้า ตำบลห้วยยาง อำเภอเมืองสกลนคร จังหวัดสกลนคร
+      ครอบคลุมการเกษตร ทรัพยากรธรรมชาติ ภูมิปัญญา ผลิตภัณฑ์ และการพัฒนาคุณภาพชีวิตในภาคตะวันออกเฉียงเหนือ
+    </p>
+    <p class="search-alias">ค้นหาเว็บไซต์ได้ทั้งคำว่า ภูพาน, พูพาน, ภูพาน สกลนคร และของดีสกลนคร</p>
+  </section>
   {% if sliders %}
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/site-carousel.js') }}" defer></script>

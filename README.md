@@ -16,6 +16,8 @@ Open `http://127.0.0.1:5000`.
 
 For production, set a `SECRET_KEY` environment variable. Local development can run without it, but sessions will reset when the process restarts.
 
+Public canonical URLs and sitemap entries default to `https://phuphan-ar.vercel.app`. Set `SITE_BASE_URL` in the deployment environment to override the public base URL; `PUBLIC_SITE_URL` remains supported for backward compatibility.
+
 ## Vercel Deployment
 
 1. Push `ARModel` to GitHub.

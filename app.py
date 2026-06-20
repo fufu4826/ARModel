@@ -27,19 +27,35 @@ SITE_ASSET_MAX_BYTES = 5 * 1024 * 1024
 VERCEL_UPLOAD_MESSAGE = "File uploads are disabled on Vercel. Use an external URL instead."
 VERCEL_EDIT_MESSAGE = "Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy."
 UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในโครงการ"
-PUBLIC_SITE_URL = os.environ.get("PUBLIC_SITE_URL", "https://phuphan-ar.vercel.app").rstrip("/")
-DEFAULT_META_TITLE = "PhuPhan AR | นิทรรศการโมเดล 3D และ AR"
-DEFAULT_META_DESCRIPTION = "สำรวจวัตถุ ผลิตภัณฑ์ และองค์ความรู้ชุมชนในรูปแบบโมเดล 3D และ AR"
+PUBLIC_SITE_URL = (
+    os.environ.get("SITE_BASE_URL")
+    or os.environ.get("PUBLIC_SITE_URL")
+    or "https://phuphan-ar.vercel.app"
+).rstrip("/")
+DEFAULT_META_TITLE = "ภูพาน AR สกลนคร | ศูนย์ศึกษาการพัฒนาภูพาน"
+DEFAULT_META_DESCRIPTION = (
+    "สำรวจศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ จังหวัดสกลนคร "
+    "ผ่านโมเดล 3D และ AR รวมวัตถุ ผลิตภัณฑ์ ภูมิปัญญา และของดีสกลนครในรูปแบบดิจิทัล"
+)
+DEFAULT_META_KEYWORDS = (
+    "ภูพาน, พูพาน, ภูพาน สกลนคร, พูพาน สกลนคร, ศูนย์ศึกษาการพัฒนาภูพาน, "
+    "ศูนย์ภูพาน, สกลนคร, สกล, ของดีสกลนคร, โมเดล 3D, AR, AR สกลนคร, "
+    "Phu Phan, PhuPhan AR, Sakon Nakhon"
+)
 DEFAULT_META_IMAGE_PATH = "pic/og-cover.jpg"
 DEFAULT_SITE_SETTINGS = {
     "landing_cover": DEFAULT_META_IMAGE_PATH,
-    "landing_headline": "PhuPhan AR",
-    "landing_subheadline": "นิทรรศการโมเดล 3D และ AR",
-    "landing_description": "เรียนรู้วัตถุ ผลิตภัณฑ์ และองค์ความรู้ผ่านโมเดลสามมิติและเทคโนโลยี AR",
+    "landing_headline": "ภูพาน AR สกลนคร",
+    "landing_subheadline": "เรียนรู้ศูนย์ศึกษาการพัฒนาภูพานผ่านโมเดล 3D และ AR",
+    "landing_description": (
+        "เว็บไซต์รวบรวมวัตถุ ผลิตภัณฑ์ องค์ความรู้ และของดีสกลนครจาก"
+        "ศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ บ้านนานกเค้า "
+        "ตำบลห้วยยาง อำเภอเมือง จังหวัดสกลนคร ในรูปแบบโมเดลสามมิติและเทคโนโลยี AR"
+    ),
     "landing_cta_text": "เข้าสู่เว็บไซต์",
     "landing_cta_url": "/home",
     "site_logo": "",
-    "site_name": "PhuPhan-AR",
+    "site_name": "PhuPhan-AR | ภูพาน AR สกลนคร",
     "favicon": "favicon.ico",
     "meta_description": DEFAULT_META_DESCRIPTION,
 }
@@ -216,12 +232,52 @@ def inject_runtime_flags():
         "is_vercel": is_vercel_runtime(),
         "is_supabase": supabase_enabled,
         "uploads_disabled": is_vercel_runtime() and not supabase_enabled,
-        "default_meta_title": f"{settings['site_name']} | นิทรรศการโมเดล 3D และ AR",
+        "default_meta_title": DEFAULT_META_TITLE,
         "default_meta_description": settings["meta_description"],
+        "default_meta_keywords": DEFAULT_META_KEYWORDS,
         "default_meta_image": public_meta_image_url(public_settings["landing_cover_url"]),
         "default_site_name": settings["site_name"],
         "public_site_url": PUBLIC_SITE_URL,
         "site_settings": public_settings,
+    }
+
+
+def public_structured_data(settings: dict) -> dict:
+    place_id = f"{PUBLIC_SITE_URL}/#phu-phan-centre"
+    return {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": f"{PUBLIC_SITE_URL}/#website",
+                "url": PUBLIC_SITE_URL,
+                "name": settings["site_name"],
+                "alternateName": ["PhuPhan AR", "ภูพาน AR สกลนคร", "พูพาน AR"],
+                "description": settings["meta_description"],
+                "inLanguage": "th",
+                "about": {"@id": place_id},
+            },
+            {
+                "@type": "Place",
+                "@id": place_id,
+                "name": "ศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ",
+                "alternateName": "Phu Phan Royal Development Study Centre",
+                "url": PUBLIC_SITE_URL,
+                "description": (
+                    "แหล่งเรียนรู้ในจังหวัดสกลนครด้านการเกษตร ทรัพยากรธรรมชาติ "
+                    "ภูมิปัญญาท้องถิ่น ผลิตภัณฑ์ และการพัฒนาคุณภาพชีวิต "
+                    "นำเสนอเนื้อหาที่เกี่ยวข้องผ่านโมเดล 3D และ AR"
+                ),
+                "address": {
+                    "@type": "PostalAddress",
+                    "streetAddress": "314 บ้านนานกเค้า ตำบลห้วยยาง",
+                    "addressLocality": "อำเภอเมืองสกลนคร",
+                    "addressRegion": "สกลนคร",
+                    "postalCode": "47000",
+                    "addressCountry": "TH",
+                },
+            },
+        ],
     }
 
 
@@ -1251,7 +1307,8 @@ def index():
         "landing.html",
         landing_image_url=public_settings["landing_cover_url"],
         sliders=sliders,
-        page_title=f"{settings['site_name']} | {settings['landing_subheadline']}",
+        structured_data=public_structured_data(settings),
+        page_title="ภูพาน AR สกลนคร | ศูนย์ศึกษาการพัฒนาภูพาน",
         page_description=settings["meta_description"],
         page_image=public_meta_image_url(public_settings["landing_cover_url"]),
         page_url=public_url_for("index"),
@@ -1277,7 +1334,8 @@ def home():
         total_model_count=len(all_models),
         uses_online_data=is_supabase_enabled(),
         sliders=sliders,
-        page_title=f"{settings['site_name']} | {settings['landing_subheadline']}",
+        structured_data=public_structured_data(settings),
+        page_title="ศูนย์ศึกษาการพัฒนาภูพาน | โมเดล 3D และ AR สกลนคร",
         page_description=settings["meta_description"],
         page_image=public_meta_image_url(public_settings["landing_cover_url"]),
         page_url=public_url_for("home"),
@@ -1302,7 +1360,7 @@ def models_index():
         "models.html",
         models=all_models,
         project_filters=project_filters,
-        page_title=f"โมเดลทั้งหมด | {settings['site_name']}",
+        page_title="โมเดล 3D ภูพาน | ของดีสกลนครในรูปแบบ AR",
         page_description=settings["meta_description"],
         page_url=public_url_for("models_index"),
     )
@@ -1325,8 +1383,12 @@ def project_detail(project_id: str):
         "project.html",
         project=project,
         models=models,
-        page_title=f"{project.get('name', '')} | {settings['site_name']}",
-        page_description=project.get("description") or settings["meta_description"],
+        page_title=f"{project.get('name', '')} | ภูพาน สกลนคร",
+        page_description=(
+            f"{project.get('description')} เรียนรู้ผ่านโมเดล 3D และ AR ของศูนย์ศึกษาการพัฒนาภูพาน จังหวัดสกลนคร"
+            if project.get("description")
+            else settings["meta_description"]
+        ),
         page_image=public_meta_image_url(project.get("cover_image_url")),
         page_url=public_url_for("project_detail", project_id=project_id),
     )
@@ -1360,8 +1422,12 @@ def model_detail(model_id: str):
         size_mb=model_size_mb(model),
         related_models=related_models,
         mode=request.args.get("mode", "3d"),
-        page_title=f"{model.get('name', '')} | {settings['site_name']}",
-        page_description=model.get("description") or settings["meta_description"],
+        page_title=f"{model.get('name', '')} | โมเดล 3D ภูพาน AR",
+        page_description=(
+            f"{model.get('description')} ชมโมเดล 3D และ AR จากเนื้อหาภูพาน สกลนคร"
+            if model.get("description")
+            else settings["meta_description"]
+        ),
         page_image=public_meta_image_url(resolve_thumbnail_url(model)),
         page_url=public_url_for("model_detail", model_id=model_id),
     )
@@ -1387,6 +1453,33 @@ def api_settings():
 @app.get("/api/sliders")
 def api_sliders():
     return jsonify([slider_with_url(item) for item in get_slider_items(include_inactive=False)])
+
+
+@app.get("/sitemap.xml")
+def sitemap():
+    projects = get_projects(include_hidden=False)
+    models = get_models(include_hidden=False)
+    urls = [
+        {"loc": public_url_for("index"), "priority": "1.0"},
+        {"loc": public_url_for("home"), "priority": "0.9"},
+        {"loc": public_url_for("models_index"), "priority": "0.9"},
+    ]
+    urls.extend(
+        {"loc": public_url_for("project_detail", project_id=project["id"]), "priority": "0.8"}
+        for project in projects
+    )
+    urls.extend(
+        {"loc": public_url_for("model_detail", model_id=model["id"]), "priority": "0.7"}
+        for model in models
+    )
+    return render_template("sitemap.xml", urls=urls), 200, {"Content-Type": "application/xml; charset=utf-8"}
+
+
+@app.get("/robots.txt")
+def robots():
+    return render_template("robots.txt", sitemap_url=public_url_for("sitemap")), 200, {
+        "Content-Type": "text/plain; charset=utf-8"
+    }
 
 
 @app.get("/health")

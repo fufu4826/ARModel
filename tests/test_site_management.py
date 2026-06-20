@@ -80,6 +80,18 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn(".image-placeholder[hidden]", stylesheet)
         self.assertIn("display: none;", stylesheet)
 
+    def test_mobile_card_grids_use_two_columns(self):
+        stylesheet = (
+            Path(module.BASE_DIR) / "static" / "css" / "style.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn("@media (max-width: 640px)", stylesheet)
+        self.assertIn(".card-grid.model-grid", stylesheet)
+        self.assertIn(".card-grid.project-grid", stylesheet)
+        self.assertIn(
+            "grid-template-columns: repeat(2, minmax(0, 1fr));",
+            stylesheet,
+        )
+
     def test_public_seo_metadata_and_structured_data(self):
         landing_html = self.client.get("/").get_data(as_text=True)
         home_html = self.client.get("/home").get_data(as_text=True)

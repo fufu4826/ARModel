@@ -1605,6 +1605,75 @@ model-viewer {
   }
 }
 
+@media (max-width: 640px) {
+  .card-grid.model-grid,
+  .card-grid.project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .model-card .card-media.square {
+    min-height: 0;
+  }
+
+  .model-card .card-body,
+  .project-card .card-body {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .model-card .card-body h3,
+  .project-card .card-body h3 {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.3;
+  }
+
+  .model-card .card-body p,
+  .project-card .card-body p {
+    max-height: 3em;
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-line-clamp: 2;
+  }
+
+  .model-card .meta-row,
+  .project-card .meta-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .model-card .badge,
+  .project-card .badge {
+    max-width: 100%;
+    min-height: 24px;
+    overflow: hidden;
+    padding: 3px 6px;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .model-card .card-actions {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin-top: auto;
+  }
+
+  .model-card .button.small,
+  .project-card .button.small {
+    width: 100%;
+    min-height: 40px;
+    padding: 7px 8px;
+    font-size: 12px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    text-align: center;
+    white-space: normal;
+  }
+}
+
 @media (max-width: 390px) {
   .site-nav {
     padding: 12px;
@@ -1635,6 +1704,11 @@ model-viewer {
 
   .card-body {
     padding: 14px;
+  }
+
+  .model-card .card-body,
+  .project-card .card-body {
+    padding: 10px;
   }
 
   model-viewer {

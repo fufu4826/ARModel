@@ -18,7 +18,10 @@
     <a class="brand-mark" href="{{ url_for('home') }}" aria-label="{{ site_settings.site_name }} หน้าแรก">
       {% include "_brand_mark.html" %}
     </a>
-    <nav class="nav-actions" aria-label="ลิงก์หลัก">
+    <button class="mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu" data-mobile-nav-toggle aria-label="เปิดเมนูนำทาง">
+      ☰ เมนู
+    </button>
+    <nav class="nav-actions" id="nav-menu" aria-label="ลิงก์หลัก">
       <a href="{{ url_for('home') }}" aria-current="page">หน้าแรก</a>
       <a href="#projects">โครงการ</a>
       <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
@@ -248,5 +251,6 @@
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/site-carousel.js') }}" defer></script>
   {% endif %}
+  <script src="{{ url_for('static', filename='js/mobile-nav.js') }}" defer></script>
 </body>
 </html>

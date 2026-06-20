@@ -14,7 +14,10 @@
     <a class="brand-mark" href="{{ url_for('home') }}" aria-label="{{ site_settings.site_name }} หน้าแรก">
       {% include "_brand_mark.html" %}
     </a>
-    <nav class="nav-actions" aria-label="ลิงก์หลัก">
+    <button class="mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu" data-mobile-nav-toggle aria-label="เปิดเมนูนำทาง">
+      ☰ เมนู
+    </button>
+    <nav class="nav-actions" id="nav-menu" aria-label="ลิงก์หลัก">
       <a href="{{ url_for('home') }}">หน้าแรก</a>
       <a href="{{ url_for('home') }}#projects">โครงการ</a>
       <a href="{{ url_for('models_index') }}" aria-current="page">โมเดลทั้งหมด</a>
@@ -130,6 +133,7 @@
     <span>ARModel ภูพาน</span>
     <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
   </footer>
+  <script src="{{ url_for('static', filename='js/mobile-nav.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/models-filter.js') }}" defer></script>
 </body>
 </html>

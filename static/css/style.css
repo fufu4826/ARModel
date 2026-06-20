@@ -1580,6 +1580,60 @@ model-viewer {
   }
 }
 
+/* Collapsible Mobile Navigation */
+.mobile-nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: var(--green-dark);
+  font-weight: 800;
+  cursor: pointer;
+  font-size: 14px;
+  user-select: none;
+  transition: background 0.2s;
+}
+.mobile-nav-toggle:hover {
+  background: var(--green-soft);
+}
+
+@media (max-width: 768px) {
+  .mobile-nav-toggle {
+    display: inline-flex;
+  }
+
+  .site-nav {
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: row !important; /* Override 680px stack */
+  }
+
+  .nav-actions {
+    display: none !important; /* Hidden by default */
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 4px !important;
+    margin-top: 12px !important;
+    order: 3 !important; /* Flow below brand logo and toggle button */
+  }
+
+  .nav-actions.is-open {
+    display: flex !important; /* Shown when open */
+  }
+
+  .nav-actions a {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

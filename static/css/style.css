@@ -265,8 +265,13 @@ body.landing-page main {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(16, 39, 28, 0.88), rgba(16, 39, 28, 0.62) 48%, rgba(16, 39, 28, 0.28)),
-    linear-gradient(0deg, rgba(16, 39, 28, 0.38), rgba(16, 39, 28, 0.16));
+    linear-gradient(
+      90deg,
+      rgba(16, 39, 28, 0.92) 0%,
+      rgba(16, 39, 28, 0.78) 34%,
+      rgba(16, 39, 28, 0.34) 62%,
+      rgba(16, 39, 28, 0.06) 100%
+    );
 }
 
 .landing-topbar,

@@ -186,6 +186,21 @@ def upsert_model(model: dict, upload_assets: bool, dry_run: bool = False) -> Non
     if upload_assets and thumb_value and not is_external_url(thumb_value):
         thumbnail_url, _ = upload_file(thumb_value, "thumbnails", IMAGE_EXTENSIONS, dry_run)
 
+    preview_images = []
+    for preview_value in model.get("preview_images") or []:
+        preview_url = str(preview_value or "").strip()
+        if not preview_url:
+            continue
+        if upload_assets and not is_external_url(preview_url):
+            preview_url, _ = upload_file(
+                preview_url,
+                f"previews/{model_id}",
+                IMAGE_EXTENSIONS,
+                dry_run,
+            )
+        if is_external_url(preview_url) and preview_url not in preview_images:
+            preview_images.append(preview_url)
+
     payload = {
         "id": model_id,
         "project_id": str(model.get("project_id") or "").strip() or None,
@@ -194,6 +209,7 @@ def upsert_model(model: dict, upload_assets: bool, dry_run: bool = False) -> Non
         "description": str(model.get("description") or "").strip(),
         "model_url": model_url if is_external_url(model_url) else "",
         "thumbnail_url": thumbnail_url if is_external_url(thumbnail_url) else "",
+        "preview_images": preview_images,
         "file_size_mb": file_size_mb,
     }
 

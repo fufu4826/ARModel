@@ -94,12 +94,28 @@
       <h1 id="modelTitle">{{ model.name }}</h1>
       <p class="lead" id="modelDescription">{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้ภูมิปัญญา ผลิตภัณฑ์ และงานพัฒนาพื้นที่" }}</p>
 
-      {% if thumbnail_url %}
-      <div class="detail-thumb-wrap">
-        <img class="detail-thumb" id="modelThumbnail" src="{{ thumbnail_url }}" alt="ภาพตัวอย่าง {{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
-        <span class="image-placeholder detail-thumb-placeholder" hidden>ไม่มีรูปภาพตัวอย่าง</span>
-      </div>
-      {% endif %}
+      <section class="model-gallery" aria-labelledby="model-gallery-title">
+        <h2 id="model-gallery-title">รูปภาพตัวอย่าง</h2>
+        {% if preview_images %}
+        <div class="detail-thumb-wrap">
+          <img class="detail-thumb" id="modelGalleryMain" src="{{ preview_images[0] }}" alt="รูปภาพตัวอย่าง {{ model.name }}" loading="lazy" />
+          <span class="image-placeholder detail-thumb-placeholder" hidden>ไม่มีรูปภาพตัวอย่าง</span>
+        </div>
+        {% if preview_images|length > 1 %}
+        <div class="model-gallery-thumbnails" aria-label="เลือกรูปภาพตัวอย่าง">
+          {% for image_url in preview_images %}
+          <button class="model-gallery-thumbnail{% if loop.first %} is-active{% endif %}" type="button" data-gallery-image="{{ image_url }}" data-gallery-alt="รูปภาพตัวอย่าง {{ model.name }} ลำดับที่ {{ loop.index }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">
+            <img src="{{ image_url }}" alt="" loading="lazy" />
+          </button>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="detail-thumb-wrap">
+          <span class="image-placeholder detail-thumb-placeholder">ไม่มีรูปภาพตัวอย่าง</span>
+        </div>
+        {% endif %}
+      </section>
 
       <dl class="meta-list">
         <div>
@@ -161,6 +177,7 @@
   </main>
 
   <script src="{{ url_for('static', filename='js/ar-viewer.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/model-gallery.js') }}" defer></script>
   {% if mode == "ar" %}
   <script>
     window.addEventListener("load", () => {

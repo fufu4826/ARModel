@@ -1912,6 +1912,7 @@ model-viewer {
   min-height: auto;
 }
 
+/* Final mobile landing override */
 @media (max-width: 768px) {
   /* Hide desktop-only components */
   .desktop-only {
@@ -1944,13 +1945,13 @@ model-viewer {
   }
 
   .landing-hero {
+    min-height: auto !important;
+    background-image: none !important;
+    background: #10271c !important;
     display: block !important;
-    overflow-y: visible !important;
+    padding: 0 !important;
     overflow-x: hidden !important;
-    padding: 0 !important; /* Screens handle internal padding */
-    min-height: 100svh !important;
-    background-image: none !important; /* parent doesn't carry background-image on mobile */
-    background-color: #10271c !important; /* default fallback background color */
+    overflow-y: visible !important;
   }
 
   /* Hide global overlay on mobile, we use mobile-specific overlay on first screen only */
@@ -1963,7 +1964,13 @@ model-viewer {
     display: block !important;
     position: absolute !important;
     inset: 0 !important;
-    background: linear-gradient(180deg, rgba(16, 39, 28, 0.82) 0%, rgba(16, 39, 28, 0.65) 50%, rgba(16, 39, 28, 0.88) 100%) !important;
+    z-index: 0 !important;
+    background: linear-gradient(180deg, rgba(16, 39, 28, 0.28), rgba(16, 39, 28, 0.78)) !important;
+    pointer-events: none !important;
+  }
+
+  .landing-mobile-hero > *:not(.landing-mobile-overlay) {
+    position: relative !important;
     z-index: 1 !important;
   }
 
@@ -1977,7 +1984,7 @@ model-viewer {
     justify-content: flex-start !important;
     align-items: center !important;
     gap: 8px !important;
-    z-index: 10 !important;
+    z-index: 3 !important;
   }
 
   .landing-brand {
@@ -2031,14 +2038,16 @@ model-viewer {
   /* First screen: logos, title, scroll cue */
   .landing-mobile-hero {
     position: relative !important; /* For absolute overlay alignment */
-    justify-content: space-between !important;
-    align-items: center !important;
-    text-align: center !important;
-    padding-top: 120px !important; /* Avoid overlap with top logos */
-    padding-bottom: 24px !important;
+    min-height: 100svh !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    padding: 76px 20px 64px !important;
     background-image: var(--landing-cover-mobile, var(--landing-cover-desktop, var(--landing-image))) !important;
-    background-position: right center !important;
     background-size: cover !important;
+    background-position: right center !important;
+    background-repeat: no-repeat !important;
   }
 
   .landing-hero-center {
@@ -2052,12 +2061,15 @@ model-viewer {
 
   /* Second screen: details, actions/buttons at the bottom area */
   .landing-mobile-details {
-    justify-content: flex-end !important;
-    padding-top: 40px !important;
-    padding-bottom: 48px !important; /* Breathing room from bottom browser bar */
-    text-align: center !important;
-    background: #10271c !important; /* Clean solid background */
     position: relative !important;
+    min-height: 100svh !important;
+    width: 100% !important;
+    padding: 44px 20px 36px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    background: #10271c !important;
+    background-image: none !important;
   }
 
   .landing-details-content {

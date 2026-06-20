@@ -12,9 +12,10 @@
   {% endif %}
 </head>
 <body class="landing-page">
+  <!-- mobile landing override active: 2026-06-20 -->
   <a class="skip-link" href="#landing-content">ข้ามไปยังเนื้อหา</a>
 
-  <main class="landing-hero {{ 'has-slider' if sliders else '' }}" style="--landing-image: url('{{ landing_image_url }}'); --landing-cover-desktop: url('{{ landing_image_url }}'); --landing-cover-mobile: url('{{ site_settings.landing_mobile_cover_image_url }}');">
+  <main class="landing-hero {{ 'has-slider' if sliders else '' }}" style="--landing-image: url('{{ landing_image_url }}'); --landing-cover-desktop: url('{{ landing_image_url }}'); --landing-cover-mobile: url('{{ site_settings.landing_mobile_cover_image_url or landing_image_url }}');">
     <div class="landing-overlay" aria-hidden="true"></div>
     <header class="landing-topbar" aria-label="ชื่อเว็บไซต์">
       <a href="{{ url_for('index') }}" class="landing-brand" aria-label="{{ site_settings.site_name }} หน้า Landing">

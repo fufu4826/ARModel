@@ -5,7 +5,7 @@ import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import app as module
 from werkzeug.datastructures import FileStorage
@@ -70,6 +70,9 @@ class SiteManagementTests(unittest.TestCase):
         settings = self.client.get("/api/settings").get_json()
         self.assertEqual(settings["site_name"], "PhuPhan-AR | ภูพาน AR สกลนคร")
         self.assertTrue(settings["landing_cover_url"].endswith("/static/pic/og-cover.jpg"))
+        favicon_url = urlparse(settings["favicon_url"])
+        self.assertEqual(favicon_url.path, "/static/favicon.ico")
+        self.assertIn("v", parse_qs(favicon_url.query))
         self.assertFalse(settings["intro_enabled_bool"])
         self.assertEqual(settings["intro_logo_duration_ms_value"], 1400)
 
@@ -110,6 +113,34 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn('rel="canonical" href="https://phuphan-ar.vercel.app/"', landing_html)
         for alternate_term in ("ศูนย์ภูพาน", "พูพาน สกลนคร", "Phu Phan", "Sakon Nakhon"):
             self.assertIn(alternate_term, home_html)
+
+    def test_configured_favicon_is_cache_busted_on_public_pages(self):
+        settings = {
+            **module.DEFAULT_SITE_SETTINGS,
+            "favicon": "https://cdn.example/favicon.png?size=32",
+        }
+        module.save_site_settings(settings)
+
+        api_settings = self.client.get("/api/settings").get_json()
+        favicon_url = urlparse(api_settings["favicon_url"])
+        favicon_query = parse_qs(favicon_url.query)
+        self.assertEqual(favicon_url.path, "/favicon.png")
+        self.assertEqual(favicon_query["size"], ["32"])
+        self.assertIn("v", favicon_query)
+        self.assertEqual(len(favicon_query["v"][0]), 10)
+
+        expected_link = f'<link rel="icon" href="{api_settings["favicon_url"]}" />'
+        for route in (
+            "/",
+            "/home",
+            "/models",
+            "/projects/garden",
+            "/models/lychee",
+        ):
+            with self.subTest(route=route):
+                html = self.client.get(route).get_data(as_text=True)
+                self.assertIn(expected_link.replace("&", "&amp;"), html)
+                self.assertNotIn('rel="icon" type="image/png" sizes="192x192"', html)
 
     def test_sitemap_and_robots_include_public_discovery_routes(self):
         sitemap = self.client.get("/sitemap.xml")
@@ -357,7 +388,7 @@ class SiteManagementTests(unittest.TestCase):
                 "site_name": "Test Brand",
                 "meta_description": "Test metadata description",
                 "site_logo": "",
-                "favicon": "favicon.ico",
+                "favicon": "https://cdn.example/test-favicon.png",
             },
         )
         self.assertEqual(response.status_code, 302)
@@ -369,7 +400,7 @@ class SiteManagementTests(unittest.TestCase):
         )
         self.assertIn("Test Brand", home_html)
         self.assertIn('content="Test metadata description"', home_html)
-        self.assertIn('href="/static/favicon.ico"', home_html)
+        self.assertIn('href="https://cdn.example/test-favicon.png?v=', home_html)
 
         response = self.client.post(
             "/admin/sliders",

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import mimetypes
@@ -11,7 +12,7 @@ from functools import wraps
 from pathlib import Path
 from threading import Timer
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from flask import abort, flash, Flask, jsonify, redirect, render_template, request, session, url_for
@@ -1008,11 +1009,28 @@ def static_asset_url(path_value: str | None) -> str:
     return url_for("static", filename=strip_static_prefix(value))
 
 
+def versioned_asset_url(url: str, version_source: str) -> str:
+    if not url:
+        return ""
+    version = hashlib.sha256(version_source.encode("utf-8")).hexdigest()[:10]
+    parts = urlsplit(url)
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    query = [(key, value) for key, value in query if key != "v"]
+    query.append(("v", version))
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
+    )
+
+
 def site_settings_with_urls(settings: dict) -> dict:
     enriched = normalize_site_settings(settings)
     enriched["landing_cover_url"] = static_asset_url(enriched["landing_cover"]) or url_for("static", filename=DEFAULT_META_IMAGE_PATH)
     enriched["site_logo_url"] = static_asset_url(enriched["site_logo"]) if enriched["site_logo"] else ""
-    enriched["favicon_url"] = static_asset_url(enriched["favicon"]) or url_for("static", filename="favicon.ico")
+    favicon_url = static_asset_url(enriched["favicon"]) or url_for("static", filename="favicon.ico")
+    enriched["favicon_version"] = hashlib.sha256(
+        enriched["favicon"].encode("utf-8")
+    ).hexdigest()[:10]
+    enriched["favicon_url"] = versioned_asset_url(favicon_url, enriched["favicon"])
     enriched["intro_enabled_bool"] = enriched["intro_enabled"].lower() in {"1", "true", "on", "yes"}
     for index in range(1, 4):
         key = f"intro_logo_{index}"

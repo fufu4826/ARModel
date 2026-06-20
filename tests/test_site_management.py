@@ -78,6 +78,8 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn('type="application/ld+json"', landing_html)
         self.assertIn("Phu Phan Royal Development Study Centre", landing_html)
         self.assertIn('rel="canonical" href="https://phuphan-ar.vercel.app/"', landing_html)
+        for alternate_term in ("ศูนย์ภูพาน", "พูพาน สกลนคร", "Phu Phan", "Sakon Nakhon"):
+            self.assertIn(alternate_term, home_html)
 
     def test_sitemap_and_robots_include_public_discovery_routes(self):
         sitemap = self.client.get("/sitemap.xml")

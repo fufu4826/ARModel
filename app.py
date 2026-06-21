@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import io
 import json
@@ -637,61 +638,80 @@ def parse_audio_mime_type(mime_type: str | None) -> tuple[int, int, int]:
     return sample_rate, channels, 2
 
 
+def convert_to_wav(audio_data: bytes, mime_type: str | None) -> tuple[bytes, str]:
+    mime = str(mime_type or "").lower()
+    if mime.startswith(("audio/wav", "audio/x-wav")):
+        return audio_data, ".wav"
+    if mime.startswith(("audio/mpeg", "audio/mp3")):
+        return audio_data, ".mp3"
+    if mime.startswith(("audio/ogg", "application/ogg")):
+        return audio_data, ".ogg"
+    if mime.startswith(("audio/mp4", "audio/x-m4a")):
+        return audio_data, ".m4a"
+    sample_rate, channels, sample_width = parse_audio_mime_type(mime)
+    return pcm_to_wav(audio_data, sample_rate, channels, sample_width), ".wav"
+
+
 def generate_gemini_tts_audio(text: str) -> tuple[bytes, str]:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise GeminiTTSError("GEMINI_API_KEY is not configured")
-    try:
-        from google import genai
-        from google.genai import types
-    except ImportError as exc:
-        raise GeminiTTSError("google-genai is not installed") from exc
 
     prompt = (
         "อ่านคำบรรยายต่อไปนี้เป็นภาษาไทย น้ำเสียงชัดเจน เป็นมิตร "
         "เหมาะกับนิทรรศการและแหล่งเรียนรู้ เว้นจังหวะพอดี:\n"
         f"{text.strip()}"
     )
-    client = None
-    try:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model="gemini-3.1-flash-tts-preview",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=types.SpeechConfig(
-                    voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                            voice_name="Iapetus"
-                        )
-                    )
-                ),
-            ),
-        )
-        part = response.candidates[0].content.parts[0]
-        inline_data = part.inline_data
-        audio_data = inline_data.data
-        mime_type = str(inline_data.mime_type or "")
-    except (AttributeError, IndexError, TypeError) as exc:
-        raise GeminiTTSError("Gemini did not return audio data") from exc
-    except Exception as exc:
-        raise GeminiTTSError("Gemini API request failed") from exc
-    finally:
-        close_client = getattr(client, "close", None) if client else None
-        if callable(close_client):
-            try:
-                close_client()
-            except Exception:
-                logger.warning("Unable to close Gemini client cleanly")
+    endpoint = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        "gemini-3.1-flash-tts-preview:generateContent"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "responseModalities": ["AUDIO"],
+            "speechConfig": {
+                "voiceConfig": {
+                    "prebuiltVoiceConfig": {"voiceName": "Iapetus"}
+                }
+            },
+        },
+    }
+    request_obj = Request(
+        endpoint,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key,
+        },
+        method="POST",
+    )
 
-    if not audio_data:
-        raise GeminiTTSError("Gemini returned empty audio data")
-    audio_bytes = bytes(audio_data)
-    if mime_type.lower().startswith(("audio/wav", "audio/x-wav")):
-        return audio_bytes, ".wav"
-    sample_rate, channels, sample_width = parse_audio_mime_type(mime_type)
-    return pcm_to_wav(audio_bytes, sample_rate, channels, sample_width), ".wav"
+    try:
+        with urlopen(request_obj, timeout=90) as response:
+            response_data = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read(500).decode("utf-8", errors="replace").strip()
+        raise GeminiTTSError(
+            f"Gemini API returned HTTP {exc.code}: {detail or exc.reason}"
+        ) from exc
+    except URLError as exc:
+        raise GeminiTTSError(f"Gemini API connection failed: {exc.reason}") from exc
+    except (OSError, json.JSONDecodeError) as exc:
+        raise GeminiTTSError("Gemini API returned an invalid response") from exc
+
+    try:
+        inline_data = response_data["candidates"][0]["content"]["parts"][0][
+            "inlineData"
+        ]
+        encoded_audio = inline_data["data"]
+        mime_type = str(inline_data.get("mimeType") or "")
+        audio_bytes = base64.b64decode(encoded_audio, validate=True)
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise GeminiTTSError("Gemini did not return audio data") from exc
+    if not audio_bytes:
+        raise GeminiTTSError("Gemini did not return audio data")
+    return convert_to_wav(audio_bytes, mime_type)
 
 
 def supabase_base_url() -> str:

@@ -528,7 +528,10 @@ class SiteManagementTests(unittest.TestCase):
         requirements = (
             Path(module.BASE_DIR) / "requirements.txt"
         ).read_text(encoding="utf-8")
-        self.assertIn("google-genai", requirements)
+        app_source = (Path(module.BASE_DIR) / "app.py").read_text(encoding="utf-8")
+        self.assertNotIn("google-genai", requirements)
+        self.assertNotIn("google.genai", app_source)
+        self.assertNotIn("from google import genai", app_source)
 
         sample_rate, channels, sample_width = module.parse_audio_mime_type(
             "audio/L16;rate=22050;channels=2"
@@ -565,6 +568,92 @@ class SiteManagementTests(unittest.TestCase):
         self.assertTrue(
             storage_request.call_args.kwargs["content_type"].startswith("audio/")
         )
+
+    def test_gemini_tts_rest_request_and_error_handling(self):
+        pcm_data = b"\x01\x02" * 20
+        response_payload = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "inlineData": {
+                                    "mimeType": "audio/L16;rate=24000",
+                                    "data": module.base64.b64encode(pcm_data).decode(
+                                        "ascii"
+                                    ),
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps(response_payload).encode("utf-8")
+
+        with (
+            patch.dict(
+                module.os.environ,
+                {"GEMINI_API_KEY": "rest-test-key"},
+            ),
+            patch.object(module, "urlopen", return_value=FakeResponse()) as open_url,
+        ):
+            audio_data, extension = module.generate_gemini_tts_audio(
+                "ลิ้นจี่ งานกิจกรรมพืชสวน"
+            )
+
+        request_obj = open_url.call_args.args[0]
+        request_headers = {
+            key.lower(): value for key, value in request_obj.header_items()
+        }
+        request_payload = json.loads(request_obj.data.decode("utf-8"))
+        self.assertNotIn("rest-test-key", request_obj.full_url)
+        self.assertEqual(request_headers["x-goog-api-key"], "rest-test-key")
+        self.assertEqual(request_obj.get_method(), "POST")
+        self.assertEqual(
+            request_payload["generationConfig"]["responseModalities"],
+            ["AUDIO"],
+        )
+        self.assertEqual(
+            request_payload["generationConfig"]["speechConfig"]["voiceConfig"][
+                "prebuiltVoiceConfig"
+            ]["voiceName"],
+            "Iapetus",
+        )
+        self.assertTrue(audio_data.startswith(b"RIFF"))
+        self.assertEqual(extension, ".wav")
+
+        error_body = io.BytesIO(b'{"error":{"message":"quota exceeded"}}')
+        http_error = module.HTTPError(
+            "https://generativelanguage.googleapis.com/test",
+            429,
+            "Too Many Requests",
+            {},
+            error_body,
+        )
+        try:
+            with (
+                patch.dict(
+                    module.os.environ,
+                    {"GEMINI_API_KEY": "rest-test-key"},
+                ),
+                patch.object(module, "urlopen", side_effect=http_error),
+                self.assertRaises(module.GeminiTTSError) as error_context,
+            ):
+                module.generate_gemini_tts_audio("ทดสอบ")
+        finally:
+            http_error.close()
+        self.assertIn("HTTP 429", str(error_context.exception))
+        self.assertNotIn("rest-test-key", str(error_context.exception))
 
     def test_admin_add_and_edit_model_preview_images(self):
         self.sign_in()

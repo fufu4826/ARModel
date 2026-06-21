@@ -16,6 +16,7 @@ Set these in Vercel Project Settings:
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_STORAGE_BUCKET=your-bucket-name
+GEMINI_API_KEY=your-gemini-api-key
 SECRET_KEY=your-flask-secret
 ADMIN_PASSWORD_HASH=your-werkzeug-password-hash
 ```
@@ -35,14 +36,22 @@ previews/<model_id>/
 projects/
 site/landing/
 site/branding/
+site/social/
+site/intro/
 sliders/
 ```
 
 The bucket must allow public reads if model-viewer and browsers should load assets directly from public URLs.
 
+`GEMINI_API_KEY` is used only by the authenticated admin backend to generate Thai narration audio. It must remain a server-side Vercel Environment Variable and must never be exposed to browser JavaScript.
+
 Keep public writes disabled. The browser must never receive the service-role key. Admin uploads are authorized by the Flask admin session, then either uploaded by the server with the service role or sent through a short-lived signed upload URL created by Flask.
 
 The `site_settings` and `slider_items` tables are server-only resources. Flask reads and writes them with `SUPABASE_SERVICE_ROLE_KEY`; browser code does not query these tables directly. The schema enables Row Level Security without adding `anon` or `authenticated` policies, so direct client access remains blocked while the server-side service role continues to work.
+
+Landing intro logos and `intro_display_mode` use additional keys in the existing `site_settings` table and objects under `site/intro/`. No new table or SQL schema migration is required for the intro feature. Supported display modes are `sequence` and `all_at_once`.
+
+The social preview image uses the `site_social_image` key in the existing `site_settings` table and objects under `site/social/`. No new table or SQL schema migration is required. When unset, Open Graph and Twitter metadata fall back to the Landing cover image.
 
 ## SQL Schema
 
@@ -68,6 +77,7 @@ create table if not exists models (
   model_url text,
   thumbnail_url text,
   preview_images jsonb not null default '[]'::jsonb,
+  narration_audio text not null default '',
   file_size_mb numeric,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -96,6 +106,7 @@ for each row execute function armodel_catalog_set_updated_at();
 The existing SQL above documents the original project/model schema. Run `docs/supabase_schema.sql` separately for Landing Page, Branding, and Slider management. That migration:
 
 - Adds `models.preview_images` as a JSON array for model preview galleries.
+- Adds `models.narration_audio` for an optional public narration audio URL.
 - Runs in a transaction.
 - Creates or upgrades `site_settings` and `slider_items`.
 - Uses the feature-specific `armodel_site_content_set_updated_at()` trigger function.
@@ -107,6 +118,8 @@ The existing SQL above documents the original project/model schema. Run `docs/su
 The migration is designed to be rerunnable. It does not drop tables, truncate data, or delete rows. The application validates non-empty slider titles and supported URLs in the server layer rather than adding URL-format database constraints, because internal paths such as `/home` and external HTTPS URLs are both valid.
 
 Run the updated `docs/supabase_schema.sql` before saving model preview galleries in production. Existing models receive an empty JSON array and continue using their thumbnail as the public gallery fallback. Until the column exists, Supabase model create/update requests that include `preview_images` will fail; public reads continue to tolerate rows where the field is absent.
+
+Run the same migration before saving narration audio in production. Uploaded narration files use the existing public-read/private-write Storage bucket under `models/narration/`. Existing models receive an empty `narration_audio` value and continue using browser Web Speech as fallback.
 
 ## Migration From JSON
 

@@ -18,10 +18,13 @@
     <a class="brand-mark" href="{{ url_for('home') }}" aria-label="{{ site_settings.site_name }} หน้าแรก">
       {% include "_brand_mark.html" %}
     </a>
-    <nav class="nav-actions" aria-label="ลิงก์หลัก">
+    <button class="mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu" data-mobile-nav-toggle aria-label="เปิดเมนูนำทาง">
+      ☰ เมนู
+    </button>
+    <nav class="nav-actions" id="nav-menu" aria-label="ลิงก์หลัก">
       <a href="{{ url_for('home') }}" aria-current="page">หน้าแรก</a>
-      <a href="#projects">โครงการ</a>
-      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+      <a href="#projects">แหล่งเรียนรู้</a>
+      <a href="{{ url_for('models_index') }}">รายการโมเดล</a>
       <a href="#ar-guide">วิธีใช้งาน AR</a>
     </nav>
   </header>
@@ -29,23 +32,39 @@
   <main id="content">
     <section class="hero-section homepage-hero" aria-labelledby="home-title">
       <div class="hero-copy">
-        <p class="eyebrow">นิทรรศการดิจิทัล 3D / AR</p>
-        <h1 id="home-title">ศูนย์ศึกษาการพัฒนาภูพาน</h1>
-        <p class="hero-subtitle">โมเดล 3D และ AR ของภูพาน สกลนคร</p>
-        <p class="lead">
-          เลือกชมโมเดล 3D หมุนดูรายละเอียด และเปิด AR บนอุปกรณ์ที่รองรับเพื่อวางโมเดลในพื้นที่จริง
-        </p>
+        <p class="eyebrow">{{ site_settings.home_hero_badge }}</p>
+        <h1 id="home-title">{{ site_settings.home_hero_heading }}</h1>
+        <p class="hero-subtitle">{{ site_settings.home_hero_subheading }}</p>
+        <p class="lead">{{ site_settings.home_hero_description }}</p>
         <div class="hero-actions">
-          <a class="button" href="{{ url_for('models_index') }}">เริ่มชมโมเดล 3D</a>
-          <a class="button secondary" href="#projects">ดูโครงการทั้งหมด</a>
+          <a class="button" href="{{ url_for('models_index') }}">{{ site_settings.home_hero_primary_cta_text }}</a>
+          <a class="button secondary" href="#projects">{{ site_settings.home_hero_secondary_cta_text }}</a>
         </div>
       </div>
-      <div class="hero-media" aria-label="ภาพตัวอย่างนิทรรศการ PhuPhan AR">
-        {% if projects and projects[0].cover_image_url %}
-        <img src="{{ projects[0].cover_image_url }}" alt="ภาพตัวอย่างจาก {{ projects[0].name }}" />
-        {% else %}
-        <div class="image-placeholder">PhuPhan AR</div>
-        {% endif %}
+      <div class="hero-media" aria-label="สไลด์ภาพโครงการ">
+        <div class="hero-slideshow" data-hero-slideshow>
+          {% set ns = namespace(has_images=false, first_shown=false) %}
+          {% for p in projects %}
+            {% if p.cover_image_url %}
+              {% set ns.has_images = true %}
+            {% endif %}
+          {% endfor %}
+
+          {% if ns.has_images %}
+            {% for p in projects %}
+              {% if p.cover_image_url %}
+                <div class="hero-slide{% if not ns.first_shown %} is-active{% set ns.first_shown = true %}{% endif %}" data-hero-slide>
+                  <img src="{{ p.cover_image_url }}" alt="ภาพโครงการ {{ p.name }}" />
+                  <div class="hero-slide-overlay">
+                    <span class="hero-slide-title">{{ p.name }}</span>
+                  </div>
+                </div>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <div class="image-placeholder">PhuPhan AR</div>
+          {% endif %}
+        </div>
       </div>
     </section>
 
@@ -54,7 +73,7 @@
     <section class="stats-section" aria-label="ข้อมูลสรุปเว็บไซต์">
       <div class="stat-card">
         <strong>{{ total_project_count }}</strong>
-        <span>โครงการ</span>
+        <span>แหล่งเรียนรู้</span>
       </div>
       <div class="stat-card">
         <strong>{{ total_model_count }}</strong>
@@ -81,7 +100,7 @@
       <div class="step-grid">
         <article class="info-card step-card">
           <span class="step-number">1</span>
-          <h3>เลือกโครงการหรือโมเดล</h3>
+          <h3>เลือกแหล่งเรียนรู้หรือโมเดล</h3>
           <p>เริ่มจากหัวข้อที่สนใจ หรือเปิดหน้ารวมโมเดลเพื่อเลือกวัตถุที่ต้องการสำรวจ</p>
         </article>
         <article class="info-card step-card">
@@ -100,10 +119,10 @@
     <section class="content-section" id="projects" aria-labelledby="projects-title">
       <div class="section-head">
         <div>
-          <p class="eyebrow">โครงการ</p>
+          <p class="eyebrow">แหล่งเรียนรู้</p>
           <h2 id="projects-title">เลือกหัวข้อการเรียนรู้</h2>
         </div>
-        <p>{{ total_project_count }} โครงการพร้อมให้เข้าชม</p>
+        <p>{{ total_project_count }} แหล่งเรียนรู้พร้อมให้เข้าชม</p>
       </div>
 
       {% if projects %}
@@ -125,7 +144,7 @@
             </div>
             <h3><a href="{{ url_for('project_detail', project_id=project.id) }}">{{ project.name }}</a></h3>
             <p>{{ project.description or "รวมโมเดล 3D และ AR สำหรับการเรียนรู้ภายในโครงการนี้" }}</p>
-            <a class="button small" href="{{ url_for('project_detail', project_id=project.id) }}">ดูโครงการ</a>
+            <a class="button small" href="{{ url_for('project_detail', project_id=project.id) }}">เรียนรู้เพิ่มเติม</a>
           </div>
         </article>
         {% endfor %}
@@ -178,7 +197,7 @@
         {% endfor %}
       </div>
       <div class="action-row section-action">
-        <a class="button secondary" href="{{ url_for('models_index') }}">ดูโมเดลทั้งหมด</a>
+        <a class="button secondary" href="{{ url_for('models_index') }}">ดูรายการโมเดล</a>
       </div>
       {% else %}
       <div class="empty-state">
@@ -239,8 +258,8 @@
     </div>
     <nav aria-label="ลิงก์ท้ายเว็บไซต์">
       <a href="{{ url_for('home') }}">หน้าแรก</a>
-      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
-      <a href="#projects">โครงการ</a>
+      <a href="{{ url_for('models_index') }}">รายการโมเดล</a>
+      <a href="#projects">แหล่งเรียนรู้</a>
       <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
     </nav>
   </footer>
@@ -248,5 +267,7 @@
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/site-carousel.js') }}" defer></script>
   {% endif %}
+  <script src="{{ url_for('static', filename='js/mobile-nav.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/project-hero-slideshow.js') }}" defer></script>
 </body>
 </html>

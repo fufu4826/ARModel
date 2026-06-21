@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Landing Page - Admin</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  {% include "_fonts.html" %}
 </head>
 <body>
   <main class="admin-page">
@@ -26,18 +27,39 @@
           <input type="hidden" name="section" value="landing" />
           <input type="hidden" name="return_to" value="{{ url_for('admin_landing') }}" />
           <input type="hidden" name="landing_cover" value="{{ settings.landing_cover }}" />
+          <input type="hidden" name="landing_mobile_cover_image" value="{{ settings.landing_mobile_cover_image }}" />
 
           <div class="preview-panel full">
             <img data-image-preview="landing-cover-file" src="{{ settings.landing_cover_url }}" alt="ตัวอย่างภาพหน้าปก Landing Page" />
             <div>
-              <strong>Cover Image</strong>
+              <strong>Cover Image (Desktop)</strong>
               <span>JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB</span>
             </div>
           </div>
 
           <div class="field full">
-            <label for="landing-cover-file">อัปโหลดภาพหน้าปก</label>
+            <label for="landing-cover-file">อัปโหลดภาพหน้าปก (Desktop)</label>
             <input id="landing-cover-file" name="landing_cover_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="landing_cover" data-upload-target="landing_cover" />
+          </div>
+
+          <div class="preview-panel full">
+            <img data-image-preview="landing-mobile-cover-file" src="{{ settings.landing_mobile_cover_image_url }}" alt="ตัวอย่างภาพหน้าปกสำหรับมือถือ" />
+            <div>
+              <strong>ภาพปกสำหรับมือถือ</strong>
+              <span>ใช้เฉพาะหน้าจอโทรศัพท์ แนะนำภาพแนวตั้งหรือภาพที่จัดองค์ประกอบไว้ด้านขวา (JPG, PNG หรือ WebP ไม่เกิน 5 MB)</span>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label for="landing-mobile-cover-file">อัปโหลดภาพหน้าปกสำหรับมือถือ</label>
+            <input id="landing-mobile-cover-file" name="landing_mobile_cover_image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="landing_mobile_cover_image" data-upload-target="landing_mobile_cover_image" />
+          </div>
+
+          <div class="field full">
+            <label class="check-field">
+              <input name="landing_mobile_cover_image_remove" type="checkbox" />
+              ลบภาพปกสำหรับมือถือและกลับไปใช้ภาพปกเริ่มต้น/เดสก์ท็อป
+            </label>
           </div>
           <div class="field full">
             <label for="landing-headline">Headline</label>
@@ -59,6 +81,39 @@
             <label for="landing-cta-url">CTA Button URL</label>
             <input id="landing-cta-url" name="landing_cta_url" value="{{ settings.landing_cta_url }}" required />
           </div>
+
+          <div class="section-heading full">
+            <div>
+              <h2>ข้อความหน้าแรก / Home Hero</h2>
+              <p>แก้ไขข้อความในส่วน Hero ของหน้า <code>/home</code> โดยลิงก์ของปุ่มยังคงเดิม</p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="home-hero-badge">ป้ายกำกับหน้าแรก</label>
+            <input id="home-hero-badge" name="home_hero_badge" value="{{ settings.home_hero_badge }}" required />
+          </div>
+          <div class="field">
+            <label for="home-hero-heading">หัวข้อหน้าแรก</label>
+            <input id="home-hero-heading" name="home_hero_heading" value="{{ settings.home_hero_heading }}" required />
+          </div>
+          <div class="field full">
+            <label for="home-hero-subheading">คำโปรยหน้าแรก</label>
+            <input id="home-hero-subheading" name="home_hero_subheading" value="{{ settings.home_hero_subheading }}" required />
+          </div>
+          <div class="field full">
+            <label for="home-hero-description">คำอธิบายหน้าแรก</label>
+            <textarea id="home-hero-description" name="home_hero_description" rows="4" required>{{ settings.home_hero_description }}</textarea>
+          </div>
+          <div class="field">
+            <label for="home-hero-primary-cta-text">ข้อความปุ่มหลัก</label>
+            <input id="home-hero-primary-cta-text" name="home_hero_primary_cta_text" value="{{ settings.home_hero_primary_cta_text }}" required />
+          </div>
+          <div class="field">
+            <label for="home-hero-secondary-cta-text">ข้อความปุ่มรอง</label>
+            <input id="home-hero-secondary-cta-text" name="home_hero_secondary_cta_text" value="{{ settings.home_hero_secondary_cta_text }}" required />
+          </div>
+
           <div class="form-actions full">
             <button class="button" type="submit">บันทึก Landing Page</button>
           </div>

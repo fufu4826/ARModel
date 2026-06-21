@@ -4,8 +4,20 @@
   if (!directUploadsEnabled) return;
 
   const uploadEndpoint = "/admin/api/create-upload-url";
-  const managedUploadKinds = new Set(["landing_cover", "site_logo", "favicon", "slider_image"]);
+  const managedUploadKinds = new Set([
+    "landing_cover",
+    "landing_mobile_cover_image",
+    "site_logo",
+    "site_social_image",
+    "favicon",
+    "intro_logo_1",
+    "intro_logo_2",
+    "intro_logo_3",
+    "slider_image",
+    "model_narration_audio",
+  ]);
   const managedUploadMaxBytes = 5 * 1024 * 1024;
+  const narrationAudioMaxBytes = 20 * 1024 * 1024;
 
   function statusFor(input) {
     let status = input.parentElement.querySelector("[data-upload-status]");
@@ -48,17 +60,27 @@
   async function uploadFile(input) {
     const file = input.files && input.files[0];
     if (!file) return;
-    if (managedUploadKinds.has(input.dataset.uploadKind) && file.size > managedUploadMaxBytes) {
-      throw new Error("File must not exceed 5 MB.");
+    if (
+      input.dataset.uploadKind === "model_narration_audio" &&
+      file.size > narrationAudioMaxBytes
+    ) {
+      throw new Error("ไฟล์เสียงต้องมีขนาดไม่เกิน 20 MB");
+    }
+    if (
+      input.dataset.uploadKind !== "model_narration_audio" &&
+      managedUploadKinds.has(input.dataset.uploadKind) &&
+      file.size > managedUploadMaxBytes
+    ) {
+      throw new Error("ไฟล์รูปภาพต้องมีขนาดไม่เกิน 5 MB");
     }
 
     const target = targetInputFor(input);
     if (!target) {
-      throw new Error("Upload target field is missing.");
+      throw new Error("ไม่พบฟิลด์เป้าหมายสำหรับการอัปโหลดไฟล์");
     }
 
     const status = statusFor(input);
-    status.textContent = `Uploading ${file.name}...`;
+    status.textContent = `กำลังอัปโหลด ${file.name}...`;
     input.disabled = true;
 
     try {
@@ -70,16 +92,16 @@
       });
       if (!response.ok) {
         const message = await response.text();
-        throw new Error(message || "Direct upload failed.");
+        throw new Error(message || "การอัปโหลดไฟล์ไปยังระบบจัดเก็บข้อมูลล้มเหลว");
       }
 
       target.value = upload.public_url;
       input.removeAttribute("name");
-      status.textContent = "Upload complete.";
+      status.textContent = "อัปโหลดไฟล์เสร็จสมบูรณ์";
     } catch (error) {
       input.disabled = false;
       status.style.color = "#b42318";
-      status.textContent = error.message || "Upload failed.";
+      status.textContent = error.message || "การอัปโหลดล้มเหลว";
       throw error;
     }
   }

@@ -1,0 +1,19 @@
+{% set logo_strip = namespace(has_logos=false) %}
+{% for index in range(1, 4) %}
+  {% if site_settings["intro_logo_" ~ index ~ "_url"] %}
+    {% set logo_strip.has_logos = true %}
+  {% endif %}
+{% endfor %}
+
+{% if logo_strip.has_logos %}
+<div class="public-logo-strip landing-logo-strip" aria-label="โลโก้หน่วยงาน">
+  {% for index in range(1, 4) %}
+    {% set logo_url = site_settings["intro_logo_" ~ index ~ "_url"] %}
+    {% if logo_url %}
+    <img class="public-logo-strip__item landing-logo-strip__item" src="{{ logo_url }}" alt="โลโก้อินโทร {{ index }}" data-intro-logo-index="{{ index }}" onerror="this.hidden=true;" />
+    {% endif %}
+  {% endfor %}
+</div>
+{% else %}
+<span class="brand-symbol">AR</span>
+{% endif %}

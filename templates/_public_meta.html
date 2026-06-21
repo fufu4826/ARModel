@@ -1,6 +1,6 @@
 {% set meta_title = page_title|default(default_meta_title, true) %}
 {% set meta_description = page_description|default(default_meta_description, true) %}
-{% set meta_image = page_image|default(default_meta_image, true) %}
+{% set meta_image = site_settings.social_image_absolute_url|default(page_image|default(default_meta_image, true), true) %}
 {% set meta_url = page_url|default(public_site_url ~ request.path, true) %}
 <meta name="description" content="{{ meta_description }}" />
 <meta name="keywords" content="{{ default_meta_keywords }}" />
@@ -17,5 +17,5 @@
 <meta name="twitter:description" content="{{ meta_description }}" />
 <meta name="twitter:image" content="{{ meta_image }}" />
 <link rel="icon" href="{{ site_settings.favicon_url }}" />
-<link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icon-192.png') }}" />
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}" />
+{% include "_fonts.html" %}

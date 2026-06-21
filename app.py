@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import io
 import json
 import logging
 import mimetypes
@@ -5,13 +8,14 @@ import os
 import re
 import secrets
 import uuid
+import wave
 import webbrowser
 from copy import deepcopy
 from functools import wraps
 from pathlib import Path
 from threading import Timer
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from flask import abort, flash, Flask, jsonify, redirect, render_template, request, session, url_for
@@ -21,11 +25,13 @@ from werkzeug.utils import secure_filename
 
 MODEL_EXTENSIONS = {".glb"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+AUDIO_EXTENSIONS = {".mp3", ".m4a", ".wav", ".ogg"}
 SITE_LOGO_EXTENSIONS = IMAGE_EXTENSIONS | {".svg"}
 FAVICON_EXTENSIONS = {".png", ".ico", ".svg"}
 SITE_ASSET_MAX_BYTES = 5 * 1024 * 1024
-VERCEL_UPLOAD_MESSAGE = "File uploads are disabled on Vercel. Use an external URL instead."
-VERCEL_EDIT_MESSAGE = "Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy."
+NARRATION_AUDIO_MAX_BYTES = 20 * 1024 * 1024
+VERCEL_UPLOAD_MESSAGE = "ระบบไม่รองรับการอัปโหลดไฟล์โดยตรงบน Vercel กรุณาระบุรูปภาพหรือไฟล์โมเดลผ่านลิงก์เว็บภายนอก (URL)"
+VERCEL_EDIT_MESSAGE = "ระบบแอดมินทำงานในโหมดอ่านอย่างเดียวบน Vercel (ไม่รองรับการเขียนไฟล์บนคลาวด์) กรุณาแก้ไขไฟล์ข้อมูลภายในเครื่อง แล้ว Commit และ Deploy ใหม่ หรือกำหนดค่าเชื่อมต่อ Supabase ก่อนใช้งาน"
 UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในโครงการ"
 PUBLIC_SITE_URL = (
     os.environ.get("SITE_BASE_URL")
@@ -45,6 +51,7 @@ DEFAULT_META_KEYWORDS = (
 DEFAULT_META_IMAGE_PATH = "pic/og-cover.jpg"
 DEFAULT_SITE_SETTINGS = {
     "landing_cover": DEFAULT_META_IMAGE_PATH,
+    "landing_mobile_cover_image": "",
     "landing_headline": "ภูพาน AR สกลนคร",
     "landing_subheadline": "เรียนรู้ศูนย์ศึกษาการพัฒนาภูพานผ่านโมเดล 3D และ AR",
     "landing_description": (
@@ -54,8 +61,21 @@ DEFAULT_SITE_SETTINGS = {
     ),
     "landing_cta_text": "เข้าสู่เว็บไซต์",
     "landing_cta_url": "/home",
+    "home_hero_badge": "นิทรรศการดิจิทัล 3D / AR",
+    "home_hero_heading": "ศูนย์ศึกษาการพัฒนาภูพาน",
+    "home_hero_subheading": "โมเดล 3D และ AR ของภูพาน สกลนคร",
+    "home_hero_description": "เลือกชมโมเดล 3D หมุนดูรายละเอียด และเปิด AR บนอุปกรณ์ที่รองรับเพื่อวางโมเดลในพื้นที่จริง",
+    "home_hero_primary_cta_text": "เริ่มชมโมเดล 3D",
+    "home_hero_secondary_cta_text": "ดูแหล่งเรียนรู้ทั้งหมด",
+    "intro_enabled": "false",
+    "intro_logo_1": "",
+    "intro_logo_2": "",
+    "intro_logo_3": "",
+    "intro_logo_duration_ms": "1400",
+    "intro_display_mode": "sequence",
     "site_logo": "",
     "site_name": "PhuPhan-AR | ภูพาน AR สกลนคร",
+    "site_social_image": "",
     "favicon": "favicon.ico",
     "meta_description": DEFAULT_META_DESCRIPTION,
 }
@@ -168,6 +188,7 @@ DATA_DIR = Path(os.environ.get("ARMODEL_DATA_DIR", BASE_DIR))
 STATIC_DIR = Path(os.environ.get("ARMODEL_STATIC_DIR", BASE_DIR / "static"))
 MODEL_DIR = STATIC_DIR / "model"
 PIC_DIR = STATIC_DIR / "pic"
+AUDIO_DIR = STATIC_DIR / "audio"
 CATALOG_FILE = DATA_DIR / "models.json"
 PROJECTS_FILE = DATA_DIR / "projects.json"
 CONFIG_FILE = DATA_DIR / "config.json"
@@ -235,7 +256,7 @@ def inject_runtime_flags():
         "default_meta_title": DEFAULT_META_TITLE,
         "default_meta_description": settings["meta_description"],
         "default_meta_keywords": DEFAULT_META_KEYWORDS,
-        "default_meta_image": public_meta_image_url(public_settings["landing_cover_url"]),
+        "default_meta_image": public_settings["social_image_absolute_url"],
         "default_site_name": settings["site_name"],
         "public_site_url": PUBLIC_SITE_URL,
         "site_settings": public_settings,
@@ -288,7 +309,7 @@ def ensure_data_files() -> None:
     if is_vercel_runtime():
         _DATA_READY = True
         return
-    for directory in (MODEL_DIR, PIC_DIR, SITE_UPLOAD_DIR, SLIDER_UPLOAD_DIR):
+    for directory in (MODEL_DIR, PIC_DIR, AUDIO_DIR, SITE_UPLOAD_DIR, SLIDER_UPLOAD_DIR):
         try:
             directory.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -412,6 +433,23 @@ def parse_preview_images_field(value: str | None) -> list[str]:
     return images
 
 
+def parse_narration_audio_field(value: str | None) -> str:
+    audio = str(value or "").strip()
+    if not audio:
+        return ""
+    lowered = audio.lower()
+    if (
+        audio.startswith("//")
+        or lowered.startswith(("data:", "javascript:"))
+        or ("://" in audio and not lowered.startswith(("https://", "http://")))
+    ):
+        abort(400, "Narration audio must use an HTTP(S) URL or local static path")
+    path = urlsplit(audio).path if lowered.startswith(("https://", "http://")) else audio
+    if Path(path).suffix.lower() not in AUDIO_EXTENSIONS:
+        abort(400, "Narration audio must be MP3, M4A, WAV, or OGG")
+    return audio
+
+
 def normalize_model(model: dict, projects: list[dict]) -> dict:
     project_ids = {project["id"] for project in projects}
     model_id = str(model.get("id") or uuid.uuid4().hex)
@@ -435,6 +473,7 @@ def normalize_model(model: dict, projects: list[dict]) -> dict:
     model_path = str(model.get("model_path") or model.get("model") or "").strip()
     thumbnail_url = str(model.get("thumbnail_url") or "").strip()
     thumbnail_path = str(model.get("thumbnail_path") or model.get("image") or model.get("thumbnail") or "").strip()
+    narration_audio = str(model.get("narration_audio") or "").strip()
 
     return {
         "id": model_id,
@@ -449,6 +488,7 @@ def normalize_model(model: dict, projects: list[dict]) -> dict:
         "thumbnail_url": thumbnail_url,
         "thumbnail_path": thumbnail_path,
         "preview_images": normalize_preview_images(model.get("preview_images")),
+        "narration_audio": narration_audio,
         "rotate_x": rotate_x,
         "scale": scale,
         "visible": bool(model.get("visible", True)),
@@ -474,6 +514,7 @@ def model_with_project(model: dict, projects: list[dict]) -> dict:
     enriched["has_project"] = bool(project)
     enriched["model_resolved_url"] = resolve_model_url(enriched)
     enriched["thumbnail_resolved_url"] = resolve_thumbnail_url(enriched)
+    enriched["narration_audio_url"] = resolve_narration_audio_url(enriched)
     enriched["size_mb"] = model_size_mb(enriched)
     return enriched
 
@@ -567,6 +608,110 @@ def save_slider_items(items: list[dict]) -> None:
 
 class SupabaseError(RuntimeError):
     pass
+
+
+class GeminiTTSError(RuntimeError):
+    pass
+
+
+def pcm_to_wav(
+    pcm_data: bytes,
+    sample_rate: int = 24000,
+    channels: int = 1,
+    sample_width: int = 2,
+) -> bytes:
+    output = io.BytesIO()
+    with wave.open(output, "wb") as wav_file:
+        wav_file.setnchannels(channels)
+        wav_file.setsampwidth(sample_width)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(pcm_data)
+    return output.getvalue()
+
+
+def parse_audio_mime_type(mime_type: str | None) -> tuple[int, int, int]:
+    mime = str(mime_type or "").lower()
+    rate_match = re.search(r"(?:rate|samplerate)=(\d+)", mime)
+    channels_match = re.search(r"channels=(\d+)", mime)
+    sample_rate = int(rate_match.group(1)) if rate_match else 24000
+    channels = int(channels_match.group(1)) if channels_match else 1
+    return sample_rate, channels, 2
+
+
+def convert_to_wav(audio_data: bytes, mime_type: str | None) -> tuple[bytes, str]:
+    mime = str(mime_type or "").lower()
+    if mime.startswith(("audio/wav", "audio/x-wav")):
+        return audio_data, ".wav"
+    if mime.startswith(("audio/mpeg", "audio/mp3")):
+        return audio_data, ".mp3"
+    if mime.startswith(("audio/ogg", "application/ogg")):
+        return audio_data, ".ogg"
+    if mime.startswith(("audio/mp4", "audio/x-m4a")):
+        return audio_data, ".m4a"
+    sample_rate, channels, sample_width = parse_audio_mime_type(mime)
+    return pcm_to_wav(audio_data, sample_rate, channels, sample_width), ".wav"
+
+
+def generate_gemini_tts_audio(text: str) -> tuple[bytes, str]:
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise GeminiTTSError("GEMINI_API_KEY is not configured")
+
+    prompt = (
+        "อ่านคำบรรยายต่อไปนี้เป็นภาษาไทย น้ำเสียงชัดเจน เป็นมิตร "
+        "เหมาะกับนิทรรศการและแหล่งเรียนรู้ เว้นจังหวะพอดี:\n"
+        f"{text.strip()}"
+    )
+    endpoint = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        "gemini-3.1-flash-tts-preview:generateContent"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "responseModalities": ["AUDIO"],
+            "speechConfig": {
+                "voiceConfig": {
+                    "prebuiltVoiceConfig": {"voiceName": "Iapetus"}
+                }
+            },
+        },
+    }
+    request_obj = Request(
+        endpoint,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key,
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(request_obj, timeout=90) as response:
+            response_data = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read(500).decode("utf-8", errors="replace").strip()
+        raise GeminiTTSError(
+            f"Gemini API returned HTTP {exc.code}: {detail or exc.reason}"
+        ) from exc
+    except URLError as exc:
+        raise GeminiTTSError(f"Gemini API connection failed: {exc.reason}") from exc
+    except (OSError, json.JSONDecodeError) as exc:
+        raise GeminiTTSError("Gemini API returned an invalid response") from exc
+
+    try:
+        inline_data = response_data["candidates"][0]["content"]["parts"][0][
+            "inlineData"
+        ]
+        encoded_audio = inline_data["data"]
+        mime_type = str(inline_data.get("mimeType") or "")
+        audio_bytes = base64.b64decode(encoded_audio, validate=True)
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise GeminiTTSError("Gemini did not return audio data") from exc
+    if not audio_bytes:
+        raise GeminiTTSError("Gemini did not return audio data")
+    return convert_to_wav(audio_bytes, mime_type)
 
 
 def supabase_base_url() -> str:
@@ -669,6 +814,7 @@ def normalize_supabase_model(row: dict) -> dict:
         "thumbnail_url": thumbnail_url,
         "thumbnail_path": "",
         "preview_images": normalize_preview_images(row.get("preview_images")),
+        "narration_audio": str(row.get("narration_audio") or "").strip(),
         "file_size_mb": size_mb,
         "rotate_x": 0,
         "scale": 0.2,
@@ -813,7 +959,8 @@ def upload_to_supabase_storage(
     if not data:
         abort(400, "Uploaded file is empty")
     if max_bytes and len(data) > max_bytes:
-        abort(413, "File must not exceed 5 MB")
+        max_megabytes = max_bytes // (1024 * 1024)
+        abort(413, f"File must not exceed {max_megabytes} MB")
 
     supabase_request(
         f"/storage/v1/object/{quote(supabase_bucket())}/{quote(object_path, safe='/')}",
@@ -825,14 +972,55 @@ def upload_to_supabase_storage(
     return supabase_public_url(object_path), round(len(data) / (1024 * 1024), 2)
 
 
+def save_generated_narration_audio(
+    model_id: str,
+    audio_data: bytes,
+    extension: str = ".wav",
+) -> str:
+    extension = extension.lower()
+    if extension not in AUDIO_EXTENSIONS:
+        raise GeminiTTSError("Gemini returned an unsupported audio format")
+    if not audio_data:
+        raise GeminiTTSError("Gemini returned empty audio data")
+    if len(audio_data) > NARRATION_AUDIO_MAX_BYTES:
+        raise GeminiTTSError("Generated audio exceeds the 20 MB limit")
+
+    filename = (
+        f"{slugify(model_id, 'model')}-gemini-{uuid.uuid4().hex[:10]}{extension}"
+    )
+    if is_supabase_enabled():
+        object_path = f"models/narration/{filename}"
+        content_type = mimetypes.guess_type(filename)[0] or "audio/wav"
+        supabase_request(
+            f"/storage/v1/object/{quote(supabase_bucket())}/{quote(object_path, safe='/')}",
+            method="PUT",
+            data=audio_data,
+            content_type=content_type,
+            extra_headers={"Cache-Control": "3600", "x-upsert": "false"},
+        )
+        return supabase_public_url(object_path)
+
+    if is_vercel_runtime():
+        raise GeminiTTSError("Supabase must be configured to save audio on Vercel")
+    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    (AUDIO_DIR / filename).write_bytes(audio_data)
+    return f"audio/{filename}"
+
+
 def direct_upload_target(filename: str, kind: str, file_size: int | None = None) -> tuple[str, str]:
     upload_kinds = {
         "model": ("models", MODEL_EXTENSIONS),
+        "model_narration_audio": ("models/narration", AUDIO_EXTENSIONS),
         "thumbnail": ("thumbnails", IMAGE_EXTENSIONS),
         "project_image": ("projects", IMAGE_EXTENSIONS),
         "landing_cover": ("site/landing", IMAGE_EXTENSIONS),
+        "landing_mobile_cover_image": ("site/landing", IMAGE_EXTENSIONS),
         "site_logo": ("site/branding", SITE_LOGO_EXTENSIONS),
+        "site_social_image": ("site/social", IMAGE_EXTENSIONS),
         "favicon": ("site/branding", FAVICON_EXTENSIONS),
+        "intro_logo_1": ("site/intro", IMAGE_EXTENSIONS),
+        "intro_logo_2": ("site/intro", IMAGE_EXTENSIONS),
+        "intro_logo_3": ("site/intro", IMAGE_EXTENSIONS),
         "slider_image": ("sliders", IMAGE_EXTENSIONS),
     }
     if kind not in upload_kinds:
@@ -842,11 +1030,26 @@ def direct_upload_target(filename: str, kind: str, file_size: int | None = None)
     extension = Path(filename or "").suffix.lower()
     if extension not in allowed_extensions:
         abort(400, f"Unsupported file type: {extension or '(none)'}")
-    if kind in {"landing_cover", "site_logo", "favicon", "slider_image"}:
+    if kind in {
+        "landing_cover",
+        "landing_mobile_cover_image",
+        "site_logo",
+        "site_social_image",
+        "favicon",
+        "intro_logo_1",
+        "intro_logo_2",
+        "intro_logo_3",
+        "slider_image",
+    }:
         if not file_size:
             abort(400, "file_size is required for managed site uploads")
         if file_size > SITE_ASSET_MAX_BYTES:
             abort(413, "File must not exceed 5 MB")
+    elif kind == "model_narration_audio":
+        if not file_size:
+            abort(400, "file_size is required for narration audio uploads")
+        if file_size > NARRATION_AUDIO_MAX_BYTES:
+            abort(413, "File must not exceed 20 MB")
 
     object_path = f"{folder}/{uuid.uuid4().hex}{extension}"
     return object_path, supabase_public_url(object_path)
@@ -900,6 +1103,7 @@ def create_model(data: dict) -> dict:
         "model_url": data.get("model_url", "").strip(),
         "thumbnail_url": data.get("thumbnail_url", "").strip(),
         "preview_images": normalize_preview_images(data.get("preview_images")),
+        "narration_audio": data.get("narration_audio", "").strip(),
         "file_size_mb": data.get("file_size_mb"),
     }
     rows = supabase_request(
@@ -919,6 +1123,7 @@ def update_model(model_id: str, data: dict) -> dict:
         "model_url": data.get("model_url", "").strip(),
         "thumbnail_url": data.get("thumbnail_url", "").strip(),
         "preview_images": normalize_preview_images(data.get("preview_images")),
+        "narration_audio": data.get("narration_audio", "").strip(),
         "file_size_mb": data.get("file_size_mb"),
     }
     rows = supabase_request(
@@ -992,11 +1197,58 @@ def static_asset_url(path_value: str | None) -> str:
     return url_for("static", filename=strip_static_prefix(value))
 
 
+def versioned_asset_url(url: str, version_source: str) -> str:
+    if not url:
+        return ""
+    version = hashlib.sha256(version_source.encode("utf-8")).hexdigest()[:10]
+    parts = urlsplit(url)
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    query = [(key, value) for key, value in query if key != "v"]
+    query.append(("v", version))
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
+    )
+
+
 def site_settings_with_urls(settings: dict) -> dict:
     enriched = normalize_site_settings(settings)
     enriched["landing_cover_url"] = static_asset_url(enriched["landing_cover"]) or url_for("static", filename=DEFAULT_META_IMAGE_PATH)
+    enriched["landing_mobile_cover_image_url"] = (
+        static_asset_url(enriched["landing_mobile_cover_image"])
+        if enriched.get("landing_mobile_cover_image")
+        else enriched["landing_cover_url"]
+    )
     enriched["site_logo_url"] = static_asset_url(enriched["site_logo"]) if enriched["site_logo"] else ""
-    enriched["favicon_url"] = static_asset_url(enriched["favicon"]) or url_for("static", filename="favicon.ico")
+    enriched["site_social_image_url"] = (
+        static_asset_url(enriched["site_social_image"])
+        if enriched["site_social_image"]
+        else ""
+    )
+    social_image_fallback = (
+        enriched["site_social_image_url"]
+        or enriched["landing_cover_url"]
+        or enriched["site_logo_url"]
+        or url_for("static", filename=DEFAULT_META_IMAGE_PATH)
+    )
+    enriched["social_image_absolute_url"] = public_meta_image_url(
+        social_image_fallback
+    )
+    favicon_url = static_asset_url(enriched["favicon"]) or url_for("static", filename="favicon.ico")
+    enriched["favicon_version"] = hashlib.sha256(
+        enriched["favicon"].encode("utf-8")
+    ).hexdigest()[:10]
+    enriched["favicon_url"] = versioned_asset_url(favicon_url, enriched["favicon"])
+    enriched["intro_enabled_bool"] = enriched["intro_enabled"].lower() in {"1", "true", "on", "yes"}
+    if enriched["intro_display_mode"] not in {"sequence", "all_at_once"}:
+        enriched["intro_display_mode"] = "sequence"
+    for index in range(1, 4):
+        key = f"intro_logo_{index}"
+        enriched[f"{key}_url"] = static_asset_url(enriched[key]) if enriched[key] else ""
+    try:
+        duration_ms = int(enriched["intro_logo_duration_ms"])
+    except (TypeError, ValueError):
+        duration_ms = int(DEFAULT_SITE_SETTINGS["intro_logo_duration_ms"])
+    enriched["intro_logo_duration_ms_value"] = max(600, min(duration_ms, 1600))
     return enriched
 
 
@@ -1034,6 +1286,13 @@ def resolve_thumbnail_url(model: dict) -> str:
         model.get("thumbnail_path") or model.get("image") or find_thumbnail_for_model(model.get("model_path") or model.get("model"))
     )
     return resolved or PLACEHOLDER_THUMBNAIL
+
+
+def resolve_narration_audio_url(model: dict) -> str:
+    value = str(model.get("narration_audio") or "").strip()
+    if is_external_url(value):
+        return value
+    return local_static_url_if_exists(value)
 
 
 def resolve_model_preview_images(model: dict) -> list[str]:
@@ -1159,6 +1418,8 @@ def api_model_payload(model: dict, projects: list[dict]) -> dict:
         "model_url": resolve_model_url(enriched),
         "thumbnail_url": resolve_thumbnail_url(enriched),
         "preview_images": resolve_model_preview_images(enriched),
+        "narration_audio": enriched.get("narration_audio", ""),
+        "narration_audio_url": resolve_narration_audio_url(enriched),
         "project_id": enriched.get("project_id", ""),
         "project_name": enriched.get("project_name", ""),
         "size_mb": model_size_mb(enriched),
@@ -1244,6 +1505,35 @@ def save_upload(file_storage, directory: Path, relative_folder: str, allowed_ext
     try:
         directory.mkdir(parents=True, exist_ok=True)
         file_storage.save(directory / asset_name)
+    except OSError as exc:
+        logger.exception("Unable to save uploaded file %s", asset_name)
+        abort(500, f"Unable to save uploaded file: {exc}")
+    return f"{relative_folder}/{asset_name}"
+
+
+def save_limited_upload(
+    file_storage,
+    directory: Path,
+    relative_folder: str,
+    allowed_extensions: set[str],
+    max_bytes: int,
+) -> str:
+    if not file_storage or not file_storage.filename:
+        return ""
+    extension = Path(file_storage.filename).suffix.lower()
+    if extension not in allowed_extensions:
+        abort(400, f"Unsupported file type: {extension}")
+    data = file_storage.read(max_bytes + 1)
+    file_storage.seek(0)
+    if not data:
+        abort(400, "Uploaded file is empty")
+    if len(data) > max_bytes:
+        max_megabytes = max_bytes // (1024 * 1024)
+        abort(413, f"File must not exceed {max_megabytes} MB")
+    asset_name = unique_asset_name(file_storage.filename, allowed_extensions)
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / asset_name).write_bytes(data)
     except OSError as exc:
         logger.exception("Unable to save uploaded file %s", asset_name)
         abort(500, f"Unable to save uploaded file: {exc}")
@@ -1340,11 +1630,11 @@ def slider_data_from_request(existing: dict | None = None) -> dict:
     try:
         sort_order = int(request.form.get("sort_order") or 0)
     except ValueError:
-        abort(400, "sort_order must be an integer")
+        abort(400, "ลำดับการแสดงผล (sort_order) ต้องเป็นจำนวนเต็ม")
     button_text = request.form.get("button_text", "").strip()
     button_url = validated_content_url(request.form.get("button_url"), "button_url")
     if bool(button_text) != bool(button_url):
-        abort(400, "button_text and button_url must be provided together")
+        abort(400, "ต้องระบุทั้งข้อความปุ่ม (button_text) และลิงก์ปุ่ม (button_url) คู่กัน")
     return {
         "id": existing.get("id") or uuid.uuid4().hex,
         "title": request.form.get("title", "").strip(),
@@ -1358,19 +1648,71 @@ def slider_data_from_request(existing: dict | None = None) -> dict:
     }
 
 
+def landing_preload_image_urls(
+    settings: dict,
+    sliders: list[dict],
+    projects: list[dict],
+    models: list[dict],
+    limit: int = 50,
+) -> list[str]:
+    candidates = [
+        settings.get("landing_cover_url"),
+        settings.get("landing_mobile_cover_image_url"),
+        settings.get("site_logo_url"),
+        settings.get("intro_logo_1_url"),
+        settings.get("intro_logo_2_url"),
+        settings.get("intro_logo_3_url"),
+    ]
+    candidates.extend(item.get("resolved_image_url") for item in sliders)
+    candidates.extend(project.get("cover_image_url") for project in projects)
+    for model in models:
+        candidates.append(resolve_thumbnail_url(model))
+        candidates.extend(resolve_model_preview_images(model))
+
+    urls = []
+    for candidate in candidates:
+        url = str(candidate or "").strip()
+        if not url or url.lower().startswith("data:") or url in urls:
+            continue
+        if url.lower().endswith(".glb"):
+            continue
+        if not (url.startswith("/") or url.lower().startswith(("https://", "http://"))):
+            continue
+        urls.append(url)
+        if len(urls) >= limit:
+            break
+    return urls
+
+
 @app.route("/")
 def index():
     settings = get_site_settings()
     public_settings = site_settings_with_urls(settings)
     sliders = [slider_with_url(item) for item in get_slider_items(include_inactive=False)]
+    models = get_models(include_hidden=False)
+    projects = [
+        project_with_urls(project, models)
+        for project in get_projects(include_hidden=False)
+    ]
     return render_template(
         "landing.html",
         landing_image_url=public_settings["landing_cover_url"],
         sliders=sliders,
+        intro_logos=[
+            public_settings[f"intro_logo_{index}_url"]
+            for index in range(1, 4)
+            if public_settings[f"intro_logo_{index}_url"]
+        ],
+        preload_image_urls=landing_preload_image_urls(
+            public_settings,
+            sliders,
+            projects,
+            models,
+        ),
         structured_data=public_structured_data(settings),
-        page_title="ภูพาน AR สกลนคร | ศูนย์ศึกษาการพัฒนาภูพาน",
+        page_title=settings["site_name"],
         page_description=settings["meta_description"],
-        page_image=public_meta_image_url(public_settings["landing_cover_url"]),
+        page_image=public_settings["social_image_absolute_url"],
         page_url=public_url_for("index"),
     )
 
@@ -1395,9 +1737,9 @@ def home():
         uses_online_data=is_supabase_enabled(),
         sliders=sliders,
         structured_data=public_structured_data(settings),
-        page_title="ศูนย์ศึกษาการพัฒนาภูพาน | โมเดล 3D และ AR สกลนคร",
+        page_title=settings["site_name"],
         page_description=settings["meta_description"],
-        page_image=public_meta_image_url(public_settings["landing_cover_url"]),
+        page_image=public_settings["social_image_absolute_url"],
         page_url=public_url_for("home"),
     )
 
@@ -1479,6 +1821,7 @@ def model_detail(model_id: str):
         model_url=resolve_model_url(model),
         thumbnail_url=resolve_thumbnail_url(model),
         preview_images=resolve_model_preview_images(model),
+        narration_audio_url=resolve_narration_audio_url(model),
         model_name=model.get("name", ""),
         size_mb=model_size_mb(model),
         related_models=related_models,
@@ -1580,6 +1923,63 @@ def admin_branding():
     return render_template("admin_branding.html", settings=site_settings_with_urls(get_site_settings()))
 
 
+@app.route("/admin/intro", methods=["GET", "POST"])
+@admin_required
+def admin_intro():
+    if request.method == "GET":
+        return render_template(
+            "admin_intro.html",
+            settings=site_settings_with_urls(get_site_settings()),
+        )
+
+    file_fields = tuple(f"intro_logo_{index}_file" for index in range(1, 4))
+    if reject_vercel_upload_if_needed(*file_fields) or admin_write_blocked_on_vercel():
+        return redirect(url_for("admin_intro"))
+
+    settings = get_site_settings()
+    settings["intro_enabled"] = (
+        "true" if request.form.get("intro_enabled") in {"1", "true", "on", "yes"} else "false"
+    )
+    intro_display_mode = request.form.get("intro_display_mode", "sequence").strip()
+    settings["intro_display_mode"] = (
+        intro_display_mode
+        if intro_display_mode in {"sequence", "all_at_once"}
+        else "sequence"
+    )
+    try:
+        duration_ms = int(request.form.get("intro_logo_duration_ms") or 1400)
+    except ValueError:
+        abort(400, "ระยะเวลาแสดงโลโก้ต้องเป็นจำนวนเต็ม")
+    settings["intro_logo_duration_ms"] = str(max(600, min(duration_ms, 1600)))
+
+    for index in range(1, 4):
+        key = f"intro_logo_{index}"
+        if request.form.get(f"{key}_remove") in {"1", "true", "on", "yes"}:
+            settings[key] = ""
+        else:
+            settings[key] = setting_asset_from_request(
+                settings,
+                key,
+                f"{key}_file",
+                "site/intro",
+                SITE_UPLOAD_DIR / "intro",
+                "uploads/site/intro",
+                IMAGE_EXTENSIONS,
+            )
+
+    if is_supabase_enabled():
+        try:
+            upsert_supabase_site_settings(settings)
+        except SupabaseError as exc:
+            logger.exception("Unable to save intro settings in Supabase")
+            flash(f"ไม่สามารถบันทึกการตั้งค่าอินโทรไปยัง Supabase ได้: {exc}", "error")
+            return redirect(url_for("admin_intro"))
+    else:
+        save_site_settings(settings)
+    flash("บันทึกการตั้งค่าอินโทรแล้ว", "success")
+    return redirect(url_for("admin_intro"))
+
+
 @app.route("/admin/sliders", methods=["GET", "POST"])
 @admin_required
 def admin_sliders():
@@ -1588,15 +1988,15 @@ def admin_sliders():
             return redirect(url_for("admin_sliders"))
         data = slider_data_from_request()
         if not data["title"]:
-            abort(400, "Slider title is required")
+            abort(400, "จำเป็นต้องกรอกชื่อสไลด์เดอร์ (Slider Title)")
         if not data["image_url"]:
-            abort(400, "Slider image is required")
+            abort(400, "จำเป็นต้องระบุรูปภาพสไลด์เดอร์")
         if is_supabase_enabled():
             try:
                 create_supabase_slider_item(data)
             except SupabaseError as exc:
                 logger.exception("Unable to create slider in Supabase")
-                flash(f"Unable to save slider to Supabase: {exc}", "error")
+                flash(f"ไม่สามารถบันทึกสไลด์เดอร์ไปยัง Supabase ได้: {exc}", "error")
                 return redirect(url_for("admin_sliders"))
         else:
             items = load_slider_items(include_inactive=True)
@@ -1620,13 +2020,13 @@ def edit_slider(slider_id: str):
             return redirect(url_for("edit_slider", slider_id=slider_id))
         data = slider_data_from_request(slider)
         if not data["title"]:
-            abort(400, "Slider title is required")
+            abort(400, "จำเป็นต้องกรอกชื่อสไลด์เดอร์ (Slider Title)")
         if is_supabase_enabled():
             try:
                 update_supabase_slider_item(slider_id, data)
             except SupabaseError as exc:
                 logger.exception("Unable to update slider in Supabase")
-                flash(f"Unable to save slider to Supabase: {exc}", "error")
+                flash(f"ไม่สามารถบันทึกสไลด์เดอร์ไปยัง Supabase ได้: {exc}", "error")
                 return redirect(url_for("edit_slider", slider_id=slider_id))
         else:
             save_slider_items([data if item["id"] == slider_id else item for item in sliders])
@@ -1647,7 +2047,7 @@ def delete_slider(slider_id: str):
             logger.exception("Unable to delete slider in Supabase")
             if request.method == "DELETE":
                 return jsonify({"error": str(exc)}), 502
-            flash(f"Unable to delete slider from Supabase: {exc}", "error")
+            flash(f"ไม่สามารถลบสไลด์เดอร์ออกจาก Supabase ได้: {exc}", "error")
             return redirect(url_for("admin_sliders"))
     else:
         sliders = load_slider_items(include_inactive=True)
@@ -1663,7 +2063,13 @@ def delete_slider(slider_id: str):
 @app.post("/admin/settings")
 @admin_required
 def update_admin_settings():
-    if reject_vercel_upload_if_needed("landing_cover_file", "site_logo_file", "favicon_file") or admin_write_blocked_on_vercel():
+    if reject_vercel_upload_if_needed(
+        "landing_cover_file",
+        "landing_mobile_cover_image_file",
+        "site_logo_file",
+        "site_social_image_file",
+        "favicon_file",
+    ) or admin_write_blocked_on_vercel():
         return redirect(request.form.get("return_to") or url_for("admin"))
     settings = get_site_settings()
     section = request.form.get("section", "").strip()
@@ -1679,6 +2085,22 @@ def update_admin_settings():
                     "landing_cta_url",
                     DEFAULT_SITE_SETTINGS["landing_cta_url"],
                 ),
+                "home_hero_badge": request.form.get("home_hero_badge", "").strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_badge"],
+                "home_hero_heading": request.form.get("home_hero_heading", "").strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_heading"],
+                "home_hero_subheading": request.form.get("home_hero_subheading", "").strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_subheading"],
+                "home_hero_description": request.form.get("home_hero_description", "").strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_description"],
+                "home_hero_primary_cta_text": request.form.get(
+                    "home_hero_primary_cta_text", ""
+                ).strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_primary_cta_text"],
+                "home_hero_secondary_cta_text": request.form.get(
+                    "home_hero_secondary_cta_text", ""
+                ).strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_secondary_cta_text"],
             }
         )
         settings["landing_cover"] = setting_asset_from_request(
@@ -1690,6 +2112,18 @@ def update_admin_settings():
             "uploads/site",
             IMAGE_EXTENSIONS,
         )
+        if request.form.get("landing_mobile_cover_image_remove") in {"1", "true", "on", "yes"}:
+            settings["landing_mobile_cover_image"] = ""
+        else:
+            settings["landing_mobile_cover_image"] = setting_asset_from_request(
+                settings,
+                "landing_mobile_cover_image",
+                "landing_mobile_cover_image_file",
+                "site/landing",
+                SITE_UPLOAD_DIR,
+                "uploads/site",
+                IMAGE_EXTENSIONS,
+            )
     elif section == "branding":
         settings["site_name"] = request.form.get("site_name", "").strip() or DEFAULT_SITE_SETTINGS["site_name"]
         settings["meta_description"] = request.form.get("meta_description", "").strip() or DEFAULT_SITE_SETTINGS["meta_description"]
@@ -1702,6 +2136,18 @@ def update_admin_settings():
             "uploads/site",
             SITE_LOGO_EXTENSIONS,
         )
+        if request.form.get("site_social_image_remove") in {"1", "true", "on", "yes"}:
+            settings["site_social_image"] = ""
+        else:
+            settings["site_social_image"] = setting_asset_from_request(
+                settings,
+                "site_social_image",
+                "site_social_image_file",
+                "site/social",
+                SITE_UPLOAD_DIR / "social",
+                "uploads/site/social",
+                IMAGE_EXTENSIONS,
+            )
         settings["favicon"] = setting_asset_from_request(
             settings,
             "favicon",
@@ -1718,7 +2164,7 @@ def update_admin_settings():
             upsert_supabase_site_settings(settings)
         except SupabaseError as exc:
             logger.exception("Unable to save site settings in Supabase")
-            flash(f"Unable to save settings to Supabase: {exc}", "error")
+            flash(f"ไม่สามารถบันทึกการตั้งค่าระบบไปยัง Supabase ได้: {exc}", "error")
             return redirect(request.form.get("return_to") or url_for("admin"))
     else:
         save_site_settings(settings)
@@ -1805,7 +2251,7 @@ def add_project():
 
     name = request.form.get("name", "").strip()
     if not name:
-        abort(400, "Project name is required")
+        abort(400, "จำเป็นต้องกรอกชื่อโครงการ (Project Name)")
 
     image_url = request.form.get("image_url", "").strip()
     if is_supabase_enabled():
@@ -1821,7 +2267,7 @@ def add_project():
             flash(f'เพิ่มโครงการ "{name}" แล้ว', "success")
         except SupabaseError as exc:
             logger.exception("Unable to create project in Supabase")
-            flash(f"Unable to save project to Supabase: {exc}", "error")
+            flash(f"ไม่สามารถบันทึกโครงการไปยัง Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     cover_image = image_url or save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
@@ -1871,7 +2317,7 @@ def edit_project(project_id: str):
                 return redirect(url_for("admin"))
             except SupabaseError as exc:
                 logger.exception("Unable to update project in Supabase")
-                flash(f"Unable to save project to Supabase: {exc}", "error")
+                flash(f"ไม่สามารถบันทึกข้อมูลโครงการไปยัง Supabase ได้: {exc}", "error")
                 return redirect(url_for("edit_project", project_id=project_id))
 
         old_cover = project.get("cover_image")
@@ -1909,7 +2355,7 @@ def delete_project_route(project_id: str):
             flash("ลบโครงการแล้ว", "success")
         except SupabaseError as exc:
             logger.exception("Unable to delete project in Supabase")
-            flash(f"Unable to delete project from Supabase: {exc}", "error")
+            flash(f"ไม่สามารถลบโครงการออกจาก Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     projects = load_projects(include_hidden=True)
@@ -1922,6 +2368,7 @@ def delete_project_route(project_id: str):
     for model in linked_models:
         delete_static_file(model.get("model"))
         delete_static_file(model.get("image"))
+        delete_static_file(model.get("narration_audio"))
     models = [model for model in models if model.get("project_id") != project_id]
     projects = [item for item in projects if item["id"] != project_id]
     delete_static_file(project.get("cover_image"))
@@ -1934,28 +2381,35 @@ def delete_project_route(project_id: str):
 @app.post("/admin/models")
 @admin_required
 def add_model():
-    if reject_vercel_upload_if_needed("model_file", "image_file") or admin_write_blocked_on_vercel():
+    if reject_vercel_upload_if_needed("model_file", "image_file", "narration_audio_file") or admin_write_blocked_on_vercel():
         return redirect(url_for("admin"))
 
     name = request.form.get("name", "").strip()
     project_id = request.form.get("project_id", "").strip()
     if not name:
-        abort(400, "Model name is required")
+        abort(400, "จำเป็นต้องกรอกชื่อโมเดล (Model Name)")
     if find_project(project_id, include_hidden=True) is None:
-        abort(400, "Project is required")
+        abort(400, "จำเป็นต้องเลือกโครงการ (Project)")
 
     model_url = request.form.get("model_url", "").strip()
     thumbnail_url = request.form.get("thumbnail_url", "").strip()
     preview_images = parse_preview_images_field(request.form.get("preview_images"))
+    narration_audio = parse_narration_audio_field(request.form.get("narration_audio"))
 
     if is_supabase_enabled():
         try:
             uploaded_model_url, model_size_mb = upload_to_supabase_storage(request.files.get("model_file"), "models")
             uploaded_thumbnail_url, _ = upload_to_supabase_storage(request.files.get("image_file"), "thumbnails")
+            uploaded_narration_audio, _ = upload_to_supabase_storage(
+                request.files.get("narration_audio_file"),
+                "models/narration",
+                AUDIO_EXTENSIONS,
+                NARRATION_AUDIO_MAX_BYTES,
+            )
             final_model_url = uploaded_model_url or model_url
             final_thumbnail_url = uploaded_thumbnail_url or thumbnail_url
             if not final_model_url:
-                abort(400, "A .glb file or external model URL is required")
+                abort(400, "จำเป็นต้องอัปโหลดไฟล์โมเดล .glb หรือระบุลิงก์ภายนอก")
             create_model(
                 {
                     "name": name,
@@ -1964,13 +2418,14 @@ def add_model():
                     "model_url": final_model_url,
                     "thumbnail_url": final_thumbnail_url,
                     "preview_images": preview_images,
+                    "narration_audio": uploaded_narration_audio or narration_audio,
                     "file_size_mb": model_size_mb,
                 }
             )
             flash(f'เพิ่มโมเดล "{name}" แล้ว', "success")
         except SupabaseError as exc:
             logger.exception("Unable to create model in Supabase")
-            flash(f"Unable to save model to Supabase: {exc}", "error")
+            flash(f"ไม่สามารถบันทึกโมเดลไปยัง Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     model_path = model_url or request.form.get("model_path", "").strip()
@@ -1978,12 +2433,19 @@ def add_model():
     if uploaded_model:
         model_path = uploaded_model
     if not model_path:
-        abort(400, "A .glb/.gltf file or model path is required")
+        abort(400, "จำเป็นต้องอัปโหลดไฟล์โมเดล .glb/.gltf หรือระบุ Path ของโมเดล")
 
     image_path = thumbnail_url or request.form.get("image_path", "").strip()
     uploaded_image = save_upload(request.files.get("image_file"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
     if uploaded_image:
         image_path = uploaded_image
+    uploaded_narration_audio = save_limited_upload(
+        request.files.get("narration_audio_file"),
+        AUDIO_DIR,
+        "audio",
+        AUDIO_EXTENSIONS,
+        NARRATION_AUDIO_MAX_BYTES,
+    )
 
     models = load_models(include_hidden=True)
     models.append(
@@ -2000,6 +2462,7 @@ def add_model():
             "thumbnail_url": thumbnail_url,
             "thumbnail_path": "" if thumbnail_url else image_path,
             "preview_images": preview_images,
+            "narration_audio": uploaded_narration_audio or narration_audio,
             "rotate_x": parse_float("rotate_x", 0),
             "scale": parse_float("scale", 0.2),
             "visible": form_visible(),
@@ -2020,18 +2483,25 @@ def edit_model(model_id: str):
         abort(404)
 
     if request.method == "POST":
-        if reject_vercel_upload_if_needed("model_file", "image_file") or admin_write_blocked_on_vercel():
+        if reject_vercel_upload_if_needed("model_file", "image_file", "narration_audio_file") or admin_write_blocked_on_vercel():
             return redirect(url_for("edit_model", model_id=model_id))
 
         project_id = request.form.get("project_id", "").strip()
         if find_project(project_id, include_hidden=True) is None:
-            abort(400, "Project is required")
+            abort(400, "จำเป็นต้องเลือกโครงการ (Project)")
         preview_images = parse_preview_images_field(request.form.get("preview_images"))
+        remove_narration_audio = request.form.get("narration_audio_remove") in {"1", "true", "on", "yes"}
 
         if is_supabase_enabled():
             try:
                 uploaded_model_url, uploaded_size_mb = upload_to_supabase_storage(request.files.get("model_file"), "models")
                 uploaded_thumbnail_url, _ = upload_to_supabase_storage(request.files.get("image_file"), "thumbnails")
+                uploaded_narration_audio, _ = upload_to_supabase_storage(
+                    request.files.get("narration_audio_file"),
+                    "models/narration",
+                    AUDIO_EXTENSIONS,
+                    NARRATION_AUDIO_MAX_BYTES,
+                )
                 final_model_url = uploaded_model_url or request.form.get("model_url", "").strip() or model.get("model_url", "")
                 final_thumbnail_url = (
                     uploaded_thumbnail_url
@@ -2039,7 +2509,14 @@ def edit_model(model_id: str):
                     or model.get("thumbnail_url", "")
                 )
                 if not final_model_url:
-                    abort(400, "A .glb file or external model URL is required")
+                    abort(400, "จำเป็นต้องอัปโหลดไฟล์โมเดล .glb หรือระบุลิงก์ภายนอก")
+                final_narration_audio = (
+                    ""
+                    if remove_narration_audio
+                    else uploaded_narration_audio
+                    or parse_narration_audio_field(request.form.get("narration_audio"))
+                    or model.get("narration_audio", "")
+                )
                 update_model(
                     model_id,
                     {
@@ -2049,6 +2526,7 @@ def edit_model(model_id: str):
                         "model_url": final_model_url,
                         "thumbnail_url": final_thumbnail_url,
                         "preview_images": preview_images,
+                        "narration_audio": final_narration_audio,
                         "file_size_mb": uploaded_size_mb if uploaded_size_mb is not None else model.get("file_size_mb"),
                     },
                 )
@@ -2056,17 +2534,32 @@ def edit_model(model_id: str):
                 return redirect(url_for("admin"))
             except SupabaseError as exc:
                 logger.exception("Unable to update model in Supabase")
-                flash(f"Unable to save model to Supabase: {exc}", "error")
+                flash(f"ไม่สามารถบันทึกข้อมูลโมเดลไปยัง Supabase ได้: {exc}", "error")
                 return redirect(url_for("edit_model", model_id=model_id))
 
         old_model = model.get("model")
         old_image = model.get("image")
         new_model = save_upload(request.files.get("model_file"), MODEL_DIR, "model", MODEL_EXTENSIONS)
         new_image = save_upload(request.files.get("image_file"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
+        new_narration_audio = save_limited_upload(
+            request.files.get("narration_audio_file"),
+            AUDIO_DIR,
+            "audio",
+            AUDIO_EXTENSIONS,
+            NARRATION_AUDIO_MAX_BYTES,
+        )
         model_url = request.form.get("model_url", "").strip()
         thumbnail_url = request.form.get("thumbnail_url", "").strip()
         manual_model_path = model_url or request.form.get("model_path", "").strip()
         manual_image_path = thumbnail_url or request.form.get("image_path", "").strip()
+        old_narration_audio = model.get("narration_audio", "")
+        narration_audio = (
+            ""
+            if remove_narration_audio
+            else new_narration_audio
+            or parse_narration_audio_field(request.form.get("narration_audio"))
+            or old_narration_audio
+        )
 
         model.update(
             {
@@ -2081,6 +2574,7 @@ def edit_model(model_id: str):
                 "thumbnail_url": thumbnail_url,
                 "thumbnail_path": "" if thumbnail_url else (new_image or manual_image_path or model.get("thumbnail_path") or old_image),
                 "preview_images": preview_images,
+                "narration_audio": narration_audio,
                 "rotate_x": parse_float("rotate_x", 0),
                 "scale": parse_float("scale", 0.2),
                 "visible": form_visible(),
@@ -2090,11 +2584,84 @@ def edit_model(model_id: str):
             delete_static_file(old_model)
         if new_image and old_image:
             delete_static_file(old_image)
+        if (new_narration_audio or remove_narration_audio) and old_narration_audio:
+            delete_static_file(old_narration_audio)
         save_models(models)
         flash("บันทึกข้อมูลโมเดลแล้ว", "success")
         return redirect(url_for("admin"))
 
     return render_template("edit_model.html", model=model_with_project(model, projects), projects=projects)
+
+
+@app.post("/admin/models/<model_id>/generate-narration")
+@admin_required
+def generate_model_narration(model_id: str):
+    model = next(
+        (item for item in get_models(include_hidden=True) if item["id"] == model_id),
+        None,
+    )
+    if model is None:
+        abort(404)
+
+    if not os.environ.get("GEMINI_API_KEY", "").strip():
+        flash(
+            "ยังไม่ได้ตั้งค่า GEMINI_API_KEY ใน Vercel Environment Variables",
+            "error",
+        )
+        return redirect(url_for("edit_model", model_id=model_id))
+    if admin_write_blocked_on_vercel():
+        return redirect(url_for("edit_model", model_id=model_id))
+
+    name = str(model.get("name") or "โมเดล").strip()
+    description = str(model.get("description") or "").strip()
+    narration_text = ". ".join(part for part in (name, description) if part)
+    old_narration_audio = str(model.get("narration_audio") or "").strip()
+
+    try:
+        audio_data, extension = generate_gemini_tts_audio(narration_text)
+        narration_audio = save_generated_narration_audio(
+            model_id,
+            audio_data,
+            extension,
+        )
+
+        if is_supabase_enabled():
+            update_model(
+                model_id,
+                {
+                    "name": name,
+                    "description": description,
+                    "project_id": model.get("project_id", ""),
+                    "model_url": model.get("model_url", ""),
+                    "thumbnail_url": model.get("thumbnail_url", ""),
+                    "preview_images": model.get("preview_images", []),
+                    "narration_audio": narration_audio,
+                    "file_size_mb": model.get("file_size_mb"),
+                },
+            )
+        else:
+            models = load_models(include_hidden=True)
+            stored_model = next(
+                (item for item in models if item["id"] == model_id),
+                None,
+            )
+            if stored_model is None:
+                abort(404)
+            stored_model["narration_audio"] = narration_audio
+            save_models(models)
+            if old_narration_audio and old_narration_audio != narration_audio:
+                delete_static_file(old_narration_audio)
+    except (GeminiTTSError, SupabaseError, OSError) as exc:
+        logger.exception("Unable to generate Gemini narration for model %s", model_id)
+        flash(f"สร้างเสียงคำบรรยายไม่สำเร็จ: {exc}", "error")
+        return redirect(url_for("edit_model", model_id=model_id))
+    except Exception:
+        logger.exception("Unexpected Gemini narration failure for model %s", model_id)
+        flash("สร้างเสียงคำบรรยายไม่สำเร็จ: ระบบสร้างเสียงเกิดข้อผิดพลาด", "error")
+        return redirect(url_for("edit_model", model_id=model_id))
+
+    flash("สร้างไฟล์เสียงคำบรรยายเรียบร้อยแล้ว", "success")
+    return redirect(url_for("edit_model", model_id=model_id))
 
 
 @app.post("/admin/models/<model_id>/delete", endpoint="delete_model")
@@ -2109,7 +2676,7 @@ def delete_model_route(model_id: str):
             flash("ลบโมเดลแล้ว", "success")
         except SupabaseError as exc:
             logger.exception("Unable to delete model in Supabase")
-            flash(f"Unable to delete model from Supabase: {exc}", "error")
+            flash(f"ไม่สามารถลบโมเดลออกจาก Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     models = load_models(include_hidden=True)
@@ -2119,6 +2686,7 @@ def delete_model_route(model_id: str):
 
     delete_static_file(deleted.get("model"))
     delete_static_file(deleted.get("image"))
+    delete_static_file(deleted.get("narration_audio"))
     save_models([model for model in models if model["id"] != model_id])
     flash(f'ลบโมเดล "{deleted.get("name", "")}" แล้ว', "success")
     return redirect(url_for("admin"))

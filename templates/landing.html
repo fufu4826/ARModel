@@ -12,23 +12,56 @@
   {% endif %}
 </head>
 <body class="landing-page">
+  <!-- mobile landing override active: 2026-06-20 -->
   <a class="skip-link" href="#landing-content">ข้ามไปยังเนื้อหา</a>
 
-  <main class="landing-hero {{ 'has-slider' if sliders else '' }}" style="--landing-image: url('{{ landing_image_url }}');">
+  <main class="landing-hero {{ 'has-slider' if sliders else '' }}" style="--landing-image: url('{{ landing_image_url }}'); --landing-cover-desktop: url('{{ landing_image_url }}'); --landing-cover-mobile: url('{{ site_settings.landing_mobile_cover_image_url or landing_image_url }}');">
     <div class="landing-overlay" aria-hidden="true"></div>
     <header class="landing-topbar" aria-label="ชื่อเว็บไซต์">
       <a href="{{ url_for('index') }}" class="landing-brand" aria-label="{{ site_settings.site_name }} หน้า Landing">
         {% include "_brand_mark.html" %}
       </a>
+
     </header>
     <section class="landing-content" id="landing-content" aria-labelledby="landing-title">
-      <p class="eyebrow landing-eyebrow">นิทรรศการดิจิทัล 3D / AR</p>
-      <h1 id="landing-title" class="landing-title">{{ site_settings.landing_headline }}</h1>
-      <p class="landing-subtitle">{{ site_settings.landing_subheadline }}</p>
-      <p class="landing-description">{{ site_settings.landing_description }}</p>
-      <div class="landing-actions">
-        <a class="button landing-button" href="{{ site_settings.landing_cta_url }}">{{ site_settings.landing_cta_text }}</a>
-        <a class="button secondary landing-button" href="{{ url_for('models_index') }}">ดูโมเดลทั้งหมด</a>
+      <!-- Desktop-only Content Block -->
+      <div class="desktop-only">
+        <div class="landing-hero-center">
+          <p class="eyebrow landing-eyebrow">นิทรรศการดิจิทัล 3D / AR</p>
+          <h1 id="landing-title" class="landing-title">{{ site_settings.landing_headline }}</h1>
+          <p class="landing-subtitle">{{ site_settings.landing_subheadline }}</p>
+          <p class="landing-description">{{ site_settings.landing_description }}</p>
+          <div class="landing-actions">
+            <a class="button landing-button" href="{{ site_settings.landing_cta_url }}" data-landing-intro-trigger>{{ site_settings.landing_cta_text }}</a>
+            <a class="button secondary landing-button" href="{{ url_for('models_index') }}">ดูรายการโมเดล</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile-only Content Block: Screen 1 -->
+      <div class="landing-mobile-screen landing-mobile-hero mobile-only">
+        <div class="landing-mobile-overlay" aria-hidden="true"></div>
+        <div class="landing-mobile-hero-title-container">
+          <h1 class="landing-mobile-hero-title">{{ site_settings.landing_headline }}</h1>
+        </div>
+        <div class="landing-scroll-cue">
+          <span class="landing-scroll-cue-text">เลื่อนเพื่อดูข้อมูล</span>
+          <span class="landing-scroll-cue-arrow">↓</span>
+        </div>
+      </div>
+
+      <!-- Mobile-only Content Block: Screen 2 -->
+      <div class="landing-mobile-screen landing-mobile-details mobile-only">
+        <div class="landing-details-content">
+          {% if site_settings.landing_subheadline %}
+          <p class="landing-mobile-subtitle">{{ site_settings.landing_subheadline }}</p>
+          {% endif %}
+          <p class="landing-description">{{ site_settings.landing_description }}</p>
+          <div class="landing-actions">
+            <a class="button landing-button" href="{{ site_settings.landing_cta_url }}" data-landing-intro-trigger>{{ site_settings.landing_cta_text }}</a>
+            <a class="button secondary landing-button" href="{{ url_for('models_index') }}">ดูรายการโมเดล</a>
+          </div>
+        </div>
       </div>
     </section>
     {% if sliders %}
@@ -47,9 +80,22 @@
     </p>
     <p class="search-alias">ค้นหาเว็บไซต์ได้ทั้งคำว่า ภูพาน, พูพาน, ภูพาน สกลนคร และของดีสกลนคร</p>
   </section>
+  <div class="landing-intro-overlay" id="landingIntroOverlay" data-mode="{{ site_settings.intro_display_mode }}" aria-hidden="true" hidden>
+    <button class="landing-intro-skip" type="button" data-landing-intro-skip>ข้าม</button>
+    <img class="landing-intro-logo" id="landingIntroLogo" alt="" hidden />
+    <div class="landing-intro-logo-group" id="landingIntroLogoGroup" hidden></div>
+  </div>
+  <script id="landingIntroConfig" type="application/json">{{ {
+    "enabled": site_settings.intro_enabled_bool,
+    "logos": intro_logos,
+    "mode": site_settings.intro_display_mode,
+    "durationMs": site_settings.intro_logo_duration_ms_value,
+    "preloadUrls": preload_image_urls
+  }|tojson }}</script>
   {% if sliders %}
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/site-carousel.js') }}" defer></script>
   {% endif %}
+  <script src="{{ url_for('static', filename='js/landing-intro.js') }}" defer></script>
 </body>
 </html>

@@ -15,11 +15,14 @@
     <a class="brand-mark" href="{{ url_for('home') }}" aria-label="{{ site_settings.site_name }} หน้าแรก">
       {% include "_brand_mark.html" %}
     </a>
-    <nav class="nav-actions" aria-label="ลิงก์หลัก">
+    <button class="mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu" data-mobile-nav-toggle aria-label="เปิดเมนูนำทาง">
+      ☰ เมนู
+    </button>
+    <nav class="nav-actions" id="nav-menu" aria-label="ลิงก์หลัก">
       <a href="{{ url_for('home') }}">หน้าแรก</a>
-      <a href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+      <a href="{{ url_for('models_index') }}">รายการโมเดล</a>
       {% if model.has_project %}
-      <a href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปโครงการ</a>
+      <a href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปแหล่งเรียนรู้</a>
       {% endif %}
     </nav>
   </header>
@@ -65,12 +68,12 @@
           <strong>ไม่สามารถโหลดโมเดลนี้ได้</strong>
           <span>ไฟล์อาจมีขนาดใหญ่หรือเบราว์เซอร์ยังไม่พร้อมสำหรับการแสดงผล 3D ลองรีเฟรชหน้า หรือเลือกเส้นทางอื่นด้านล่าง</span>
           <div class="viewer-recovery">
-            <a class="button small" href="{{ url_for('models_index') }}">โมเดลทั้งหมด</a>
+            <a class="button small" href="{{ url_for('models_index') }}">รายการโมเดล</a>
             {% if model_url %}
             <a class="button secondary small" href="{{ model_url }}" target="_blank" rel="noopener">เปิดไฟล์โมเดลโดยตรง</a>
             {% endif %}
             {% if model.has_project %}
-            <a class="button secondary small" href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปโครงการ</a>
+            <a class="button secondary small" href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปแหล่งเรียนรู้</a>
             {% endif %}
             {% if related_models %}
             <a class="button secondary small" href="{{ url_for('model_detail', model_id=related_models[0].id) }}">เปิดโมเดลใกล้เคียง</a>
@@ -93,6 +96,15 @@
       <p class="eyebrow">{{ model.department or model.project_department or "โมเดลการเรียนรู้" }}</p>
       <h1 id="modelTitle">{{ model.name }}</h1>
       <p class="lead" id="modelDescription">{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้ภูมิปัญญา ผลิตภัณฑ์ และงานพัฒนาพื้นที่" }}</p>
+      <div class="model-narration" data-model-narration data-title-source="modelTitle" data-description-source="modelDescription">
+        <button class="button secondary small model-narration__button" type="button" data-narration-toggle>
+          ฟังคำบรรยาย
+        </button>
+        {% if narration_audio_url %}
+        <audio data-narration-audio preload="none" src="{{ narration_audio_url }}"></audio>
+        {% endif %}
+        <p class="model-narration__status" data-narration-status role="status" aria-live="polite" hidden></p>
+      </div>
 
       <section class="model-gallery" aria-labelledby="model-gallery-title">
         <h2 id="model-gallery-title">รูปภาพตัวอย่าง</h2>
@@ -119,7 +131,7 @@
 
       <dl class="meta-list">
         <div>
-          <dt>โครงการ</dt>
+          <dt>แหล่งเรียนรู้</dt>
           <dd id="modelProjectName">{{ model.project_name }}</dd>
         </div>
         <div>
@@ -141,9 +153,9 @@
         <a class="button secondary" href="{{ model_url }}" target="_blank" rel="noopener">เปิดไฟล์โมเดลโดยตรง</a>
         {% endif %}
         {% if model.has_project %}
-        <a class="button" href="{{ url_for('project_detail', project_id=model.project_id) }}">ดูโมเดลในโครงการ</a>
+        <a class="button" href="{{ url_for('project_detail', project_id=model.project_id) }}">ดูโมเดลในแหล่งเรียนรู้</a>
         {% else %}
-        <a class="button" href="{{ url_for('models_index') }}">ดูโมเดลทั้งหมด</a>
+        <a class="button" href="{{ url_for('models_index') }}">ดูรายการโมเดล</a>
         {% endif %}
       </div>
     </aside>
@@ -178,6 +190,8 @@
 
   <script src="{{ url_for('static', filename='js/ar-viewer.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/model-gallery.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/model-narration.js', v='3') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/mobile-nav.js') }}" defer></script>
   {% if mode == "ar" %}
   <script>
     window.addEventListener("load", () => {

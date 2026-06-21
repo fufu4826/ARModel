@@ -16,6 +16,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 STATIC_DIR = BASE_DIR / "static"
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 MODEL_EXTENSIONS = {".glb"}
+AUDIO_EXTENSIONS = {".mp3", ".m4a", ".wav", ".ogg"}
 
 
 class SupabaseError(RuntimeError):
@@ -201,6 +202,15 @@ def upsert_model(model: dict, upload_assets: bool, dry_run: bool = False) -> Non
         if is_external_url(preview_url) and preview_url not in preview_images:
             preview_images.append(preview_url)
 
+    narration_audio = str(model.get("narration_audio") or "").strip()
+    if upload_assets and narration_audio and not is_external_url(narration_audio):
+        narration_audio, _ = upload_file(
+            narration_audio,
+            "models/narration",
+            AUDIO_EXTENSIONS,
+            dry_run,
+        )
+
     payload = {
         "id": model_id,
         "project_id": str(model.get("project_id") or "").strip() or None,
@@ -210,6 +220,7 @@ def upsert_model(model: dict, upload_assets: bool, dry_run: bool = False) -> Non
         "model_url": model_url if is_external_url(model_url) else "",
         "thumbnail_url": thumbnail_url if is_external_url(thumbnail_url) else "",
         "preview_images": preview_images,
+        "narration_audio": narration_audio if is_external_url(narration_audio) else "",
         "file_size_mb": file_size_mb,
     }
 

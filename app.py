@@ -22,9 +22,11 @@ from werkzeug.utils import secure_filename
 
 MODEL_EXTENSIONS = {".glb"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+AUDIO_EXTENSIONS = {".mp3", ".m4a", ".wav", ".ogg"}
 SITE_LOGO_EXTENSIONS = IMAGE_EXTENSIONS | {".svg"}
 FAVICON_EXTENSIONS = {".png", ".ico", ".svg"}
 SITE_ASSET_MAX_BYTES = 5 * 1024 * 1024
+NARRATION_AUDIO_MAX_BYTES = 20 * 1024 * 1024
 VERCEL_UPLOAD_MESSAGE = "ระบบไม่รองรับการอัปโหลดไฟล์โดยตรงบน Vercel กรุณาระบุรูปภาพหรือไฟล์โมเดลผ่านลิงก์เว็บภายนอก (URL)"
 VERCEL_EDIT_MESSAGE = "ระบบแอดมินทำงานในโหมดอ่านอย่างเดียวบน Vercel (ไม่รองรับการเขียนไฟล์บนคลาวด์) กรุณาแก้ไขไฟล์ข้อมูลภายในเครื่อง แล้ว Commit และ Deploy ใหม่ หรือกำหนดค่าเชื่อมต่อ Supabase ก่อนใช้งาน"
 UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในโครงการ"
@@ -183,6 +185,7 @@ DATA_DIR = Path(os.environ.get("ARMODEL_DATA_DIR", BASE_DIR))
 STATIC_DIR = Path(os.environ.get("ARMODEL_STATIC_DIR", BASE_DIR / "static"))
 MODEL_DIR = STATIC_DIR / "model"
 PIC_DIR = STATIC_DIR / "pic"
+AUDIO_DIR = STATIC_DIR / "audio"
 CATALOG_FILE = DATA_DIR / "models.json"
 PROJECTS_FILE = DATA_DIR / "projects.json"
 CONFIG_FILE = DATA_DIR / "config.json"
@@ -303,7 +306,7 @@ def ensure_data_files() -> None:
     if is_vercel_runtime():
         _DATA_READY = True
         return
-    for directory in (MODEL_DIR, PIC_DIR, SITE_UPLOAD_DIR, SLIDER_UPLOAD_DIR):
+    for directory in (MODEL_DIR, PIC_DIR, AUDIO_DIR, SITE_UPLOAD_DIR, SLIDER_UPLOAD_DIR):
         try:
             directory.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -427,6 +430,23 @@ def parse_preview_images_field(value: str | None) -> list[str]:
     return images
 
 
+def parse_narration_audio_field(value: str | None) -> str:
+    audio = str(value or "").strip()
+    if not audio:
+        return ""
+    lowered = audio.lower()
+    if (
+        audio.startswith("//")
+        or lowered.startswith(("data:", "javascript:"))
+        or ("://" in audio and not lowered.startswith(("https://", "http://")))
+    ):
+        abort(400, "Narration audio must use an HTTP(S) URL or local static path")
+    path = urlsplit(audio).path if lowered.startswith(("https://", "http://")) else audio
+    if Path(path).suffix.lower() not in AUDIO_EXTENSIONS:
+        abort(400, "Narration audio must be MP3, M4A, WAV, or OGG")
+    return audio
+
+
 def normalize_model(model: dict, projects: list[dict]) -> dict:
     project_ids = {project["id"] for project in projects}
     model_id = str(model.get("id") or uuid.uuid4().hex)
@@ -450,6 +470,7 @@ def normalize_model(model: dict, projects: list[dict]) -> dict:
     model_path = str(model.get("model_path") or model.get("model") or "").strip()
     thumbnail_url = str(model.get("thumbnail_url") or "").strip()
     thumbnail_path = str(model.get("thumbnail_path") or model.get("image") or model.get("thumbnail") or "").strip()
+    narration_audio = str(model.get("narration_audio") or "").strip()
 
     return {
         "id": model_id,
@@ -464,6 +485,7 @@ def normalize_model(model: dict, projects: list[dict]) -> dict:
         "thumbnail_url": thumbnail_url,
         "thumbnail_path": thumbnail_path,
         "preview_images": normalize_preview_images(model.get("preview_images")),
+        "narration_audio": narration_audio,
         "rotate_x": rotate_x,
         "scale": scale,
         "visible": bool(model.get("visible", True)),
@@ -489,6 +511,7 @@ def model_with_project(model: dict, projects: list[dict]) -> dict:
     enriched["has_project"] = bool(project)
     enriched["model_resolved_url"] = resolve_model_url(enriched)
     enriched["thumbnail_resolved_url"] = resolve_thumbnail_url(enriched)
+    enriched["narration_audio_url"] = resolve_narration_audio_url(enriched)
     enriched["size_mb"] = model_size_mb(enriched)
     return enriched
 
@@ -684,6 +707,7 @@ def normalize_supabase_model(row: dict) -> dict:
         "thumbnail_url": thumbnail_url,
         "thumbnail_path": "",
         "preview_images": normalize_preview_images(row.get("preview_images")),
+        "narration_audio": str(row.get("narration_audio") or "").strip(),
         "file_size_mb": size_mb,
         "rotate_x": 0,
         "scale": 0.2,
@@ -828,7 +852,8 @@ def upload_to_supabase_storage(
     if not data:
         abort(400, "Uploaded file is empty")
     if max_bytes and len(data) > max_bytes:
-        abort(413, "File must not exceed 5 MB")
+        max_megabytes = max_bytes // (1024 * 1024)
+        abort(413, f"File must not exceed {max_megabytes} MB")
 
     supabase_request(
         f"/storage/v1/object/{quote(supabase_bucket())}/{quote(object_path, safe='/')}",
@@ -843,6 +868,7 @@ def upload_to_supabase_storage(
 def direct_upload_target(filename: str, kind: str, file_size: int | None = None) -> tuple[str, str]:
     upload_kinds = {
         "model": ("models", MODEL_EXTENSIONS),
+        "model_narration_audio": ("models/narration", AUDIO_EXTENSIONS),
         "thumbnail": ("thumbnails", IMAGE_EXTENSIONS),
         "project_image": ("projects", IMAGE_EXTENSIONS),
         "landing_cover": ("site/landing", IMAGE_EXTENSIONS),
@@ -877,6 +903,11 @@ def direct_upload_target(filename: str, kind: str, file_size: int | None = None)
             abort(400, "file_size is required for managed site uploads")
         if file_size > SITE_ASSET_MAX_BYTES:
             abort(413, "File must not exceed 5 MB")
+    elif kind == "model_narration_audio":
+        if not file_size:
+            abort(400, "file_size is required for narration audio uploads")
+        if file_size > NARRATION_AUDIO_MAX_BYTES:
+            abort(413, "File must not exceed 20 MB")
 
     object_path = f"{folder}/{uuid.uuid4().hex}{extension}"
     return object_path, supabase_public_url(object_path)
@@ -930,6 +961,7 @@ def create_model(data: dict) -> dict:
         "model_url": data.get("model_url", "").strip(),
         "thumbnail_url": data.get("thumbnail_url", "").strip(),
         "preview_images": normalize_preview_images(data.get("preview_images")),
+        "narration_audio": data.get("narration_audio", "").strip(),
         "file_size_mb": data.get("file_size_mb"),
     }
     rows = supabase_request(
@@ -949,6 +981,7 @@ def update_model(model_id: str, data: dict) -> dict:
         "model_url": data.get("model_url", "").strip(),
         "thumbnail_url": data.get("thumbnail_url", "").strip(),
         "preview_images": normalize_preview_images(data.get("preview_images")),
+        "narration_audio": data.get("narration_audio", "").strip(),
         "file_size_mb": data.get("file_size_mb"),
     }
     rows = supabase_request(
@@ -1113,6 +1146,13 @@ def resolve_thumbnail_url(model: dict) -> str:
     return resolved or PLACEHOLDER_THUMBNAIL
 
 
+def resolve_narration_audio_url(model: dict) -> str:
+    value = str(model.get("narration_audio") or "").strip()
+    if is_external_url(value):
+        return value
+    return local_static_url_if_exists(value)
+
+
 def resolve_model_preview_images(model: dict) -> list[str]:
     resolved_images = []
     for image in normalize_preview_images(model.get("preview_images")):
@@ -1236,6 +1276,8 @@ def api_model_payload(model: dict, projects: list[dict]) -> dict:
         "model_url": resolve_model_url(enriched),
         "thumbnail_url": resolve_thumbnail_url(enriched),
         "preview_images": resolve_model_preview_images(enriched),
+        "narration_audio": enriched.get("narration_audio", ""),
+        "narration_audio_url": resolve_narration_audio_url(enriched),
         "project_id": enriched.get("project_id", ""),
         "project_name": enriched.get("project_name", ""),
         "size_mb": model_size_mb(enriched),
@@ -1321,6 +1363,35 @@ def save_upload(file_storage, directory: Path, relative_folder: str, allowed_ext
     try:
         directory.mkdir(parents=True, exist_ok=True)
         file_storage.save(directory / asset_name)
+    except OSError as exc:
+        logger.exception("Unable to save uploaded file %s", asset_name)
+        abort(500, f"Unable to save uploaded file: {exc}")
+    return f"{relative_folder}/{asset_name}"
+
+
+def save_limited_upload(
+    file_storage,
+    directory: Path,
+    relative_folder: str,
+    allowed_extensions: set[str],
+    max_bytes: int,
+) -> str:
+    if not file_storage or not file_storage.filename:
+        return ""
+    extension = Path(file_storage.filename).suffix.lower()
+    if extension not in allowed_extensions:
+        abort(400, f"Unsupported file type: {extension}")
+    data = file_storage.read(max_bytes + 1)
+    file_storage.seek(0)
+    if not data:
+        abort(400, "Uploaded file is empty")
+    if len(data) > max_bytes:
+        max_megabytes = max_bytes // (1024 * 1024)
+        abort(413, f"File must not exceed {max_megabytes} MB")
+    asset_name = unique_asset_name(file_storage.filename, allowed_extensions)
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / asset_name).write_bytes(data)
     except OSError as exc:
         logger.exception("Unable to save uploaded file %s", asset_name)
         abort(500, f"Unable to save uploaded file: {exc}")
@@ -1608,6 +1679,7 @@ def model_detail(model_id: str):
         model_url=resolve_model_url(model),
         thumbnail_url=resolve_thumbnail_url(model),
         preview_images=resolve_model_preview_images(model),
+        narration_audio_url=resolve_narration_audio_url(model),
         model_name=model.get("name", ""),
         size_mb=model_size_mb(model),
         related_models=related_models,
@@ -2154,6 +2226,7 @@ def delete_project_route(project_id: str):
     for model in linked_models:
         delete_static_file(model.get("model"))
         delete_static_file(model.get("image"))
+        delete_static_file(model.get("narration_audio"))
     models = [model for model in models if model.get("project_id") != project_id]
     projects = [item for item in projects if item["id"] != project_id]
     delete_static_file(project.get("cover_image"))
@@ -2166,7 +2239,7 @@ def delete_project_route(project_id: str):
 @app.post("/admin/models")
 @admin_required
 def add_model():
-    if reject_vercel_upload_if_needed("model_file", "image_file") or admin_write_blocked_on_vercel():
+    if reject_vercel_upload_if_needed("model_file", "image_file", "narration_audio_file") or admin_write_blocked_on_vercel():
         return redirect(url_for("admin"))
 
     name = request.form.get("name", "").strip()
@@ -2179,11 +2252,18 @@ def add_model():
     model_url = request.form.get("model_url", "").strip()
     thumbnail_url = request.form.get("thumbnail_url", "").strip()
     preview_images = parse_preview_images_field(request.form.get("preview_images"))
+    narration_audio = parse_narration_audio_field(request.form.get("narration_audio"))
 
     if is_supabase_enabled():
         try:
             uploaded_model_url, model_size_mb = upload_to_supabase_storage(request.files.get("model_file"), "models")
             uploaded_thumbnail_url, _ = upload_to_supabase_storage(request.files.get("image_file"), "thumbnails")
+            uploaded_narration_audio, _ = upload_to_supabase_storage(
+                request.files.get("narration_audio_file"),
+                "models/narration",
+                AUDIO_EXTENSIONS,
+                NARRATION_AUDIO_MAX_BYTES,
+            )
             final_model_url = uploaded_model_url or model_url
             final_thumbnail_url = uploaded_thumbnail_url or thumbnail_url
             if not final_model_url:
@@ -2196,6 +2276,7 @@ def add_model():
                     "model_url": final_model_url,
                     "thumbnail_url": final_thumbnail_url,
                     "preview_images": preview_images,
+                    "narration_audio": uploaded_narration_audio or narration_audio,
                     "file_size_mb": model_size_mb,
                 }
             )
@@ -2216,6 +2297,13 @@ def add_model():
     uploaded_image = save_upload(request.files.get("image_file"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
     if uploaded_image:
         image_path = uploaded_image
+    uploaded_narration_audio = save_limited_upload(
+        request.files.get("narration_audio_file"),
+        AUDIO_DIR,
+        "audio",
+        AUDIO_EXTENSIONS,
+        NARRATION_AUDIO_MAX_BYTES,
+    )
 
     models = load_models(include_hidden=True)
     models.append(
@@ -2232,6 +2320,7 @@ def add_model():
             "thumbnail_url": thumbnail_url,
             "thumbnail_path": "" if thumbnail_url else image_path,
             "preview_images": preview_images,
+            "narration_audio": uploaded_narration_audio or narration_audio,
             "rotate_x": parse_float("rotate_x", 0),
             "scale": parse_float("scale", 0.2),
             "visible": form_visible(),
@@ -2252,18 +2341,25 @@ def edit_model(model_id: str):
         abort(404)
 
     if request.method == "POST":
-        if reject_vercel_upload_if_needed("model_file", "image_file") or admin_write_blocked_on_vercel():
+        if reject_vercel_upload_if_needed("model_file", "image_file", "narration_audio_file") or admin_write_blocked_on_vercel():
             return redirect(url_for("edit_model", model_id=model_id))
 
         project_id = request.form.get("project_id", "").strip()
         if find_project(project_id, include_hidden=True) is None:
             abort(400, "จำเป็นต้องเลือกโครงการ (Project)")
         preview_images = parse_preview_images_field(request.form.get("preview_images"))
+        remove_narration_audio = request.form.get("narration_audio_remove") in {"1", "true", "on", "yes"}
 
         if is_supabase_enabled():
             try:
                 uploaded_model_url, uploaded_size_mb = upload_to_supabase_storage(request.files.get("model_file"), "models")
                 uploaded_thumbnail_url, _ = upload_to_supabase_storage(request.files.get("image_file"), "thumbnails")
+                uploaded_narration_audio, _ = upload_to_supabase_storage(
+                    request.files.get("narration_audio_file"),
+                    "models/narration",
+                    AUDIO_EXTENSIONS,
+                    NARRATION_AUDIO_MAX_BYTES,
+                )
                 final_model_url = uploaded_model_url or request.form.get("model_url", "").strip() or model.get("model_url", "")
                 final_thumbnail_url = (
                     uploaded_thumbnail_url
@@ -2272,6 +2368,13 @@ def edit_model(model_id: str):
                 )
                 if not final_model_url:
                     abort(400, "จำเป็นต้องอัปโหลดไฟล์โมเดล .glb หรือระบุลิงก์ภายนอก")
+                final_narration_audio = (
+                    ""
+                    if remove_narration_audio
+                    else uploaded_narration_audio
+                    or parse_narration_audio_field(request.form.get("narration_audio"))
+                    or model.get("narration_audio", "")
+                )
                 update_model(
                     model_id,
                     {
@@ -2281,6 +2384,7 @@ def edit_model(model_id: str):
                         "model_url": final_model_url,
                         "thumbnail_url": final_thumbnail_url,
                         "preview_images": preview_images,
+                        "narration_audio": final_narration_audio,
                         "file_size_mb": uploaded_size_mb if uploaded_size_mb is not None else model.get("file_size_mb"),
                     },
                 )
@@ -2295,10 +2399,25 @@ def edit_model(model_id: str):
         old_image = model.get("image")
         new_model = save_upload(request.files.get("model_file"), MODEL_DIR, "model", MODEL_EXTENSIONS)
         new_image = save_upload(request.files.get("image_file"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
+        new_narration_audio = save_limited_upload(
+            request.files.get("narration_audio_file"),
+            AUDIO_DIR,
+            "audio",
+            AUDIO_EXTENSIONS,
+            NARRATION_AUDIO_MAX_BYTES,
+        )
         model_url = request.form.get("model_url", "").strip()
         thumbnail_url = request.form.get("thumbnail_url", "").strip()
         manual_model_path = model_url or request.form.get("model_path", "").strip()
         manual_image_path = thumbnail_url or request.form.get("image_path", "").strip()
+        old_narration_audio = model.get("narration_audio", "")
+        narration_audio = (
+            ""
+            if remove_narration_audio
+            else new_narration_audio
+            or parse_narration_audio_field(request.form.get("narration_audio"))
+            or old_narration_audio
+        )
 
         model.update(
             {
@@ -2313,6 +2432,7 @@ def edit_model(model_id: str):
                 "thumbnail_url": thumbnail_url,
                 "thumbnail_path": "" if thumbnail_url else (new_image or manual_image_path or model.get("thumbnail_path") or old_image),
                 "preview_images": preview_images,
+                "narration_audio": narration_audio,
                 "rotate_x": parse_float("rotate_x", 0),
                 "scale": parse_float("scale", 0.2),
                 "visible": form_visible(),
@@ -2322,6 +2442,8 @@ def edit_model(model_id: str):
             delete_static_file(old_model)
         if new_image and old_image:
             delete_static_file(old_image)
+        if (new_narration_audio or remove_narration_audio) and old_narration_audio:
+            delete_static_file(old_narration_audio)
         save_models(models)
         flash("บันทึกข้อมูลโมเดลแล้ว", "success")
         return redirect(url_for("admin"))
@@ -2351,6 +2473,7 @@ def delete_model_route(model_id: str):
 
     delete_static_file(deleted.get("model"))
     delete_static_file(deleted.get("image"))
+    delete_static_file(deleted.get("narration_audio"))
     save_models([model for model in models if model["id"] != model_id])
     flash(f'ลบโมเดล "{deleted.get("name", "")}" แล้ว', "success")
     return redirect(url_for("admin"))

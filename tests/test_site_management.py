@@ -23,6 +23,7 @@ class SiteManagementTests(unittest.TestCase):
             "SLIDER_ITEMS_FILE": module.SLIDER_ITEMS_FILE,
             "SITE_UPLOAD_DIR": module.SITE_UPLOAD_DIR,
             "SLIDER_UPLOAD_DIR": module.SLIDER_UPLOAD_DIR,
+            "AUDIO_DIR": module.AUDIO_DIR,
         }
         module.CATALOG_FILE = data_dir / "models.json"
         module.PROJECTS_FILE = data_dir / "projects.json"
@@ -30,6 +31,7 @@ class SiteManagementTests(unittest.TestCase):
         module.SLIDER_ITEMS_FILE = data_dir / "slider_items.json"
         module.SITE_UPLOAD_DIR = data_dir / "static" / "uploads" / "site"
         module.SLIDER_UPLOAD_DIR = data_dir / "static" / "uploads" / "sliders"
+        module.AUDIO_DIR = data_dir / "static" / "audio"
         module._JSON_CACHE.clear()
         module.write_json(module.CATALOG_FILE, module.DEFAULT_MODELS)
         module.write_json(module.PROJECTS_FILE, module.DEFAULT_PROJECTS)
@@ -371,6 +373,7 @@ class SiteManagementTests(unittest.TestCase):
             projects,
         )
         self.assertEqual(legacy_model["preview_images"], [])
+        self.assertEqual(legacy_model["narration_audio"], "")
 
         models = module.load_models(include_hidden=True)
         models.append(
@@ -436,7 +439,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("data-narration-status", model_html)
         self.assertIn("ฟังคำบรรยาย", model_html)
         self.assertNotIn("data-narration-toggle disabled", model_html)
-        self.assertIn('src="/static/js/model-narration.js?v=2"', model_html)
+        self.assertIn('src="/static/js/model-narration.js?v=3"', model_html)
         self.assertEqual(self.client.get("/models").status_code, 200)
 
         narration_script = (
@@ -447,6 +450,8 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("utterance.onstart", narration_script)
         self.assertIn("utterance.onend", narration_script)
         self.assertIn("utterance.onerror", narration_script)
+        self.assertIn("control.audio.play()", narration_script)
+        self.assertIn("speech.speaking", narration_script)
 
     def test_admin_add_and_edit_model_preview_images(self):
         self.sign_in()
@@ -462,6 +467,7 @@ class SiteManagementTests(unittest.TestCase):
                         "https://example.com/admin-preview-1.jpg\n"
                         "https://example.com/admin-preview-2.jpg"
                     ),
+                    "narration_audio": "https://example.com/admin-narration.mp3",
                     "rotate_x": "0",
                     "scale": "0.2",
                     "visible": "on",
@@ -473,6 +479,26 @@ class SiteManagementTests(unittest.TestCase):
                 if item["name"] == "Gallery admin model"
             )
             self.assertEqual(len(saved_model["preview_images"]), 2)
+            self.assertEqual(
+                saved_model["narration_audio"],
+                "https://example.com/admin-narration.mp3",
+            )
+            detail_html = self.client.get(
+                f"/models/{saved_model['id']}"
+            ).get_data(as_text=True)
+            self.assertIn("data-narration-audio", detail_html)
+            self.assertIn(
+                'src="https://example.com/admin-narration.mp3"',
+                detail_html,
+            )
+            api_model = next(
+                item for item in self.client.get("/api/models").get_json()
+                if item["id"] == saved_model["id"]
+            )
+            self.assertEqual(
+                api_model["narration_audio_url"],
+                "https://example.com/admin-narration.mp3",
+            )
 
             response = self.client.post(
                 f"/admin/models/{saved_model['id']}/edit",
@@ -482,6 +508,7 @@ class SiteManagementTests(unittest.TestCase):
                     "model_url": saved_model["model_url"],
                     "thumbnail_url": "",
                     "preview_images": "https://example.com/admin-preview-updated.jpg",
+                    "narration_audio": "https://example.com/admin-narration-updated.ogg",
                     "rotate_x": "0",
                     "scale": "0.2",
                     "visible": "on",
@@ -496,6 +523,18 @@ class SiteManagementTests(unittest.TestCase):
                 updated_model["preview_images"],
                 ["https://example.com/admin-preview-updated.jpg"],
             )
+            self.assertEqual(
+                updated_model["narration_audio"],
+                "https://example.com/admin-narration-updated.ogg",
+            )
+
+        add_form = self.client.get("/admin").get_data(as_text=True)
+        edit_form = self.client.get(
+            f"/admin/models/{saved_model['id']}/edit"
+        ).get_data(as_text=True)
+        self.assertIn("ไฟล์เสียงคำบรรยาย", add_form)
+        self.assertIn('data-upload-kind="model_narration_audio"', add_form)
+        self.assertIn("ไฟล์เสียงคำบรรยาย", edit_form)
 
     def test_supabase_model_preview_images_normalization(self):
         without_gallery = module.normalize_supabase_model({"id": "one", "name": "One"})
@@ -508,6 +547,13 @@ class SiteManagementTests(unittest.TestCase):
         )
         self.assertEqual(without_gallery["preview_images"], [])
         self.assertEqual(with_gallery["preview_images"], ["https://example.com/two.jpg"])
+        self.assertEqual(without_gallery["narration_audio"], "")
+        self.assertEqual(
+            module.normalize_supabase_model(
+                {"id": "three", "narration_audio": "https://example.com/three.mp3"}
+            )["narration_audio"],
+            "https://example.com/three.mp3",
+        )
 
     def test_admin_management_routes_require_login(self):
         for route in ("/admin", "/admin/landing", "/admin/branding", "/admin/intro", "/admin/sliders"):
@@ -772,6 +818,41 @@ class SiteManagementTests(unittest.TestCase):
                 module.IMAGE_EXTENSIONS,
             )
 
+    def test_narration_audio_upload_validation(self):
+        with module.app.test_request_context():
+            object_path, public_url = module.direct_upload_target(
+                "narration.mp3",
+                "model_narration_audio",
+                file_size=1024,
+            )
+            self.assertTrue(object_path.startswith("models/narration/"))
+            self.assertTrue(public_url.endswith(".mp3"))
+
+            with self.assertRaises(RequestEntityTooLarge):
+                module.direct_upload_target(
+                    "too-large.mp3",
+                    "model_narration_audio",
+                    file_size=module.NARRATION_AUDIO_MAX_BYTES + 1,
+                )
+            with self.assertRaises(BadRequest):
+                module.direct_upload_target(
+                    "unsafe.svg",
+                    "model_narration_audio",
+                    file_size=1024,
+                )
+            self.assertEqual(
+                module.parse_narration_audio_field(
+                    "https://example.com/narration.mp3?version=1"
+                ),
+                "https://example.com/narration.mp3?version=1",
+            )
+            with self.assertRaises(BadRequest):
+                module.parse_narration_audio_field("javascript:alert(1)")
+            with self.assertRaises(BadRequest):
+                module.parse_narration_audio_field(
+                    "https://example.com/not-audio.svg"
+                )
+
     def test_direct_upload_uses_random_names_and_rejects_invalid_types(self):
         with module.app.test_request_context():
             first_path, _ = module.direct_upload_target("cover.png", "landing_cover", 1024)
@@ -922,6 +1003,7 @@ class SiteManagementTests(unittest.TestCase):
             "alter table site_settings enable row level security",
             "alter table slider_items enable row level security",
             "add column if not exists preview_images jsonb not null default '[]'::jsonb",
+            "add column if not exists narration_audio text not null default ''",
         ):
             self.assertIn(required, sql)
 

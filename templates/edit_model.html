@@ -47,6 +47,23 @@
           <p class="help">ใส่ลิงก์รูปภาพพรีวิวประกอบแกลเลอรีหน้าดูโมเดล หนึ่งภาพต่อหนึ่งบรรทัด</p>
           <div class="gallery-input-preview" data-gallery-input-preview aria-live="polite"></div>
         </div>
+        <div class="field">
+          <label for="edit-narration-audio-file">ไฟล์เสียงคำบรรยาย</label>
+          <input id="edit-narration-audio-file" name="narration_audio_file" type="file" accept=".mp3,.m4a,.wav,.ogg" data-upload-kind="model_narration_audio" data-upload-target="narration_audio" {{ "disabled" if uploads_disabled else "" }}>
+          <p class="help">รองรับ MP3, M4A, WAV หรือ OGG ขนาดไม่เกิน 20 MB</p>
+        </div>
+        <div class="field">
+          <label for="edit-narration-audio">หรือ URL/path ไฟล์เสียงคำบรรยาย</label>
+          <input id="edit-narration-audio" name="narration_audio" value="{{ model.narration_audio }}" placeholder="https://example.com/narration.mp3" {{ "disabled" if uploads_disabled else "" }}>
+          <p class="help">อัปโหลดหรือระบุ URL ไฟล์เสียง เช่น .mp3 หากไม่ใส่ ระบบจะลองใช้เสียงอ่านจากเบราว์เซอร์</p>
+        </div>
+        {% if model.narration_audio_url %}
+        <div class="field full">
+          <label>ตัวอย่างไฟล์เสียงปัจจุบัน</label>
+          <audio controls preload="none" src="{{ model.narration_audio_url }}" style="width: 100%;"></audio>
+          <label class="check"><input name="narration_audio_remove" type="checkbox"> ลบไฟล์เสียงคำบรรยายนี้</label>
+        </div>
+        {% endif %}
         <div class="field"><label>หมุนแกน X (องศาในแบบทศนิยม)</label><input name="rotate_x" type="number" value="{{ model.rotate_x }}" step="0.01"><p class="help">ปรับความเอียงเริ่มต้นแสดงผลโมเดล 3D</p></div>
         <label class="field check"><input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> เผยแพร่โมเดล</label>
       </div>

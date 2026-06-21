@@ -191,6 +191,16 @@
               <div class="gallery-input-preview" data-gallery-input-preview aria-live="polite"></div>
             </div>
             <div class="field">
+              <label for="narration-audio-file">ไฟล์เสียงคำบรรยาย</label>
+              <input id="narration-audio-file" name="narration_audio_file" type="file" accept=".mp3,.m4a,.wav,.ogg" data-upload-kind="model_narration_audio" data-upload-target="narration_audio" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta" style="margin-top: 2px;">รองรับ MP3, M4A, WAV หรือ OGG ขนาดไม่เกิน 20 MB</p>
+            </div>
+            <div class="field">
+              <label for="narration-audio">หรือ URL/path ไฟล์เสียงคำบรรยาย</label>
+              <input id="narration-audio" name="narration_audio" placeholder="https://example.com/narration.mp3" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta" style="margin-top: 2px;">หากไม่ใส่ ระบบจะลองใช้เสียงอ่านภาษาไทยจากเบราว์เซอร์</p>
+            </div>
+            <div class="field">
               <label for="rotate-x">หมุนแกน X (องศาในแบบทศนิยม)</label>
               <input id="rotate-x" name="rotate_x" type="number" value="0" step="0.01">
               <p class="meta" style="margin-top: 2px;">ใช้ปรับมุมเอียงเริ่มต้นในการแสดงผลโมเดล 3D บนหน้าเว็บ</p>

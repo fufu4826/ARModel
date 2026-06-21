@@ -74,6 +74,7 @@ create table if not exists models (
   model_url text,
   thumbnail_url text,
   preview_images jsonb not null default '[]'::jsonb,
+  narration_audio text not null default '',
   file_size_mb numeric,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -102,6 +103,7 @@ for each row execute function armodel_catalog_set_updated_at();
 The existing SQL above documents the original project/model schema. Run `docs/supabase_schema.sql` separately for Landing Page, Branding, and Slider management. That migration:
 
 - Adds `models.preview_images` as a JSON array for model preview galleries.
+- Adds `models.narration_audio` for an optional public narration audio URL.
 - Runs in a transaction.
 - Creates or upgrades `site_settings` and `slider_items`.
 - Uses the feature-specific `armodel_site_content_set_updated_at()` trigger function.
@@ -113,6 +115,8 @@ The existing SQL above documents the original project/model schema. Run `docs/su
 The migration is designed to be rerunnable. It does not drop tables, truncate data, or delete rows. The application validates non-empty slider titles and supported URLs in the server layer rather than adding URL-format database constraints, because internal paths such as `/home` and external HTTPS URLs are both valid.
 
 Run the updated `docs/supabase_schema.sql` before saving model preview galleries in production. Existing models receive an empty JSON array and continue using their thumbnail as the public gallery fallback. Until the column exists, Supabase model create/update requests that include `preview_images` will fail; public reads continue to tolerate rows where the field is absent.
+
+Run the same migration before saving narration audio in production. Uploaded narration files use the existing public-read/private-write Storage bucket under `models/narration/`. Existing models receive an empty `narration_audio` value and continue using browser Web Speech as fallback.
 
 ## Migration From JSON
 

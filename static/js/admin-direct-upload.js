@@ -14,8 +14,10 @@
     "intro_logo_2",
     "intro_logo_3",
     "slider_image",
+    "model_narration_audio",
   ]);
   const managedUploadMaxBytes = 5 * 1024 * 1024;
+  const narrationAudioMaxBytes = 20 * 1024 * 1024;
 
   function statusFor(input) {
     let status = input.parentElement.querySelector("[data-upload-status]");
@@ -58,7 +60,17 @@
   async function uploadFile(input) {
     const file = input.files && input.files[0];
     if (!file) return;
-    if (managedUploadKinds.has(input.dataset.uploadKind) && file.size > managedUploadMaxBytes) {
+    if (
+      input.dataset.uploadKind === "model_narration_audio" &&
+      file.size > narrationAudioMaxBytes
+    ) {
+      throw new Error("ไฟล์เสียงต้องมีขนาดไม่เกิน 20 MB");
+    }
+    if (
+      input.dataset.uploadKind !== "model_narration_audio" &&
+      managedUploadKinds.has(input.dataset.uploadKind) &&
+      file.size > managedUploadMaxBytes
+    ) {
       throw new Error("ไฟล์รูปภาพต้องมีขนาดไม่เกิน 5 MB");
     }
 

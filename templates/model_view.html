@@ -100,6 +100,9 @@
         <button class="button secondary small model-narration__button" type="button" data-narration-toggle>
           ฟังคำบรรยาย
         </button>
+        {% if narration_audio_url %}
+        <audio data-narration-audio preload="none" src="{{ narration_audio_url }}"></audio>
+        {% endif %}
         <p class="model-narration__status" data-narration-status role="status" aria-live="polite" hidden></p>
       </div>
 
@@ -187,7 +190,7 @@
 
   <script src="{{ url_for('static', filename='js/ar-viewer.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/model-gallery.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='js/model-narration.js', v='2') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/model-narration.js', v='3') }}" defer></script>
   <script src="{{ url_for('static', filename='js/mobile-nav.js') }}" defer></script>
   {% if mode == "ar" %}
   <script>

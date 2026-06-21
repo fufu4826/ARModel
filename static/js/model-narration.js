@@ -1,105 +1,174 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const narration = document.querySelector("[data-model-narration]");
-  if (!narration) return;
+  const controls = Array.from(document.querySelectorAll("[data-model-narration]"));
+  if (!controls.length) return;
 
-  const button = narration.querySelector("[data-narration-toggle]");
-  const status = narration.querySelector("[data-narration-status]");
-  const speech = window.speechSynthesis;
-  const Utterance = window.SpeechSynthesisUtterance;
+  const supported =
+    "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
+  const speech = supported ? window.speechSynthesis : null;
+  let cachedVoices = [];
+  let activeUtterance = null;
+  let activeControl = null;
 
-  if (!button || !status) return;
-
-  const setStatus = (message) => {
-    status.textContent = message;
-    status.hidden = !message;
+  const getVoices = () => {
+    if (!speech) return [];
+    const voices = speech.getVoices();
+    return Array.isArray(voices) ? voices : [];
   };
 
-  if (!speech || !Utterance) {
-    button.disabled = true;
-    button.textContent = "อุปกรณ์นี้ไม่รองรับการอ่านออกเสียง";
-    setStatus("เบราว์เซอร์นี้ไม่รองรับระบบอ่านคำบรรยาย");
-    return;
-  }
-
-  let currentUtterance = null;
-  let voices = [];
-
-  const updateVoices = () => {
-    voices = speech.getVoices();
+  const refreshVoices = () => {
+    cachedVoices = getVoices();
   };
 
-  const reset = () => {
-    currentUtterance = null;
-    button.textContent = "ฟังคำบรรยาย";
-    button.setAttribute("aria-pressed", "false");
-    setStatus("");
+  const selectThaiVoice = () =>
+    cachedVoices.find((voice) =>
+      String(voice.lang || "").toLowerCase().startsWith("th")
+    ) ||
+    cachedVoices.find((voice) =>
+      String(voice.name || "").toLowerCase().includes("thai")
+    ) ||
+    null;
+
+  const setStatus = (control, message) => {
+    control.status.textContent = message;
+    control.status.hidden = !message;
   };
 
-  const stop = () => {
-    speech.cancel();
-    reset();
+  const resetControl = (control, statusMessage = "") => {
+    control.button.textContent = "ฟังคำบรรยาย";
+    control.button.setAttribute("aria-pressed", "false");
+    setStatus(control, statusMessage);
   };
 
-  const getNarrationText = () => {
-    const titleId = narration.dataset.titleSource;
-    const descriptionId = narration.dataset.descriptionSource;
-    const title = titleId ? document.getElementById(titleId)?.textContent.trim() : "";
-    const description = descriptionId
-      ? document.getElementById(descriptionId)?.textContent.trim()
+  const clearActiveSpeech = (statusMessage = "") => {
+    const previousControl = activeControl;
+    activeUtterance = null;
+    activeControl = null;
+    if (previousControl) resetControl(previousControl, statusMessage);
+  };
+
+  const cancelSpeech = (statusMessage = "") => {
+    if (speech) speech.cancel();
+    clearActiveSpeech(statusMessage);
+  };
+
+  const getNarrationText = (element) => {
+    const titleId = element.dataset.titleSource;
+    const descriptionId = element.dataset.descriptionSource;
+    const title = titleId
+      ? document.getElementById(titleId)?.textContent?.trim()
       : "";
-    return [title, description].filter(Boolean).join(". ");
+    const description = descriptionId
+      ? document.getElementById(descriptionId)?.textContent?.trim()
+      : "";
+    return [title, description].filter(Boolean).join(". ").trim();
   };
 
-  const speak = () => {
-    const text = getNarrationText();
+  const startNarration = (control) => {
+    const text = getNarrationText(control.element);
     if (!text) {
-      setStatus("ไม่มีคำบรรยายสำหรับโมเดลนี้");
+      control.button.disabled = true;
+      setStatus(control, "ไม่มีคำบรรยายสำหรับโมเดลนี้");
       return;
     }
 
+    setStatus(control, "กำลังเตรียมเสียง...");
     speech.cancel();
-    const utterance = new Utterance(text);
-    const thaiVoice = voices.find((voice) =>
-      String(voice.lang || "").toLowerCase().startsWith("th")
-    );
 
+    const utterance = new window.SpeechSynthesisUtterance(text);
+    const thaiVoice = selectThaiVoice();
     utterance.lang = "th-TH";
     utterance.rate = 0.95;
     utterance.pitch = 1;
     if (thaiVoice) utterance.voice = thaiVoice;
 
-    utterance.addEventListener("end", reset, { once: true });
-    utterance.addEventListener(
-      "error",
-      (event) => {
-        reset();
-        if (event.error !== "canceled" && event.error !== "interrupted") {
-          setStatus("ไม่สามารถอ่านคำบรรยายได้ กรุณาลองอีกครั้ง");
-        }
-      },
-      { once: true }
-    );
+    utterance.onstart = () => {
+      if (activeUtterance !== utterance) return;
+      setStatus(control, "กำลังอ่านคำบรรยาย...");
+    };
 
-    currentUtterance = utterance;
-    button.textContent = "หยุดอ่าน";
-    button.setAttribute("aria-pressed", "true");
-    setStatus("กำลังอ่านคำบรรยาย");
-    speech.speak(utterance);
+    utterance.onend = () => {
+      if (activeUtterance !== utterance) return;
+      clearActiveSpeech("อ่านจบแล้ว");
+    };
+
+    utterance.onerror = (event) => {
+      if (activeUtterance !== utterance) return;
+      const canceled = event.error === "canceled" || event.error === "interrupted";
+      clearActiveSpeech(
+        canceled ? "" : "อ่านคำบรรยายไม่สำเร็จบนอุปกรณ์นี้"
+      );
+      if (!canceled) {
+        console.warn("Model narration failed:", event.error || "unknown error");
+      }
+    };
+
+    activeUtterance = utterance;
+    activeControl = control;
+    control.button.textContent = "หยุดอ่าน";
+    control.button.setAttribute("aria-pressed", "true");
+
+    try {
+      speech.speak(utterance);
+      if (typeof speech.resume === "function") speech.resume();
+    } catch (error) {
+      if (activeUtterance === utterance) {
+        clearActiveSpeech("อ่านคำบรรยายไม่สำเร็จบนอุปกรณ์นี้");
+      }
+      console.warn("Unable to start model narration:", error);
+    }
   };
 
-  updateVoices();
-  if ("onvoiceschanged" in speech) {
-    speech.addEventListener("voiceschanged", updateVoices);
+  const narrationControls = controls
+    .map((element) => ({
+      element,
+      button: element.querySelector("[data-narration-toggle]"),
+      status: element.querySelector("[data-narration-status]"),
+    }))
+    .filter((control) => control.button && control.status);
+
+  if (!supported) {
+    narrationControls.forEach((control) => {
+      control.button.disabled = true;
+      control.button.textContent = "อุปกรณ์นี้ไม่รองรับการอ่านออกเสียง";
+      setStatus(control, "อุปกรณ์นี้ไม่รองรับการอ่านออกเสียง");
+    });
+    console.warn("Web Speech API is unavailable on this device.");
+    return;
   }
 
-  button.setAttribute("aria-pressed", "false");
-  button.addEventListener("click", () => {
-    if (currentUtterance) {
-      stop();
-      return;
+  refreshVoices();
+  if ("onvoiceschanged" in speech) {
+    if (typeof speech.addEventListener === "function") {
+      speech.addEventListener("voiceschanged", refreshVoices);
+    } else {
+      speech.onvoiceschanged = refreshVoices;
     }
-    speak();
+  }
+
+  narrationControls.forEach((control) => {
+    control.button.disabled = !getNarrationText(control.element);
+    control.button.setAttribute("aria-pressed", "false");
+    if (control.button.disabled) {
+      setStatus(control, "ไม่มีคำบรรยายสำหรับโมเดลนี้");
+    }
+
+    control.button.addEventListener("click", () => {
+      if (activeControl === control && activeUtterance) {
+        cancelSpeech("");
+        return;
+      }
+
+      if (activeUtterance) cancelSpeech("");
+      startNarration(control);
+    });
   });
 
-  window.addEventListener("pagehide", stop, { once: true });
+  const stopOnNavigation = () => {
+    if (speech) speech.cancel();
+    activeUtterance = null;
+    activeControl = null;
+  };
+
+  window.addEventListener("pagehide", stopOnNavigation);
+  window.addEventListener("beforeunload", stopOnNavigation);
 });

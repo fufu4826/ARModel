@@ -433,9 +433,20 @@ class SiteManagementTests(unittest.TestCase):
         model_html = self.client.get("/models/lychee").get_data(as_text=True)
         self.assertIn("data-model-narration", model_html)
         self.assertIn("data-narration-toggle", model_html)
+        self.assertIn("data-narration-status", model_html)
         self.assertIn("ฟังคำบรรยาย", model_html)
-        self.assertIn('src="/static/js/model-narration.js"', model_html)
+        self.assertNotIn("data-narration-toggle disabled", model_html)
+        self.assertIn('src="/static/js/model-narration.js?v=2"', model_html)
         self.assertEqual(self.client.get("/models").status_code, 200)
+
+        narration_script = (
+            Path(module.BASE_DIR) / "static" / "js" / "model-narration.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("speech.speak(utterance)", narration_script)
+        self.assertIn("voiceschanged", narration_script)
+        self.assertIn("utterance.onstart", narration_script)
+        self.assertIn("utterance.onend", narration_script)
+        self.assertIn("utterance.onerror", narration_script)
 
     def test_admin_add_and_edit_model_preview_images(self):
         self.sign_in()

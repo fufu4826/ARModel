@@ -96,6 +96,12 @@
       <p class="eyebrow">{{ model.department or model.project_department or "โมเดลการเรียนรู้" }}</p>
       <h1 id="modelTitle">{{ model.name }}</h1>
       <p class="lead" id="modelDescription">{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้ภูมิปัญญา ผลิตภัณฑ์ และงานพัฒนาพื้นที่" }}</p>
+      <div class="model-narration" data-model-narration data-title-source="modelTitle" data-description-source="modelDescription">
+        <button class="button secondary small model-narration__button" type="button" data-narration-toggle>
+          ฟังคำบรรยาย
+        </button>
+        <p class="model-narration__status" data-narration-status role="status" aria-live="polite" hidden></p>
+      </div>
 
       <section class="model-gallery" aria-labelledby="model-gallery-title">
         <h2 id="model-gallery-title">รูปภาพตัวอย่าง</h2>
@@ -181,6 +187,7 @@
 
   <script src="{{ url_for('static', filename='js/ar-viewer.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/model-gallery.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/model-narration.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/mobile-nav.js') }}" defer></script>
   {% if mode == "ar" %}
   <script>

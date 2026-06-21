@@ -1280,6 +1280,29 @@ model-viewer {
   font-size: clamp(28px, 4vw, 42px);
 }
 
+.model-narration {
+  margin: 16px 0;
+}
+
+.model-narration__button {
+  width: 100%;
+}
+
+.model-narration__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.model-narration__status {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.model-narration__status[hidden] {
+  display: none;
+}
+
 .detail-thumb {
   margin: 0;
 }

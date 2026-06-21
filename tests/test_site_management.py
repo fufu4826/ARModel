@@ -429,6 +429,14 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(len(lychee_payload["preview_images"]), 1)
         self.assertTrue(lychee_payload["preview_images"][0].endswith("/static/pic/Lychee.jpg"))
 
+    def test_model_detail_includes_narration_controls(self):
+        model_html = self.client.get("/models/lychee").get_data(as_text=True)
+        self.assertIn("data-model-narration", model_html)
+        self.assertIn("data-narration-toggle", model_html)
+        self.assertIn("ฟังคำบรรยาย", model_html)
+        self.assertIn('src="/static/js/model-narration.js"', model_html)
+        self.assertEqual(self.client.get("/models").status_code, 200)
+
     def test_admin_add_and_edit_model_preview_images(self):
         self.sign_in()
         with patch.object(module, "is_supabase_enabled", return_value=False):

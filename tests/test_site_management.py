@@ -453,6 +453,119 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("control.audio.play()", narration_script)
         self.assertIn("speech.speaking", narration_script)
 
+    def test_gemini_narration_generation_requires_admin_and_api_key(self):
+        route = "/admin/models/lychee/generate-narration"
+        response = self.client.post(route)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin/login", response.headers["Location"])
+
+        self.sign_in()
+        with patch.dict(module.os.environ, {"GEMINI_API_KEY": ""}):
+            response = self.client.post(route, follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            "ยังไม่ได้ตั้งค่า GEMINI_API_KEY",
+            response.get_data(as_text=True),
+        )
+
+    def test_gemini_narration_generation_updates_model_audio(self):
+        self.sign_in()
+        fake_wav = module.pcm_to_wav(b"\x00\x00" * 40)
+        source_model = next(
+            item for item in module.load_models(include_hidden=True)
+            if item["id"] == "lychee"
+        )
+        with (
+            patch.dict(
+                module.os.environ,
+                {"GEMINI_API_KEY": "test-secret-not-for-rendering"},
+            ),
+            patch.object(
+                module,
+                "generate_gemini_tts_audio",
+                return_value=(fake_wav, ".wav"),
+            ) as generate_audio,
+            patch.object(module, "is_supabase_enabled", return_value=False),
+            patch.object(
+                module,
+                "resolve_narration_audio_url",
+                return_value="/static/audio/generated.wav",
+            ),
+        ):
+            response = self.client.post(
+                "/admin/models/lychee/generate-narration",
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("สร้างไฟล์เสียงคำบรรยายเรียบร้อยแล้ว", html)
+        self.assertIn("สร้างเสียงคำบรรยายด้วย Gemini", html)
+        self.assertNotIn("test-secret-not-for-rendering", html)
+        generate_audio.assert_called_once()
+        prompt_text = generate_audio.call_args.args[0]
+        self.assertIn(source_model["name"], prompt_text)
+        self.assertIn(source_model["description"], prompt_text)
+
+        model = next(
+            item for item in module.load_models(include_hidden=True)
+            if item["id"] == "lychee"
+        )
+        self.assertTrue(model["narration_audio"].startswith("audio/lychee-gemini-"))
+        self.assertTrue(model["narration_audio"].endswith(".wav"))
+        self.assertTrue(
+            (module.AUDIO_DIR / Path(model["narration_audio"]).name).is_file()
+        )
+        with patch.object(
+            module,
+            "resolve_narration_audio_url",
+            return_value="/static/audio/generated.wav",
+        ):
+            detail_html = self.client.get("/models/lychee").get_data(as_text=True)
+        self.assertIn("data-narration-audio", detail_html)
+
+    def test_gemini_dependency_and_audio_format_helpers(self):
+        requirements = (
+            Path(module.BASE_DIR) / "requirements.txt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("google-genai", requirements)
+
+        sample_rate, channels, sample_width = module.parse_audio_mime_type(
+            "audio/L16;rate=22050;channels=2"
+        )
+        self.assertEqual((sample_rate, channels, sample_width), (22050, 2, 2))
+        wav_data = module.pcm_to_wav(
+            b"\x00\x00" * 10,
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+        )
+        self.assertTrue(wav_data.startswith(b"RIFF"))
+
+        with (
+            patch.dict(
+                module.os.environ,
+                {
+                    "SUPABASE_URL": "https://example.supabase.co",
+                    "SUPABASE_SERVICE_ROLE_KEY": "test-service-key",
+                    "SUPABASE_STORAGE_BUCKET": "test-assets",
+                },
+            ),
+            patch.object(module, "is_supabase_enabled", return_value=True),
+            patch.object(module, "supabase_request") as storage_request,
+        ):
+            generated_url = module.save_generated_narration_audio(
+                "lychee",
+                wav_data,
+                ".wav",
+            )
+        self.assertIn("/models/narration/lychee-gemini-", generated_url)
+        self.assertTrue(generated_url.endswith(".wav"))
+        self.assertEqual(storage_request.call_args.kwargs["method"], "PUT")
+        self.assertTrue(
+            storage_request.call_args.kwargs["content_type"].startswith("audio/")
+        )
+
     def test_admin_add_and_edit_model_preview_images(self):
         self.sign_in()
         with patch.object(module, "is_supabase_enabled", return_value=False):

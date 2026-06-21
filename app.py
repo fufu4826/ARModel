@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import logging
 import mimetypes
@@ -6,6 +7,7 @@ import os
 import re
 import secrets
 import uuid
+import wave
 import webbrowser
 from copy import deepcopy
 from functools import wraps
@@ -607,6 +609,91 @@ class SupabaseError(RuntimeError):
     pass
 
 
+class GeminiTTSError(RuntimeError):
+    pass
+
+
+def pcm_to_wav(
+    pcm_data: bytes,
+    sample_rate: int = 24000,
+    channels: int = 1,
+    sample_width: int = 2,
+) -> bytes:
+    output = io.BytesIO()
+    with wave.open(output, "wb") as wav_file:
+        wav_file.setnchannels(channels)
+        wav_file.setsampwidth(sample_width)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(pcm_data)
+    return output.getvalue()
+
+
+def parse_audio_mime_type(mime_type: str | None) -> tuple[int, int, int]:
+    mime = str(mime_type or "").lower()
+    rate_match = re.search(r"(?:rate|samplerate)=(\d+)", mime)
+    channels_match = re.search(r"channels=(\d+)", mime)
+    sample_rate = int(rate_match.group(1)) if rate_match else 24000
+    channels = int(channels_match.group(1)) if channels_match else 1
+    return sample_rate, channels, 2
+
+
+def generate_gemini_tts_audio(text: str) -> tuple[bytes, str]:
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise GeminiTTSError("GEMINI_API_KEY is not configured")
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError as exc:
+        raise GeminiTTSError("google-genai is not installed") from exc
+
+    prompt = (
+        "อ่านคำบรรยายต่อไปนี้เป็นภาษาไทย น้ำเสียงชัดเจน เป็นมิตร "
+        "เหมาะกับนิทรรศการและแหล่งเรียนรู้ เว้นจังหวะพอดี:\n"
+        f"{text.strip()}"
+    )
+    client = None
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-3.1-flash-tts-preview",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                            voice_name="Iapetus"
+                        )
+                    )
+                ),
+            ),
+        )
+        part = response.candidates[0].content.parts[0]
+        inline_data = part.inline_data
+        audio_data = inline_data.data
+        mime_type = str(inline_data.mime_type or "")
+    except (AttributeError, IndexError, TypeError) as exc:
+        raise GeminiTTSError("Gemini did not return audio data") from exc
+    except Exception as exc:
+        raise GeminiTTSError("Gemini API request failed") from exc
+    finally:
+        close_client = getattr(client, "close", None) if client else None
+        if callable(close_client):
+            try:
+                close_client()
+            except Exception:
+                logger.warning("Unable to close Gemini client cleanly")
+
+    if not audio_data:
+        raise GeminiTTSError("Gemini returned empty audio data")
+    audio_bytes = bytes(audio_data)
+    if mime_type.lower().startswith(("audio/wav", "audio/x-wav")):
+        return audio_bytes, ".wav"
+    sample_rate, channels, sample_width = parse_audio_mime_type(mime_type)
+    return pcm_to_wav(audio_bytes, sample_rate, channels, sample_width), ".wav"
+
+
 def supabase_base_url() -> str:
     return os.environ.get("SUPABASE_URL", "").rstrip("/")
 
@@ -863,6 +950,41 @@ def upload_to_supabase_storage(
         extra_headers={"Cache-Control": "3600", "x-upsert": "false"},
     )
     return supabase_public_url(object_path), round(len(data) / (1024 * 1024), 2)
+
+
+def save_generated_narration_audio(
+    model_id: str,
+    audio_data: bytes,
+    extension: str = ".wav",
+) -> str:
+    extension = extension.lower()
+    if extension not in AUDIO_EXTENSIONS:
+        raise GeminiTTSError("Gemini returned an unsupported audio format")
+    if not audio_data:
+        raise GeminiTTSError("Gemini returned empty audio data")
+    if len(audio_data) > NARRATION_AUDIO_MAX_BYTES:
+        raise GeminiTTSError("Generated audio exceeds the 20 MB limit")
+
+    filename = (
+        f"{slugify(model_id, 'model')}-gemini-{uuid.uuid4().hex[:10]}{extension}"
+    )
+    if is_supabase_enabled():
+        object_path = f"models/narration/{filename}"
+        content_type = mimetypes.guess_type(filename)[0] or "audio/wav"
+        supabase_request(
+            f"/storage/v1/object/{quote(supabase_bucket())}/{quote(object_path, safe='/')}",
+            method="PUT",
+            data=audio_data,
+            content_type=content_type,
+            extra_headers={"Cache-Control": "3600", "x-upsert": "false"},
+        )
+        return supabase_public_url(object_path)
+
+    if is_vercel_runtime():
+        raise GeminiTTSError("Supabase must be configured to save audio on Vercel")
+    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    (AUDIO_DIR / filename).write_bytes(audio_data)
+    return f"audio/{filename}"
 
 
 def direct_upload_target(filename: str, kind: str, file_size: int | None = None) -> tuple[str, str]:
@@ -2449,6 +2571,77 @@ def edit_model(model_id: str):
         return redirect(url_for("admin"))
 
     return render_template("edit_model.html", model=model_with_project(model, projects), projects=projects)
+
+
+@app.post("/admin/models/<model_id>/generate-narration")
+@admin_required
+def generate_model_narration(model_id: str):
+    model = next(
+        (item for item in get_models(include_hidden=True) if item["id"] == model_id),
+        None,
+    )
+    if model is None:
+        abort(404)
+
+    if not os.environ.get("GEMINI_API_KEY", "").strip():
+        flash(
+            "ยังไม่ได้ตั้งค่า GEMINI_API_KEY ใน Vercel Environment Variables",
+            "error",
+        )
+        return redirect(url_for("edit_model", model_id=model_id))
+    if admin_write_blocked_on_vercel():
+        return redirect(url_for("edit_model", model_id=model_id))
+
+    name = str(model.get("name") or "โมเดล").strip()
+    description = str(model.get("description") or "").strip()
+    narration_text = ". ".join(part for part in (name, description) if part)
+    old_narration_audio = str(model.get("narration_audio") or "").strip()
+
+    try:
+        audio_data, extension = generate_gemini_tts_audio(narration_text)
+        narration_audio = save_generated_narration_audio(
+            model_id,
+            audio_data,
+            extension,
+        )
+
+        if is_supabase_enabled():
+            update_model(
+                model_id,
+                {
+                    "name": name,
+                    "description": description,
+                    "project_id": model.get("project_id", ""),
+                    "model_url": model.get("model_url", ""),
+                    "thumbnail_url": model.get("thumbnail_url", ""),
+                    "preview_images": model.get("preview_images", []),
+                    "narration_audio": narration_audio,
+                    "file_size_mb": model.get("file_size_mb"),
+                },
+            )
+        else:
+            models = load_models(include_hidden=True)
+            stored_model = next(
+                (item for item in models if item["id"] == model_id),
+                None,
+            )
+            if stored_model is None:
+                abort(404)
+            stored_model["narration_audio"] = narration_audio
+            save_models(models)
+            if old_narration_audio and old_narration_audio != narration_audio:
+                delete_static_file(old_narration_audio)
+    except (GeminiTTSError, SupabaseError, OSError) as exc:
+        logger.exception("Unable to generate Gemini narration for model %s", model_id)
+        flash(f"สร้างเสียงคำบรรยายไม่สำเร็จ: {exc}", "error")
+        return redirect(url_for("edit_model", model_id=model_id))
+    except Exception:
+        logger.exception("Unexpected Gemini narration failure for model %s", model_id)
+        flash("สร้างเสียงคำบรรยายไม่สำเร็จ: ระบบสร้างเสียงเกิดข้อผิดพลาด", "error")
+        return redirect(url_for("edit_model", model_id=model_id))
+
+    flash("สร้างไฟล์เสียงคำบรรยายเรียบร้อยแล้ว", "success")
+    return redirect(url_for("edit_model", model_id=model_id))
 
 
 @app.post("/admin/models/<model_id>/delete", endpoint="delete_model")

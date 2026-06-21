@@ -16,6 +16,7 @@ Set these in Vercel Project Settings:
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_STORAGE_BUCKET=your-bucket-name
+GEMINI_API_KEY=your-gemini-api-key
 SECRET_KEY=your-flask-secret
 ADMIN_PASSWORD_HASH=your-werkzeug-password-hash
 ```
@@ -41,6 +42,8 @@ sliders/
 ```
 
 The bucket must allow public reads if model-viewer and browsers should load assets directly from public URLs.
+
+`GEMINI_API_KEY` is used only by the authenticated admin backend to generate Thai narration audio. It must remain a server-side Vercel Environment Variable and must never be exposed to browser JavaScript.
 
 Keep public writes disabled. The browser must never receive the service-role key. Admin uploads are authorized by the Flask admin session, then either uploaded by the server with the service role or sent through a short-lived signed upload URL created by Flask.
 

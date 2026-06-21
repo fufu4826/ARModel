@@ -1112,6 +1112,58 @@ class SiteManagementTests(unittest.TestCase):
                     "https://example.com/not-audio.svg"
                 )
 
+    def test_model_direct_upload_enforces_fifty_mb_limit(self):
+        with module.app.test_request_context():
+            object_path, public_url = module.direct_upload_target(
+                "learning-model.glb",
+                "model",
+                file_size=module.MAX_MODEL_FILE_SIZE_BYTES,
+            )
+            self.assertTrue(object_path.startswith("models/"))
+            self.assertTrue(public_url.endswith(".glb"))
+
+            with self.assertRaises(RequestEntityTooLarge):
+                module.direct_upload_target(
+                    "too-large.glb",
+                    "model",
+                    file_size=module.MAX_MODEL_FILE_SIZE_BYTES + 1,
+                )
+
+    def test_model_forms_expose_direct_upload_limit_and_metadata_post(self):
+        self.sign_in()
+        add_form = self.client.get("/admin").get_data(as_text=True)
+        edit_form = self.client.get("/admin/models/lychee/edit").get_data(as_text=True)
+        expected_limit = f'data-max-bytes="{module.MAX_MODEL_FILE_SIZE_BYTES}"'
+
+        for html in (add_form, edit_form):
+            self.assertIn('data-upload-kind="model"', html)
+            self.assertIn('data-upload-target="model_url"', html)
+            self.assertIn(expected_limit, html)
+            self.assertIn("ขนาดไม่เกิน 50 MB", html)
+
+        with patch.object(module, "is_supabase_enabled", return_value=False):
+            response = self.client.post(
+                "/admin/models",
+                data={
+                    "name": "Metadata-only model",
+                    "project_id": "garden",
+                    "model_url": "https://example.com/model.glb",
+                    "scale": "0.2",
+                    "rotate_x": "0",
+                    "visible": "on",
+                },
+            )
+        self.assertEqual(response.status_code, 302)
+
+    def test_direct_upload_javascript_handles_model_size_errors(self):
+        script = (
+            Path(module.BASE_DIR) / "static" / "js" / "admin-direct-upload.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("input.dataset.maxBytes", script)
+        self.assertIn("response.status === 413", script)
+        self.assertIn("กรุณาลดขนาดไฟล์ .glb", script)
+        self.assertNotIn('throw new Error(message || "การอัปโหลดไฟล์ไปยังระบบจัดเก็บข้อมูลล้มเหลว")', script)
+
     def test_direct_upload_uses_random_names_and_rejects_invalid_types(self):
         with module.app.test_request_context():
             first_path, _ = module.direct_upload_target("cover.png", "landing_cover", 1024)

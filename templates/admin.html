@@ -152,8 +152,8 @@
             </div>
             <div class="field">
               <label for="model-file">ไฟล์ .glb (เลือกไฟล์โมเดล 3D)</label>
-              <input id="model-file" name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta" style="margin-top: 2px;">.glb คือไฟล์โมเดล 3D หลักที่จะแสดงบนเว็บและโหมด AR (ขนาดไม่เกิน 250 MB)</p>
+              <input id="model-file" name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" data-max-bytes="{{ model_file_max_bytes }}" data-max-size-label="{{ model_file_max_mb }} MB" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta" style="margin-top: 2px;">รองรับไฟล์ .glb ขนาดไม่เกิน {{ model_file_max_mb }} MB หากไฟล์ใหญ่ควรบีบอัดโมเดลก่อนอัปโหลด</p>
             </div>
             <div class="field">
               <label for="model-path">หรือระบุ path ไฟล์โมเดลในเครื่อง</label>

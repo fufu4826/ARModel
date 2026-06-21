@@ -30,6 +30,8 @@ SITE_LOGO_EXTENSIONS = IMAGE_EXTENSIONS | {".svg"}
 FAVICON_EXTENSIONS = {".png", ".ico", ".svg"}
 SITE_ASSET_MAX_BYTES = 5 * 1024 * 1024
 NARRATION_AUDIO_MAX_BYTES = 20 * 1024 * 1024
+MAX_MODEL_FILE_SIZE_MB = 50
+MAX_MODEL_FILE_SIZE_BYTES = MAX_MODEL_FILE_SIZE_MB * 1024 * 1024
 VERCEL_UPLOAD_MESSAGE = "ระบบไม่รองรับการอัปโหลดไฟล์โดยตรงบน Vercel กรุณาระบุรูปภาพหรือไฟล์โมเดลผ่านลิงก์เว็บภายนอก (URL)"
 VERCEL_EDIT_MESSAGE = "ระบบแอดมินทำงานในโหมดอ่านอย่างเดียวบน Vercel (ไม่รองรับการเขียนไฟล์บนคลาวด์) กรุณาแก้ไขไฟล์ข้อมูลภายในเครื่อง แล้ว Commit และ Deploy ใหม่ หรือกำหนดค่าเชื่อมต่อ Supabase ก่อนใช้งาน"
 UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในโครงการ"
@@ -260,6 +262,8 @@ def inject_runtime_flags():
         "default_site_name": settings["site_name"],
         "public_site_url": PUBLIC_SITE_URL,
         "site_settings": public_settings,
+        "model_file_max_mb": MAX_MODEL_FILE_SIZE_MB,
+        "model_file_max_bytes": MAX_MODEL_FILE_SIZE_BYTES,
     }
 
 
@@ -1030,7 +1034,15 @@ def direct_upload_target(filename: str, kind: str, file_size: int | None = None)
     extension = Path(filename or "").suffix.lower()
     if extension not in allowed_extensions:
         abort(400, f"Unsupported file type: {extension or '(none)'}")
-    if kind in {
+    if kind == "model":
+        if not file_size:
+            abort(400, "file_size is required for model uploads")
+        if file_size > MAX_MODEL_FILE_SIZE_BYTES:
+            abort(
+                413,
+                f"ไฟล์มีขนาดใหญ่เกินกำหนด กรุณาลดขนาดไฟล์ .glb หรือใช้ไฟล์ไม่เกิน {MAX_MODEL_FILE_SIZE_MB} MB",
+            )
+    elif kind in {
         "landing_cover",
         "landing_mobile_cover_image",
         "site_logo",
@@ -2398,7 +2410,12 @@ def add_model():
 
     if is_supabase_enabled():
         try:
-            uploaded_model_url, model_size_mb = upload_to_supabase_storage(request.files.get("model_file"), "models")
+            uploaded_model_url, model_size_mb = upload_to_supabase_storage(
+                request.files.get("model_file"),
+                "models",
+                MODEL_EXTENSIONS,
+                MAX_MODEL_FILE_SIZE_BYTES,
+            )
             uploaded_thumbnail_url, _ = upload_to_supabase_storage(request.files.get("image_file"), "thumbnails")
             uploaded_narration_audio, _ = upload_to_supabase_storage(
                 request.files.get("narration_audio_file"),
@@ -2494,7 +2511,12 @@ def edit_model(model_id: str):
 
         if is_supabase_enabled():
             try:
-                uploaded_model_url, uploaded_size_mb = upload_to_supabase_storage(request.files.get("model_file"), "models")
+                uploaded_model_url, uploaded_size_mb = upload_to_supabase_storage(
+                    request.files.get("model_file"),
+                    "models",
+                    MODEL_EXTENSIONS,
+                    MAX_MODEL_FILE_SIZE_BYTES,
+                )
                 uploaded_thumbnail_url, _ = upload_to_supabase_storage(request.files.get("image_file"), "thumbnails")
                 uploaded_narration_audio, _ = upload_to_supabase_storage(
                     request.files.get("narration_audio_file"),

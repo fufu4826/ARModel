@@ -152,6 +152,8 @@ When all Supabase environment variables are configured:
 - Admin uploads go to Supabase Storage.
 - Vercel does not write to `static/`, `models.json`, or `projects.json`.
 
+Model `.glb` files are uploaded directly from the browser to Supabase Storage so the binary file does not pass through the Vercel serverless request. The application accepts model files up to 50 MB. In Supabase Storage Settings, set the global file size limit and the configured bucket's file size limit to at least 50 MB; the lower of those two limits takes precedence. Supabase recommends resumable uploads for files larger than 6 MB, so models should still be compressed where practical.
+
 Before deploying the site-content feature:
 
 1. Back up the Supabase project or confirm Point-in-Time Recovery is available.

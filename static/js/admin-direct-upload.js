@@ -19,6 +19,33 @@
   const managedUploadMaxBytes = 5 * 1024 * 1024;
   const narrationAudioMaxBytes = 20 * 1024 * 1024;
 
+  function fileTooLargeMessage(input) {
+    const limit = input.dataset.maxSizeLabel || "ขนาดที่กำหนด";
+    if (input.dataset.uploadKind === "model") {
+      return `ไฟล์มีขนาดใหญ่เกินกำหนด กรุณาลดขนาดไฟล์ .glb หรือใช้ไฟล์ไม่เกิน ${limit}`;
+    }
+    return `ไฟล์มีขนาดใหญ่เกินกำหนด กรุณาใช้ไฟล์ไม่เกิน ${limit}`;
+  }
+
+  async function uploadErrorMessage(response, input) {
+    const responseText = await response.text();
+    let message = responseText;
+    try {
+      const payload = JSON.parse(responseText);
+      message = payload.message || payload.error || responseText;
+    } catch {
+      // Supabase may return plain text for some storage errors.
+    }
+
+    if (
+      response.status === 413 ||
+      /payload too large|maximum allowed size|exceeded.*size/i.test(message)
+    ) {
+      return fileTooLargeMessage(input);
+    }
+    return message || "การอัปโหลดไฟล์ไปยังระบบจัดเก็บข้อมูลล้มเหลว";
+  }
+
   function statusFor(input) {
     let status = input.parentElement.querySelector("[data-upload-status]");
     if (!status) {
@@ -51,8 +78,7 @@
       }),
     });
     if (!response.ok) {
-      const message = await response.text();
-      throw new Error(message || "Unable to create upload URL.");
+      throw new Error(await uploadErrorMessage(response, input));
     }
     return response.json();
   }
@@ -60,30 +86,35 @@
   async function uploadFile(input) {
     const file = input.files && input.files[0];
     if (!file) return;
-    if (
-      input.dataset.uploadKind === "model_narration_audio" &&
-      file.size > narrationAudioMaxBytes
-    ) {
-      throw new Error("ไฟล์เสียงต้องมีขนาดไม่เกิน 20 MB");
-    }
-    if (
-      input.dataset.uploadKind !== "model_narration_audio" &&
-      managedUploadKinds.has(input.dataset.uploadKind) &&
-      file.size > managedUploadMaxBytes
-    ) {
-      throw new Error("ไฟล์รูปภาพต้องมีขนาดไม่เกิน 5 MB");
-    }
-
-    const target = targetInputFor(input);
-    if (!target) {
-      throw new Error("ไม่พบฟิลด์เป้าหมายสำหรับการอัปโหลดไฟล์");
-    }
-
     const status = statusFor(input);
-    status.textContent = `กำลังอัปโหลด ${file.name}...`;
-    input.disabled = true;
+    status.style.color = "#66756b";
 
     try {
+      const configuredMaxBytes = Number(input.dataset.maxBytes || 0);
+      if (configuredMaxBytes > 0 && file.size > configuredMaxBytes) {
+        throw new Error(fileTooLargeMessage(input));
+      }
+      if (
+        input.dataset.uploadKind === "model_narration_audio" &&
+        file.size > narrationAudioMaxBytes
+      ) {
+        throw new Error("ไฟล์เสียงต้องมีขนาดไม่เกิน 20 MB");
+      }
+      if (
+        input.dataset.uploadKind !== "model_narration_audio" &&
+        managedUploadKinds.has(input.dataset.uploadKind) &&
+        file.size > managedUploadMaxBytes
+      ) {
+        throw new Error("ไฟล์รูปภาพต้องมีขนาดไม่เกิน 5 MB");
+      }
+
+      const target = targetInputFor(input);
+      if (!target) {
+        throw new Error("ไม่พบฟิลด์เป้าหมายสำหรับการอัปโหลดไฟล์");
+      }
+
+      status.textContent = `กำลังอัปโหลด ${file.name}...`;
+      input.disabled = true;
       const upload = await createUploadUrl(input, file);
       const response = await fetch(upload.upload_url, {
         method: "PUT",
@@ -91,8 +122,7 @@
         body: file,
       });
       if (!response.ok) {
-        const message = await response.text();
-        throw new Error(message || "การอัปโหลดไฟล์ไปยังระบบจัดเก็บข้อมูลล้มเหลว");
+        throw new Error(await uploadErrorMessage(response, input));
       }
 
       target.value = upload.public_url;

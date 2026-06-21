@@ -657,6 +657,11 @@ class SiteManagementTests(unittest.TestCase):
 
     def test_admin_add_and_edit_model_preview_images(self):
         self.sign_in()
+        add_form_html = self.client.get("/admin").get_data(as_text=True)
+        self.assertIn(
+            'id="scale" name="scale" type="number" value="0.2" step="any" min="0.001"',
+            add_form_html,
+        )
         with patch.object(module, "is_supabase_enabled", return_value=False):
             response = self.client.post(
                 "/admin/models",
@@ -681,6 +686,7 @@ class SiteManagementTests(unittest.TestCase):
                 if item["name"] == "Gallery admin model"
             )
             self.assertEqual(len(saved_model["preview_images"]), 2)
+            self.assertEqual(saved_model["scale"], 0.2)
             self.assertEqual(
                 saved_model["narration_audio"],
                 "https://example.com/admin-narration.mp3",
@@ -712,7 +718,7 @@ class SiteManagementTests(unittest.TestCase):
                     "preview_images": "https://example.com/admin-preview-updated.jpg",
                     "narration_audio": "https://example.com/admin-narration-updated.ogg",
                     "rotate_x": "0",
-                    "scale": "0.2",
+                    "scale": "0.15",
                     "visible": "on",
                 },
             )
@@ -729,6 +735,7 @@ class SiteManagementTests(unittest.TestCase):
                 updated_model["narration_audio"],
                 "https://example.com/admin-narration-updated.ogg",
             )
+            self.assertEqual(updated_model["scale"], 0.15)
 
         add_form = self.client.get("/admin").get_data(as_text=True)
         edit_form = self.client.get(
@@ -737,6 +744,28 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("ไฟล์เสียงคำบรรยาย", add_form)
         self.assertIn('data-upload-kind="model_narration_audio"', add_form)
         self.assertIn("ไฟล์เสียงคำบรรยาย", edit_form)
+        self.assertIn(
+            'name="scale" type="number" value="0.15" step="any" min="0.001"',
+            edit_form,
+        )
+
+    def test_model_scale_rejects_non_numeric_input(self):
+        self.sign_in()
+        with patch.object(module, "is_supabase_enabled", return_value=False):
+            response = self.client.post(
+                "/admin/models/lychee/edit",
+                data={
+                    "name": "ลิ้นจี่",
+                    "project_id": "garden",
+                    "model_path": "model/Lychee.glb",
+                    "thumbnail_url": "",
+                    "preview_images": "",
+                    "rotate_x": "0",
+                    "scale": "not-a-number",
+                    "visible": "on",
+                },
+            )
+        self.assertEqual(response.status_code, 400)
 
     def test_supabase_model_preview_images_normalization(self):
         without_gallery = module.normalize_supabase_model({"id": "one", "name": "One"})

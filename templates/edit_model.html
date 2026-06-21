@@ -26,7 +26,7 @@
         <div class="field"><label>ชื่อโมเดล</label><input name="name" value="{{ model.name }}" required></div>
         <div class="field"><label>โครงการ</label><select name="project_id">{% for project in projects %}<option value="{{ project.id }}" {{ "selected" if project.id == model.project_id else "" }}>{{ project.name }}</option>{% endfor %}</select></div>
         <div class="field"><label>หน่วยงาน/แผนก</label><input name="department" value="{{ model.department }}"></div>
-        <div class="field"><label>ขนาด</label><input name="scale" type="number" value="{{ model.scale }}" step="0.01" min="0.001"></div>
+        <div class="field"><label>ขนาด</label><input name="scale" type="number" value="{{ model.scale }}" step="any" min="0.001"></div>
         <div class="field full"><label>รายละเอียด</label><textarea name="description">{{ model.description }}</textarea></div>
         <div class="field"><label>เปลี่ยนไฟล์ .glb (เลือกไฟล์โมเดล 3D)</label><input name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" {{ "disabled" if uploads_disabled else "" }}><p class="help">.glb คือไฟล์โมเดล 3D หลัก (ขนาดไม่เกิน 250 MB)</p></div>
         <div class="field"><label>Path ไฟล์โมเดลในเครื่อง</label><input name="model_path" value="{{ model.model_path }}" {{ "disabled" if uploads_disabled else "" }}><p class="help">ระบุกรณีวางโมเดลในเครื่องแล้ว เช่น static/model/example.glb</p></div>
@@ -72,7 +72,7 @@
           <label class="check"><input name="narration_audio_remove" type="checkbox"> ลบไฟล์เสียงคำบรรยายนี้</label>
         </div>
         {% endif %}
-        <div class="field"><label>หมุนแกน X (องศาในแบบทศนิยม)</label><input name="rotate_x" type="number" value="{{ model.rotate_x }}" step="0.01"><p class="help">ปรับความเอียงเริ่มต้นแสดงผลโมเดล 3D</p></div>
+        <div class="field"><label>หมุนแกน X (องศาในแบบทศนิยม)</label><input name="rotate_x" type="number" value="{{ model.rotate_x }}" step="any"><p class="help">ปรับความเอียงเริ่มต้นแสดงผลโมเดล 3D</p></div>
         <label class="field check"><input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> เผยแพร่โมเดล</label>
       </div>
       <div class="actions"><button class="btn" type="submit">บันทึก</button><a class="link" href="{{ url_for('admin') }}">ยกเลิก</a></div>

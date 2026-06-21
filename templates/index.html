@@ -146,7 +146,7 @@
             </div>
             <h3><a href="{{ url_for('project_detail', project_id=project.id) }}">{{ project.name }}</a></h3>
             <p>{{ project.description or "รวมโมเดล 3D และ AR สำหรับการเรียนรู้ภายในโครงการนี้" }}</p>
-            <a class="button small" href="{{ url_for('project_detail', project_id=project.id) }}">ดูโครงการ</a>
+            <a class="button small" href="{{ url_for('project_detail', project_id=project.id) }}">เรียนรู้เพิ่มเติม</a>
           </div>
         </article>
         {% endfor %}

@@ -743,67 +743,6 @@ h3 {
   font-weight: 900;
 }
 
-.split-section {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.7fr);
-  gap: 18px;
-  align-items: stretch;
-}
-
-.split-section .info-panel {
-  padding: clamp(20px, 4vw, 30px);
-}
-
-.split-section .info-panel p {
-  margin: 10px 0 0;
-  color: var(--muted);
-}
-
-.note-text {
-  padding: 12px;
-  border: 1px solid #ead799;
-  border-radius: var(--radius);
-  background: var(--gold-soft);
-  color: #6b4a05 !important;
-  font-weight: 800;
-}
-
-.ar-guide-list {
-  display: grid;
-  gap: 10px;
-}
-
-.ar-guide-list div {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 74px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-
-.ar-guide-list strong {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--green-soft);
-  color: var(--green-dark);
-}
-
-.ar-guide-list span {
-  font-weight: 900;
-}
-
-.about-section .info-card {
-  max-width: 860px;
-}
-
 .project-grid {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
@@ -1570,8 +1509,7 @@ model-viewer {
 @media (max-width: 920px) {
   .hero-section,
   .project-hero,
-  .viewer-shell,
-  .split-section {
+  .viewer-shell {
     grid-template-columns: 1fr;
   }
 

@@ -94,6 +94,24 @@ class SiteManagementTests(unittest.TestCase):
                     response.get_data(as_text=True),
                 )
 
+    def test_home_omits_guide_and_about_sections(self):
+        home_html = self.client.get("/home").get_data(as_text=True)
+        for removed_text in (
+            "AR " + "Guide",
+            "ดูโมเดลด้วย " + "AR ได้อย่างไร",
+            "เกี่ยวกับ" + "เว็บไซต์",
+            "แหล่งเรียนรู้ภูพานและของดีสกลนคร" + "ผ่านภาพสามมิติ",
+        ):
+            self.assertNotIn(removed_text, home_html)
+
+        self.assertIn('id="home-title"', home_html)
+        self.assertIn('href="/models"', home_html)
+        self.assertIn('id="projects"', home_html)
+        self.assertEqual(self.client.get("/models").status_code, 200)
+        model_html = self.client.get("/models/lychee").get_data(as_text=True)
+        self.assertIn('id="mainModelViewer"', model_html)
+        self.assertIn("การควบคุมโมเดล", model_html)
+
     def test_hidden_image_placeholders_do_not_take_space(self):
         stylesheet = (
             Path(module.BASE_DIR) / "static" / "css" / "style.css"

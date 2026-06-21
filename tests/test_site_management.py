@@ -84,6 +84,16 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(settings["intro_logo_duration_ms_value"], 1400)
         self.assertEqual(settings["intro_display_mode"], "sequence")
 
+    def test_public_pages_do_not_show_usage_text(self):
+        for route in ("/", "/home", "/models", "/models/lychee"):
+            with self.subTest(route=route):
+                response = self.client.get(route)
+                self.assertEqual(response.status_code, 200)
+                self.assertNotIn(
+                    "วิธี" + "ใช้งาน",
+                    response.get_data(as_text=True),
+                )
+
     def test_hidden_image_placeholders_do_not_take_space(self):
         stylesheet = (
             Path(module.BASE_DIR) / "static" / "css" / "style.css"

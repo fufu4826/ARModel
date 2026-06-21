@@ -132,6 +132,59 @@ class SiteManagementTests(unittest.TestCase):
         # Verify the unique admin-managed headline is rendered in the mobile hero title markup
         self.assertIn(f'class="landing-mobile-hero-title">{unique_headline}</h1>', landing_html)
 
+    def test_home_hero_text_is_admin_editable_without_changing_links(self):
+        home_html = self.client.get("/home").get_data(as_text=True)
+        self.assertIn("นิทรรศการดิจิทัล 3D / AR", home_html)
+        self.assertIn("ศูนย์ศึกษาการพัฒนาภูพาน", home_html)
+        self.assertIn("เริ่มชมโมเดล 3D", home_html)
+        self.assertIn('href="/models"', home_html)
+        self.assertIn('href="#projects"', home_html)
+
+        self.sign_in()
+        admin_html = self.client.get("/admin/landing").get_data(as_text=True)
+        for field_name in (
+            "home_hero_badge",
+            "home_hero_heading",
+            "home_hero_subheading",
+            "home_hero_description",
+            "home_hero_primary_cta_text",
+            "home_hero_secondary_cta_text",
+        ):
+            self.assertIn(f'name="{field_name}"', admin_html)
+
+        response = self.client.post(
+            "/admin/settings",
+            data={
+                "section": "landing",
+                "return_to": "/admin/landing",
+                "landing_cover": "pic/og-cover.jpg",
+                "landing_headline": "Test landing headline",
+                "landing_subheadline": "Test landing subheadline",
+                "landing_description": "Test landing description",
+                "landing_cta_text": "Enter",
+                "landing_cta_url": "/home",
+                "home_hero_badge": "Test badge",
+                "home_hero_heading": "Test home heading",
+                "home_hero_subheading": "Test home subheading",
+                "home_hero_description": "Test home description",
+                "home_hero_primary_cta_text": "Test primary action",
+                "home_hero_secondary_cta_text": "Test secondary action",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        settings = module.load_site_settings()
+        self.assertEqual(settings["home_hero_heading"], "Test home heading")
+
+        home_html = self.client.get("/home").get_data(as_text=True)
+        self.assertIn("Test badge", home_html)
+        self.assertIn("Test home heading", home_html)
+        self.assertIn("Test home subheading", home_html)
+        self.assertIn("Test home description", home_html)
+        self.assertIn("Test primary action", home_html)
+        self.assertIn("Test secondary action", home_html)
+        self.assertIn('href="/models"', home_html)
+        self.assertIn('href="#projects"', home_html)
+
     def test_landing_mobile_cover_image(self):
         # 1. Renders admin landing page and includes mobile cover inputs/preview
         self.sign_in()

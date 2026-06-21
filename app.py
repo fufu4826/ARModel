@@ -56,6 +56,12 @@ DEFAULT_SITE_SETTINGS = {
     ),
     "landing_cta_text": "เข้าสู่เว็บไซต์",
     "landing_cta_url": "/home",
+    "home_hero_badge": "นิทรรศการดิจิทัล 3D / AR",
+    "home_hero_heading": "ศูนย์ศึกษาการพัฒนาภูพาน",
+    "home_hero_subheading": "โมเดล 3D และ AR ของภูพาน สกลนคร",
+    "home_hero_description": "เลือกชมโมเดล 3D หมุนดูรายละเอียด และเปิด AR บนอุปกรณ์ที่รองรับเพื่อวางโมเดลในพื้นที่จริง",
+    "home_hero_primary_cta_text": "เริ่มชมโมเดล 3D",
+    "home_hero_secondary_cta_text": "ดูแหล่งเรียนรู้ทั้งหมด",
     "intro_enabled": "false",
     "intro_logo_1": "",
     "intro_logo_2": "",
@@ -1865,6 +1871,22 @@ def update_admin_settings():
                     "landing_cta_url",
                     DEFAULT_SITE_SETTINGS["landing_cta_url"],
                 ),
+                "home_hero_badge": request.form.get("home_hero_badge", "").strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_badge"],
+                "home_hero_heading": request.form.get("home_hero_heading", "").strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_heading"],
+                "home_hero_subheading": request.form.get("home_hero_subheading", "").strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_subheading"],
+                "home_hero_description": request.form.get("home_hero_description", "").strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_description"],
+                "home_hero_primary_cta_text": request.form.get(
+                    "home_hero_primary_cta_text", ""
+                ).strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_primary_cta_text"],
+                "home_hero_secondary_cta_text": request.form.get(
+                    "home_hero_secondary_cta_text", ""
+                ).strip()
+                or DEFAULT_SITE_SETTINGS["home_hero_secondary_cta_text"],
             }
         )
         settings["landing_cover"] = setting_asset_from_request(

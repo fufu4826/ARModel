@@ -32,15 +32,13 @@
   <main id="content">
     <section class="hero-section homepage-hero" aria-labelledby="home-title">
       <div class="hero-copy">
-        <p class="eyebrow">นิทรรศการดิจิทัล 3D / AR</p>
-        <h1 id="home-title">ศูนย์ศึกษาการพัฒนาภูพาน</h1>
-        <p class="hero-subtitle">โมเดล 3D และ AR ของภูพาน สกลนคร</p>
-        <p class="lead">
-          เลือกชมโมเดล 3D หมุนดูรายละเอียด และเปิด AR บนอุปกรณ์ที่รองรับเพื่อวางโมเดลในพื้นที่จริง
-        </p>
+        <p class="eyebrow">{{ site_settings.home_hero_badge }}</p>
+        <h1 id="home-title">{{ site_settings.home_hero_heading }}</h1>
+        <p class="hero-subtitle">{{ site_settings.home_hero_subheading }}</p>
+        <p class="lead">{{ site_settings.home_hero_description }}</p>
         <div class="hero-actions">
-          <a class="button" href="{{ url_for('models_index') }}">เริ่มชมโมเดล 3D</a>
-          <a class="button secondary" href="#projects">ดูแหล่งเรียนรู้ทั้งหมด</a>
+          <a class="button" href="{{ url_for('models_index') }}">{{ site_settings.home_hero_primary_cta_text }}</a>
+          <a class="button secondary" href="#projects">{{ site_settings.home_hero_secondary_cta_text }}</a>
         </div>
       </div>
       <div class="hero-media" aria-label="สไลด์ภาพโครงการ">

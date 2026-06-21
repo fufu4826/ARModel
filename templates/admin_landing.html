@@ -81,6 +81,39 @@
             <label for="landing-cta-url">CTA Button URL</label>
             <input id="landing-cta-url" name="landing_cta_url" value="{{ settings.landing_cta_url }}" required />
           </div>
+
+          <div class="section-heading full">
+            <div>
+              <h2>ข้อความหน้าแรก / Home Hero</h2>
+              <p>แก้ไขข้อความในส่วน Hero ของหน้า <code>/home</code> โดยลิงก์ของปุ่มยังคงเดิม</p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="home-hero-badge">ป้ายกำกับหน้าแรก</label>
+            <input id="home-hero-badge" name="home_hero_badge" value="{{ settings.home_hero_badge }}" required />
+          </div>
+          <div class="field">
+            <label for="home-hero-heading">หัวข้อหน้าแรก</label>
+            <input id="home-hero-heading" name="home_hero_heading" value="{{ settings.home_hero_heading }}" required />
+          </div>
+          <div class="field full">
+            <label for="home-hero-subheading">คำโปรยหน้าแรก</label>
+            <input id="home-hero-subheading" name="home_hero_subheading" value="{{ settings.home_hero_subheading }}" required />
+          </div>
+          <div class="field full">
+            <label for="home-hero-description">คำอธิบายหน้าแรก</label>
+            <textarea id="home-hero-description" name="home_hero_description" rows="4" required>{{ settings.home_hero_description }}</textarea>
+          </div>
+          <div class="field">
+            <label for="home-hero-primary-cta-text">ข้อความปุ่มหลัก</label>
+            <input id="home-hero-primary-cta-text" name="home_hero_primary_cta_text" value="{{ settings.home_hero_primary_cta_text }}" required />
+          </div>
+          <div class="field">
+            <label for="home-hero-secondary-cta-text">ข้อความปุ่มรอง</label>
+            <input id="home-hero-secondary-cta-text" name="home_hero_secondary_cta_text" value="{{ settings.home_hero_secondary_cta_text }}" required />
+          </div>
+
           <div class="form-actions full">
             <button class="button" type="submit">บันทึก Landing Page</button>
           </div>

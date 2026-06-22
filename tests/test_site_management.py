@@ -94,6 +94,19 @@ class SiteManagementTests(unittest.TestCase):
                     response.get_data(as_text=True),
                 )
 
+    def test_homepage_project_description_is_updated(self):
+        old_text = "ค้นหาเว็บไซต์ได้ทั้งคำว่า ภูพาน, พูพาน, ภูพาน สกลนคร และของดีสกลนคร"
+        new_text = "โครงการเพิ่มศักยภาพแหล่งเรียนรู้และพิพิธภัณฑ์ท้องถิ่นจังหวัดสกลนครในรูปแบบออนไลน์เสมือนจริง"
+
+        landing_html = self.client.get("/").get_data(as_text=True)
+        home_html = self.client.get("/home").get_data(as_text=True)
+
+        self.assertNotIn(old_text, landing_html)
+        self.assertNotIn(old_text, home_html)
+        self.assertIn(new_text, landing_html)
+        self.assertIn(new_text, home_html)
+        self.assertEqual(self.client.get("/models").status_code, 200)
+
     def test_home_omits_guide_and_about_sections(self):
         home_html = self.client.get("/home").get_data(as_text=True)
         for removed_text in (

@@ -920,6 +920,71 @@ class SiteManagementTests(unittest.TestCase):
             edit_form,
         )
 
+    def test_admin_pages_include_busy_submission_guard(self):
+        self.sign_in()
+        admin_routes = (
+            "/admin",
+            "/admin/models/lychee/edit",
+            "/admin/projects/garden/edit",
+            "/admin/landing",
+            "/admin/branding",
+            "/admin/intro",
+            "/admin/sliders",
+            "/admin/recommended-models",
+        )
+        for route in admin_routes:
+            with self.subTest(route=route):
+                html = self.client.get(route).get_data(as_text=True)
+                self.assertIn("data-admin-busy-modal", html)
+                self.assertIn("admin-busy.js", html)
+                self.assertIn("กำลังบันทึกข้อมูล...", html)
+
+        admin_html = self.client.get("/admin").get_data(as_text=True)
+        edit_model_html = self.client.get(
+            "/admin/models/lychee/edit"
+        ).get_data(as_text=True)
+        landing_html = self.client.get("/admin/landing").get_data(as_text=True)
+        recommended_html = self.client.get(
+            "/admin/recommended-models"
+        ).get_data(as_text=True)
+        self.assertIn('action="/admin/models" method="post"', admin_html)
+        self.assertIn('method="post" enctype="multipart/form-data"', edit_model_html)
+        self.assertIn('action="/admin/settings" method="post"', landing_html)
+        self.assertIn('method="post" class="admin-recommended-form"', recommended_html)
+        self.assertIn("data-admin-no-busy", admin_html)
+
+        busy_script = (
+            Path(module.BASE_DIR) / "static" / "js" / "admin-busy.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("form.checkValidity()", busy_script)
+        self.assertIn("event.defaultPrevented", busy_script)
+        self.assertIn("submittingForms.has(form)", busy_script)
+        self.assertIn("textContent", busy_script)
+
+    def test_public_pages_do_not_include_admin_busy_assets(self):
+        for route in ("/", "/home", "/models", "/models/lychee"):
+            with self.subTest(route=route):
+                html = self.client.get(route).get_data(as_text=True)
+                self.assertNotIn("data-admin-busy-modal", html)
+                self.assertNotIn("admin-busy.js", html)
+
+    def test_duplicate_model_slug_error_has_thai_message(self):
+        duplicate_error = module.SupabaseError(
+            'Supabase POST /rest/v1/models failed: 409 '
+            '{"code":"23505","details":"Key (slug)=(1) already exists.",'
+            '"message":"duplicate key value violates unique constraint '
+            '\\"models_slug_key\\""}'
+        )
+        self.assertEqual(
+            module.model_supabase_error_message(duplicate_error),
+            "ไม่สามารถบันทึกได้: รหัส/slug นี้มีอยู่แล้ว กรุณาเปลี่ยนรหัสโมเดล",
+        )
+        other_error = module.SupabaseError("Supabase connection failed")
+        self.assertIn(
+            "Supabase connection failed",
+            module.model_supabase_error_message(other_error),
+        )
+
     def test_model_scale_rejects_non_numeric_input(self):
         self.sign_in()
         with patch.object(module, "is_supabase_enabled", return_value=False):

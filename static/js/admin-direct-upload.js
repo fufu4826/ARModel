@@ -138,6 +138,10 @@
 
   document.querySelectorAll("form").forEach((form) => {
     form.addEventListener("submit", async (event) => {
+      if (form.dataset.adminBusySubmitting === "true") {
+        event.preventDefault();
+        return;
+      }
       if (form.dataset.directUploadSubmitting === "true") return;
 
       const inputs = Array.from(form.querySelectorAll("input[type='file'][data-upload-kind]"));
@@ -145,6 +149,13 @@
       if (!selectedInputs.length) return;
 
       event.preventDefault();
+      if (window.AdminBusy) {
+        window.AdminBusy.show(form, {
+          submitter: event.submitter || null,
+          title: "กำลังอัปโหลดข้อมูล...",
+          message: "กำลังอัปโหลดไฟล์และบันทึกข้อมูล กรุณารอสักครู่ อย่าปิดหน้านี้หรือกดซ้ำ",
+        });
+      }
       const submitters = Array.from(form.querySelectorAll("button[type='submit'], input[type='submit']"));
       submitters.forEach((button) => {
         button.disabled = true;
@@ -157,6 +168,7 @@
         form.dataset.directUploadSubmitting = "true";
         form.submit();
       } catch {
+        if (window.AdminBusy) window.AdminBusy.reset(form);
         submitters.forEach((button) => {
           button.disabled = false;
         });

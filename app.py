@@ -661,6 +661,15 @@ class SupabaseError(RuntimeError):
     pass
 
 
+def model_supabase_error_message(error: SupabaseError) -> str:
+    detail = str(error)
+    if "23505" in detail and (
+        "models_slug_key" in detail or "Key (slug)" in detail
+    ):
+        return "ไม่สามารถบันทึกได้: รหัส/slug นี้มีอยู่แล้ว กรุณาเปลี่ยนรหัสโมเดล"
+    return f"ไม่สามารถบันทึกโมเดลไปยัง Supabase ได้: {detail}"
+
+
 class GeminiTTSError(RuntimeError):
     pass
 
@@ -2593,7 +2602,7 @@ def add_model():
             flash(f'เพิ่มโมเดล "{name}" แล้ว', "success")
         except SupabaseError as exc:
             logger.exception("Unable to create model in Supabase")
-            flash(f"ไม่สามารถบันทึกโมเดลไปยัง Supabase ได้: {exc}", "error")
+            flash(model_supabase_error_message(exc), "error")
         return redirect(url_for("admin"))
 
     model_path = model_url or request.form.get("model_path", "").strip()

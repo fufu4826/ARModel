@@ -387,13 +387,6 @@
     </main>
   </div>
 
-  <script>
-    document.querySelectorAll('[data-confirm]').forEach((btn) => {
-      btn.addEventListener('click', (event) => {
-        if (!confirm(btn.dataset.confirm)) event.preventDefault();
-      });
-    });
-  </script>
   <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/preview-gallery-input.js') }}" defer></script>

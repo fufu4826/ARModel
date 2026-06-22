@@ -1540,12 +1540,13 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("name=\"recommended_ids\"", html)
         self.assertIn("ลูกประคบ", html)
         self.assertIn("ลิ้นจี่", html)
+        self.assertIn("เลือกได้สูงสุด 10 โมเดล", html)
 
         # 3. Default/fallback homepage still renders recommended models
         home_res = self.client.get("/home")
         self.assertEqual(home_res.status_code, 200)
         home_html = home_res.get_data(as_text=True)
-        self.assertIn("แสดงตัวอย่างสูงสุด 6 รายการ", home_html)
+        self.assertIn("แสดงตัวอย่างสูงสุด 10 รายการ", home_html)
 
         # 4. Saving recommended models in admin settings persists and changes /home output
         save_res = self.client.post("/admin/recommended-models", data={
@@ -1583,6 +1584,16 @@ class SiteManagementTests(unittest.TestCase):
         featured_section = home_html.split('id="featured-models"')[1].split('</section>')[0]
         self.assertIn("ลิ้นจี่", featured_section)
         self.assertNotIn("invalid-id", featured_section)
+
+        # 9. Saving more than 10 clamps to 10
+        many_ids = [f"model-{i}" for i in range(15)]
+        many_data = {"recommended_ids": many_ids}
+        for mid in many_ids:
+            many_data[f"sort_order_{mid}"] = "1"
+        self.client.post("/admin/recommended-models", data=many_data)
+        settings = module.get_site_settings()
+        saved_ids = settings.get("recommended_model_ids", "").split(",")
+        self.assertEqual(len(saved_ids), 10)
 
     def test_narration_audio_badge_on_public_cards(self):
         # Modify default models to have/not have narration

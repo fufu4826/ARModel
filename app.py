@@ -52,6 +52,7 @@ DEFAULT_META_KEYWORDS = (
     "Phu Phan, PhuPhan AR, Sakon Nakhon"
 )
 DEFAULT_META_IMAGE_PATH = "pic/og-cover.jpg"
+MAX_RECOMMENDED_MODELS = 10
 DEFAULT_SITE_SETTINGS = {
     "landing_cover": DEFAULT_META_IMAGE_PATH,
     "landing_mobile_cover_image": "",
@@ -1779,13 +1780,13 @@ def home():
         for mid in recommended_ids:
             if mid in model_map and model_map[mid] not in featured_models:
                 featured_models.append(model_map[mid])
-        featured_models = featured_models[:6]
+        featured_models = featured_models[:MAX_RECOMMENDED_MODELS]
         if featured_models:
             is_custom_recommended = True
         else:
-            featured_models = all_models[:6]
+            featured_models = all_models[:MAX_RECOMMENDED_MODELS]
     else:
-        featured_models = all_models[:6]
+        featured_models = all_models[:MAX_RECOMMENDED_MODELS]
 
     sliders = [slider_with_url(item) for item in get_slider_items(include_inactive=False)]
     return render_template(
@@ -2150,7 +2151,7 @@ def admin_recommended_models():
             id_order_pairs.append((mid, order_val))
 
         id_order_pairs.sort(key=lambda x: x[1])
-        sorted_ids = [pair[0] for pair in id_order_pairs]
+        sorted_ids = [pair[0] for pair in id_order_pairs][:MAX_RECOMMENDED_MODELS]
 
         settings["recommended_model_ids"] = ",".join(sorted_ids)
 

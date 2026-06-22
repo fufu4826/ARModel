@@ -24,14 +24,14 @@
 
         {% include "_admin_messages.html" %}
 
-        <form action="{{ url_for('update_admin_settings') }}" method="post" enctype="multipart/form-data" class="admin-page-grid">
+        <form action="{{ url_for('update_admin_settings') }}" method="post" enctype="multipart/form-data" class="admin-landing-layout">
           <input type="hidden" name="section" value="landing" />
           <input type="hidden" name="return_to" value="{{ url_for('admin_landing') }}" />
           <input id="landing-cover-value" type="hidden" name="landing_cover" value="{{ settings.landing_cover }}" />
           <input type="hidden" name="landing_mobile_cover_image" value="{{ settings.landing_mobile_cover_image }}" />
 
           <!-- Left Column: Settings Panel -->
-          <div class="admin-settings-column">
+          <div class="admin-settings-column admin-landing-form">
 
             <!-- Group 1: ภาพหน้าปก -->
             <fieldset class="admin-form-section full">
@@ -166,7 +166,7 @@
           </div>
 
           <!-- Right Column: Sticky Live Preview Panel -->
-          <div class="admin-sticky-preview">
+          <div class="admin-sticky-preview admin-landing-preview">
             <section
               class="landing-live-preview-card full"
               data-landing-preview
@@ -177,7 +177,7 @@
                 <h2>พรีวิวหน้าปกแบบเรียลไทม์</h2>
                 <p>ตัวอย่างการแสดงผลบน Desktop โดยใช้ CSS เดียวกับหน้าจริง ปรับเปลี่ยนค่าด้านซ้ายเพื่อทดลองดูผลลัพธ์</p>
               </div>
-              <div class="landing-preview-frame">
+              <div class="landing-preview-frame admin-preview-frame-shell">
                 <iframe
                   class="landing-preview-iframe"
                   data-landing-preview-frame

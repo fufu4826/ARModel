@@ -7,10 +7,12 @@
     if (!form) return;
 
     const previewFrame = preview.querySelector("[data-landing-preview-frame]");
+    const previewFrameShell = previewFrame.closest(".admin-preview-frame-shell");
     const coverFile = form.querySelector("#landing-cover-file");
     const coverValue = form.querySelector("#landing-cover-value");
     let coverObjectUrl = "";
     let previewDocument = null;
+    let previewResizeObserver = null;
 
     const fields = {
       headline: form.querySelector("#landing-headline"),
@@ -55,6 +57,13 @@
       const backgroundValue = resolvedUrl ? `url(${JSON.stringify(resolvedUrl)})` : "none";
       root.style.setProperty("--landing-image", backgroundValue);
       root.style.setProperty("--landing-cover-desktop", backgroundValue);
+    }
+
+    function resizePreviewFrame() {
+      if (!previewFrameShell) return;
+      const scale = Math.min(1, previewFrameShell.clientWidth / 1180);
+      previewFrameShell.style.setProperty("--admin-preview-scale", String(scale));
+      previewFrameShell.style.height = `${Math.round(680 * scale)}px`;
     }
 
     function updatePreview() {
@@ -127,16 +136,26 @@
 
     previewFrame.addEventListener("load", () => {
       previewDocument = previewFrame.contentDocument;
+      resizePreviewFrame();
       updatePreview();
     });
     if (previewFrame.contentDocument && previewFrame.contentDocument.readyState === "complete") {
       previewDocument = previewFrame.contentDocument;
     }
 
+    if ("ResizeObserver" in window && previewFrameShell) {
+      previewResizeObserver = new ResizeObserver(resizePreviewFrame);
+      previewResizeObserver.observe(previewFrameShell);
+    } else {
+      window.addEventListener("resize", resizePreviewFrame);
+    }
+
     window.addEventListener("pagehide", () => {
       if (coverObjectUrl) URL.revokeObjectURL(coverObjectUrl);
+      if (previewResizeObserver) previewResizeObserver.disconnect();
     });
 
+    resizePreviewFrame();
     updatePreview();
   }
 

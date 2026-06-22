@@ -1284,6 +1284,9 @@ class SiteManagementTests(unittest.TestCase):
             self.assertIn('data-upload-target="model_url"', html)
             self.assertIn(expected_limit, html)
             self.assertIn("ขนาดไม่เกิน 50 MB", html)
+            self.assertIn("พรีวิวการแสดงผลโมเดล", html)
+            self.assertIn("data-admin-model-preview", html)
+            self.assertIn("admin-model-preview.js", html)
 
         with patch.object(module, "is_supabase_enabled", return_value=False):
             response = self.client.post(

@@ -173,6 +173,26 @@
                 <input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> เผยแพร่โมเดลนี้บนเว็บไซต์
               </label>
             </div>
+
+            <!-- Model 3D Preview Panel -->
+            <div class="field full admin-model-preview-card" data-admin-model-preview-root>
+              <label>พรีวิวการแสดงผลโมเดล</label>
+              <div class="admin-model-preview-frame">
+                <div class="admin-model-preview-placeholder" data-admin-model-preview-placeholder>
+                  อัปโหลดหรือเลือกไฟล์ .glb เพื่อดูพรีวิว
+                </div>
+                <model-viewer
+                  class="admin-model-preview-viewer"
+                  data-admin-model-preview
+                  camera-controls
+                  interaction-prompt="none"
+                  exposure="1"
+                  shadow-intensity="0.75"
+                  style="display: none;"
+                ></model-viewer>
+              </div>
+              <p class="meta">พรีวิวนี้ใช้ค่าขนาดและการหมุนเดียวกับหน้าเว็บจริง</p>
+            </div>
           </fieldset>
 
           <div class="admin-action-row full">
@@ -189,5 +209,7 @@
   <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/preview-gallery-input.js') }}" defer></script>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <script src="{{ url_for('static', filename='js/admin-model-preview.js') }}" defer></script>
 </body>
 </html>

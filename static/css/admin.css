@@ -803,59 +803,204 @@ tr:last-child td {
 
 /* CSS-Only Admin Icon styling to replace emojis */
 .admin-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 800;
-  font-family: monospace;
+  position: relative;
+  width: 1.35rem;
+  height: 1.35rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: .45rem;
+  background: rgba(255, 255, 255, .14);
+  color: currentColor;
+  flex: 0 0 auto;
 }
 
-.admin-icon::before {
-  content: "?";
+.admin-icon::before,
+.admin-icon::after {
+  content: "";
+  position: absolute;
+  box-sizing: border-box;
 }
 
+/* Models/List: stacked horizontal lines */
 .admin-icon--models::before {
-  content: "M";
+  width: 10px;
+  height: 2px;
+  background: currentColor;
+  box-shadow: 0 -4px 0 currentColor, 0 4px 0 currentColor;
 }
+
+/* Add: plus sign using ::before and ::after */
 .admin-icon--add::before {
-  content: "+";
+  width: 10px;
+  height: 2px;
+  background: currentColor;
 }
-.admin-icon--landing::before {
-  content: "L";
+.admin-icon--add::after {
+  width: 2px;
+  height: 10px;
+  background: currentColor;
 }
-.admin-icon--sliders::before {
-  content: "S";
-}
-.admin-icon--branding::before {
-  content: "B";
-}
-.admin-icon--intro::before {
-  content: "I";
-}
-.admin-icon--projects::before {
-  content: "P";
-}
-.admin-icon--view::before {
-  content: "V";
-}
-.admin-icon--logout::before {
-  content: "X";
-}
-.admin-icon--quick::before {
-  content: "Q";
-}
-.admin-icon--settings::before {
-  content: "C";
-}
+
+/* Recommended: 8-pointed star using overlapping rotated squares */
 .admin-icon--recommended::before {
-  content: "R";
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  transform: rotate(45deg);
 }
+.admin-icon--recommended::after {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  transform: rotate(0deg);
+}
+
+/* Landing Page: rectangle outline with bottom page bar */
+.admin-icon--landing::before {
+  width: 12px;
+  height: 9px;
+  border: 1.5px solid currentColor;
+  border-radius: 1px;
+}
+.admin-icon--landing::after {
+  width: 6px;
+  height: 1.5px;
+  background: currentColor;
+  bottom: 4px;
+}
+
+/* Sliders: image frame with small dot representing sun/source */
+.admin-icon--sliders::before {
+  width: 12px;
+  height: 9px;
+  border: 1.5px solid currentColor;
+  border-radius: 1px;
+}
+.admin-icon--sliders::after {
+  width: 3px;
+  height: 3px;
+  background: currentColor;
+  border-radius: 50%;
+  top: 4.5px;
+  left: 4.5px;
+}
+
+/* Branding/SEO: shield badge */
+.admin-icon--branding::before {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-bottom-left-radius: 50%;
+  border-bottom-right-radius: 50%;
+}
+.admin-icon--branding::after {
+  width: 2px;
+  height: 4px;
+  background: currentColor;
+  top: 4.5px;
+}
+
+/* Intro Splash: play button triangle */
+.admin-icon--intro::before {
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid currentColor;
+  left: 7.5px;
+}
+
+/* Projects/Learning Source: folder shape */
+.admin-icon--projects::before {
+  width: 12px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 1px;
+  bottom: 4px;
+}
+.admin-icon--projects::after {
+  width: 6px;
+  height: 2px;
+  background: currentColor;
+  top: 4px;
+  left: 4px;
+  border-radius: 1px 1px 0 0;
+}
+
+/* View: eye icon */
+.admin-icon--view::before {
+  width: 12px;
+  height: 6px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+.admin-icon--view::after {
+  width: 3px;
+  height: 3px;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+/* Logout: exit arrow */
+.admin-icon--logout::before {
+  width: 6px;
+  height: 1.5px;
+  background: currentColor;
+  left: 4px;
+}
+.admin-icon--logout::after {
+  width: 4px;
+  height: 4px;
+  border-top: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  right: 5px;
+}
+
+/* Quick Actions: double chevron */
+.admin-icon--quick::before {
+  width: 5px;
+  height: 5px;
+  border-top: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  left: 5px;
+}
+.admin-icon--quick::after {
+  width: 5px;
+  height: 5px;
+  border-top: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  left: 9px;
+}
+
+/* Settings/Controls: gear with notch */
+.admin-icon--settings::before {
+  width: 10px;
+  height: 10px;
+  border: 2px dashed currentColor;
+  border-radius: 50%;
+}
+.admin-icon--settings::after {
+  width: 4px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+/* Gemini/AI: 4-pointed sparkle using overlapping leaf shapes */
 .admin-icon--gemini::before {
-  content: "AI";
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 8px 0 8px 0;
+  transform: rotate(45deg);
+}
+.admin-icon--gemini::after {
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 0 8px 0 8px;
+  transform: rotate(45deg);
 }

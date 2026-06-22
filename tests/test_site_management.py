@@ -151,6 +151,18 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn(".landing-logo-strip", stylesheet)
         self.assertIn(".landing-logo-strip__item", stylesheet)
         self.assertIn("background-position: right center;", stylesheet)
+        self.assertIn(".eyebrow.landing-eyebrow", stylesheet)
+        self.assertIn("color: #0f4d36;", stylesheet)
+
+        landing_html = self.client.get("/").get_data(as_text=True)
+        self.assertIn(
+            '<p class="eyebrow landing-eyebrow">ภูพาน สกลนคร</p>',
+            landing_html,
+        )
+
+        self.sign_in()
+        preview_html = self.client.get("/admin/landing/preview").get_data(as_text=True)
+        self.assertIn("eyebrow landing-eyebrow", preview_html)
 
     def test_landing_mobile_layout_elements(self):
         landing_html = self.client.get("/").get_data(as_text=True)

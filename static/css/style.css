@@ -436,8 +436,9 @@ body.landing-page main {
   max-width: var(--landing-text-max-width-desktop, 520px);
 }
 
-.landing-eyebrow {
+.eyebrow.landing-eyebrow {
   background: rgba(237, 247, 240, 0.95);
+  color: #0f4d36;
   font-size: var(--landing-badge-font-size-desktop, 14px);
 }
 

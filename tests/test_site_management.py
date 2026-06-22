@@ -1502,6 +1502,31 @@ class SiteManagementTests(unittest.TestCase):
         self.assertNotIn("เพิ่มโครงการ", html)
         self.assertNotIn("จัดการโครงการ", html)
 
+    def test_mobile_model_detail_layout_ordering_and_elements(self):
+        # 1. Check model detail page still renders correctly and contains info-header wrapper
+        response = self.client.get("/models/lychee")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("class=\"info-header\"", html)
+        self.assertIn("id=\"mainModelViewer\"", html)
+        self.assertIn("หน่วยงาน/แผนก", html)
+
+        # 2. Check CSS contains mobile ordering rules for model detail layout
+        css_path = Path(module.BASE_DIR) / "static" / "css" / "style.css"
+        css = css_path.read_text(encoding="utf-8")
+        self.assertIn(".viewer-stage {", css)
+        self.assertIn("display: contents;", css)
+        self.assertIn(".viewer-card {", css)
+        self.assertIn("order: 1;", css)
+        self.assertIn(".info-panel {", css)
+        self.assertIn(".info-header {", css)
+        self.assertIn(".meta-list {", css)
+
+        # 3. Check /models and /home still render successfully
+        for path in ("/models", "/home", "/"):
+            res = self.client.get(path)
+            self.assertEqual(res.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()

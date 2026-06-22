@@ -1536,8 +1536,62 @@ model-viewer {
     grid-template-columns: 1fr;
   }
 
+  .viewer-stage {
+    display: contents;
+  }
+
+  .viewer-intro {
+    display: none;
+  }
+
+  .viewer-card {
+    order: 1;
+  }
+
   .info-panel {
     order: 2;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+  }
+
+  .info-header {
+    order: 1;
+    margin-bottom: 12px;
+  }
+
+  .meta-list {
+    order: 2;
+    margin-bottom: 16px;
+  }
+
+  .model-narration {
+    order: 3;
+    margin: 8px 0 16px;
+  }
+
+  .model-gallery {
+    order: 4;
+    margin-bottom: 16px;
+  }
+
+  .usage-note {
+    order: 5;
+    margin: 8px 0 16px;
+  }
+
+  .action-row {
+    order: 6;
+    margin-top: 8px;
+  }
+
+  .viewer-help {
+    order: 7;
+    margin-top: 16px;
+  }
+
+  .related-section {
+    order: 8;
   }
 
   .landing-carousel {

@@ -93,9 +93,11 @@
     </section>
 
     <aside class="info-panel" aria-labelledby="modelTitle">
-      <p class="eyebrow">{{ model.department or model.project_department or "โมเดลการเรียนรู้" }}</p>
-      <h1 id="modelTitle">{{ model.name }}</h1>
-      <p class="lead" id="modelDescription">{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้ภูมิปัญญา ผลิตภัณฑ์ และงานพัฒนาพื้นที่" }}</p>
+      <div class="info-header">
+        <p class="eyebrow">{{ model.department or model.project_department or "โมเดลการเรียนรู้" }}</p>
+        <h1 id="modelTitle">{{ model.name }}</h1>
+        <p class="lead" id="modelDescription">{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้ภูมิปัญญา ผลิตภัณฑ์ และงานพัฒนาพื้นที่" }}</p>
+      </div>
       <div class="model-narration" data-model-narration data-title-source="modelTitle" data-description-source="modelDescription">
         <button class="button secondary small model-narration__button" type="button" data-narration-toggle>
           ฟังคำบรรยาย

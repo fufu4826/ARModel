@@ -221,6 +221,35 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(self.client.get("/models").status_code, 200)
         self.assertEqual(self.client.get("/models/lychee").status_code, 200)
 
+    def test_admin_landing_includes_realtime_preview(self):
+        self.sign_in()
+        admin_html = self.client.get("/admin/landing").get_data(as_text=True)
+        self.assertIn("พรีวิวหน้าปกแบบเรียลไทม์", admin_html)
+        self.assertIn("data-landing-preview", admin_html)
+        self.assertIn("data-preview-bg", admin_html)
+        self.assertIn("data-preview-content", admin_html)
+        self.assertIn("data-preview-headline", admin_html)
+        self.assertIn("data-preview-subheadline", admin_html)
+        self.assertIn("data-preview-description", admin_html)
+        self.assertIn("data-preview-primary", admin_html)
+        self.assertIn('src="/static/js/admin-landing-preview.js?v=1"', admin_html)
+
+        for field_name in module.LANDING_TYPOGRAPHY_SETTINGS:
+            self.assertIn(f'name="{field_name}"', admin_html)
+
+        script = (
+            Path(module.BASE_DIR) / "static" / "js" / "admin-landing-preview.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("textContent", script)
+        self.assertNotIn("innerHTML", script)
+        self.assertIn("Math.min", script)
+        self.assertIn("Math.max", script)
+        self.assertIn("URL.createObjectURL", script)
+
+        self.assertEqual(self.client.get("/").status_code, 200)
+        self.assertEqual(self.client.get("/home").status_code, 200)
+        self.assertEqual(self.client.get("/models").status_code, 200)
+
     def test_home_hero_text_is_admin_editable_without_changing_links(self):
         home_html = self.client.get("/home").get_data(as_text=True)
         self.assertIn("นิทรรศการดิจิทัล 3D / AR", home_html)

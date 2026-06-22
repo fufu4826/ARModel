@@ -26,7 +26,7 @@
         <form action="{{ url_for('update_admin_settings') }}" method="post" enctype="multipart/form-data" class="admin-form">
           <input type="hidden" name="section" value="landing" />
           <input type="hidden" name="return_to" value="{{ url_for('admin_landing') }}" />
-          <input type="hidden" name="landing_cover" value="{{ settings.landing_cover }}" />
+          <input id="landing-cover-value" type="hidden" name="landing_cover" value="{{ settings.landing_cover }}" />
           <input type="hidden" name="landing_mobile_cover_image" value="{{ settings.landing_mobile_cover_image }}" />
 
           <div class="preview-panel full">
@@ -106,6 +106,33 @@
             <input id="landing-button-font-size-desktop" name="landing_button_font_size_desktop" type="number" min="12" max="24" step="1" value="{{ settings.landing_button_font_size_desktop }}" />
           </div>
 
+          <section
+            class="landing-live-preview-card full"
+            data-landing-preview
+            data-current-cover-url="{{ settings.landing_cover_url }}"
+            data-default-badge="นิทรรศการดิจิทัล 3D / AR"
+          >
+            <div class="landing-live-preview-header">
+              <h2>พรีวิวหน้าปกแบบเรียลไทม์</h2>
+              <p>ปรับข้อความ ภาพปก ความกว้าง และขนาดตัวอักษรเพื่อดูตัวอย่างก่อนบันทึก</p>
+            </div>
+            <div class="landing-preview-frame">
+              <div class="landing-preview-bg" data-preview-bg>
+                <div class="landing-preview-overlay" aria-hidden="true"></div>
+                <div class="landing-preview-content" data-preview-content>
+                  <span class="landing-preview-badge" data-preview-badge></span>
+                  <h3 class="landing-preview-headline" data-preview-headline></h3>
+                  <p class="landing-preview-subheadline" data-preview-subheadline></p>
+                  <p class="landing-preview-description" data-preview-description></p>
+                  <div class="landing-preview-actions">
+                    <span class="landing-preview-button landing-preview-button-primary" data-preview-primary></span>
+                    <span class="landing-preview-button landing-preview-button-secondary">ดูรายการโมเดล</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <div class="field">
             <label for="landing-cta-text">CTA Button Text</label>
             <input id="landing-cta-text" name="landing_cta_text" value="{{ settings.landing_cta_text }}" required />
@@ -156,5 +183,6 @@
   </main>
   <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/admin-landing-preview.js') }}?v=1" defer></script>
 </body>
 </html>

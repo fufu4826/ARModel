@@ -975,6 +975,28 @@ h3 {
   border: 1px solid #ead799;
 }
 
+.model-audio-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #0f6b3f;
+  background: #e8f6ee;
+  border: 1px solid #b9e3ca;
+}
+
+.model-audio-badge__icon {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  display: inline-block;
+}
+
 .breadcrumb {
   display: flex;
   align-items: center;

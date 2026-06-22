@@ -5,27 +5,28 @@
 
   <div class="admin-nav-group">
     <span class="admin-nav-heading">โมเดล 3D</span>
-    <a href="{{ url_for('admin') }}" class="{{ 'active' if request.endpoint == 'admin' and not request.path.endswith('#projects') and not request.path.endswith('#add-model-section') else '' }}">📦 รายการโมเดล</a>
-    <a href="{{ url_for('admin') }}#add-model-section">➕ เพิ่มโมเดล</a>
+    <a href="{{ url_for('admin') }}" class="{{ 'active' if request.endpoint == 'admin' and not request.path.endswith('#projects') and not request.path.endswith('#add-model-section') else '' }}"><span class="admin-icon admin-icon--models" aria-hidden="true"></span> รายการโมเดล</a>
+    <a href="{{ url_for('admin') }}#add-model-section"><span class="admin-icon admin-icon--add" aria-hidden="true"></span> เพิ่มโมเดล</a>
+    <a href="{{ url_for('admin_recommended_models') }}" class="{{ 'active' if request.endpoint == 'admin_recommended_models' else '' }}"><span class="admin-icon admin-icon--recommended" aria-hidden="true"></span> โมเดลแนะนำ</a>
   </div>
 
   <div class="admin-nav-group">
     <span class="admin-nav-heading">เนื้อหาเว็บไซต์</span>
-    <a href="{{ url_for('admin_landing') }}" class="{{ 'active' if request.endpoint == 'admin_landing' else '' }}">📝 หน้าปก (Landing Page)</a>
-    <a href="{{ url_for('admin_sliders') }}" class="{{ 'active' if request.endpoint in ['admin_sliders', 'edit_slider'] else '' }}">🎠 สไลด์หน้าแรก</a>
-    <a href="{{ url_for('admin_branding') }}" class="{{ 'active' if request.endpoint == 'admin_branding' else '' }}">🎨 แบรนด์ / SEO</a>
+    <a href="{{ url_for('admin_landing') }}" class="{{ 'active' if request.endpoint == 'admin_landing' else '' }}"><span class="admin-icon admin-icon--landing" aria-hidden="true"></span> หน้าปก (Landing Page)</a>
+    <a href="{{ url_for('admin_sliders') }}" class="{{ 'active' if request.endpoint in ['admin_sliders', 'edit_slider'] else '' }}"><span class="admin-icon admin-icon--sliders" aria-hidden="true"></span> สไลด์หน้าแรก</a>
+    <a href="{{ url_for('admin_branding') }}" class="{{ 'active' if request.endpoint == 'admin_branding' else '' }}"><span class="admin-icon admin-icon--branding" aria-hidden="true"></span> แบรนด์ / SEO</a>
   </div>
 
   <div class="admin-nav-group">
     <span class="admin-nav-heading">สื่อและการแสดงผล</span>
-    <a href="{{ url_for('admin_intro') }}" class="{{ 'active' if request.endpoint == 'admin_intro' else '' }}">🎬 โลโก้ Intro</a>
-    <a href="{{ url_for('admin') }}#projects">📁 แหล่งเรียนรู้ (Projects)</a>
+    <a href="{{ url_for('admin_intro') }}" class="{{ 'active' if request.endpoint == 'admin_intro' else '' }}"><span class="admin-icon admin-icon--intro" aria-hidden="true"></span> โลโก้ Intro</a>
+    <a href="{{ url_for('admin') }}#projects"><span class="admin-icon admin-icon--projects" aria-hidden="true"></span> แหล่งเรียนรู้ (Projects)</a>
   </div>
 
   <div class="admin-nav-group admin-nav-actions">
-    <a href="{{ url_for('home') }}" class="btn-view-site" target="_blank">👁️ ดูเว็บไซต์</a>
+    <a href="{{ url_for('home') }}" class="btn-view-site" target="_blank"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> ดูเว็บไซต์</a>
     <form action="{{ url_for('admin_logout') }}" method="post" class="logout-form">
-      <button type="submit" class="btn-logout">🚪 ออกจากระบบ</button>
+      <button type="submit" class="btn-logout"><span class="admin-icon admin-icon--logout" aria-hidden="true"></span> ออกจากระบบ</button>
     </form>
   </div>
 </nav>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>โมเดลแนะนำ - Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  {% include "_fonts.html" %}
+</head>
+<body>
+  <div class="admin-container">
+    {% include "_admin_nav.html" %}
+
+    <main class="admin-main-content">
+      <div class="admin-shell">
+        <header class="admin-heading">
+          <div>
+            <p class="admin-eyebrow">เนื้อหาหน้าแรก</p>
+            <h1>จัดการโมเดลแนะนำ</h1>
+            <p>เลือกและจัดลำดับโมเดล 3D ที่ต้องการแนะนำเพื่อนำไปแสดงผลบนหน้าแรกสูงสุด 6 รายการ</p>
+          </div>
+          <a class="button secondary" href="{{ url_for('home') }}#featured-models" target="_blank" rel="noopener"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> ดูผลบนเว็บไซต์</a>
+        </header>
+
+        {% include "_admin_messages.html" %}
+
+        <form method="post" class="admin-form">
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">เลือกและจัดลำดับโมเดล (เลือกได้สูงสุด 6 โมเดล)</legend>
+            <p class="meta">ระบุลำดับตัวเลขเพื่อควบคุมลำดับการแสดงผลจากน้อยไปมาก (เช่น 1, 2, 3)</p>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 60px; text-align: center;">แนะนำ</th>
+                    <th style="width: 80px; text-align: center;">ลำดับ</th>
+                    <th style="width: 80px;">ภาพตัวอย่าง</th>
+                    <th>ชื่อโมเดล</th>
+                    <th>แหล่งเรียนรู้</th>
+                    <th>หน่วยงาน/แผนก</th>
+                    <th>เสียงบรรยาย</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for model in models %}
+                  <tr>
+                    <td style="text-align: center;">
+                      <input type="checkbox" name="recommended_ids" value="{{ model.id }}" {% if model.is_recommended %}checked{% endif %} />
+                    </td>
+                    <td style="text-align: center;">
+                      <input type="number" name="sort_order_{{ model.id }}" value="{{ model.recommend_order or 1 }}" min="1" max="99" style="width: 60px; padding: 4px; text-align: center;" />
+                    </td>
+                    <td>
+                      {% set thumb_url = model.thumbnail_url or model.thumbnail_resolved_url %}
+                      {% if thumb_url %}
+                      <img src="{{ thumb_url }}" alt="" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid var(--admin-line);" />
+                      {% else %}
+                      <div style="width: 50px; height: 50px; background: var(--admin-bg); border-radius: 4px; border: 1px solid var(--admin-line); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--admin-text-muted);">ไม่มีรูป</div>
+                      {% endif %}
+                    </td>
+                    <td style="font-weight: 800;">{{ model.name }}</td>
+                    <td>{{ model.project_name }}</td>
+                    <td>{{ model.department or "-" }}</td>
+                    <td>
+                      {% if model.narration_audio %}
+                      <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; background: #e8f6ee; color: #0f6b3f; font-size: 11px; font-weight: 800; border: 1px solid #b9e3ca;">มีเสียงบรรยาย</span>
+                      {% else %}
+                      <span style="color: var(--admin-text-muted); font-size: 11px;">ไม่มี</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="admin-action-row" style="margin-top: 20px;">
+              <button class="button" type="submit">บันทึกรายชื่อโมเดลแนะนำ</button>
+            </div>
+          </fieldset>
+        </form>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

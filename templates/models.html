@@ -104,6 +104,12 @@
               {% if model.size_mb is not none %}
               <span class="count-pill">{{ "%.2f MB"|format(model.size_mb) }}</span>
               {% endif %}
+              {% if model.narration_audio %}
+              <span class="model-audio-badge" aria-label="มีเสียงบรรยาย">
+                <span class="model-audio-badge__icon" aria-hidden="true"></span>
+                มีเสียงบรรยาย
+              </span>
+              {% endif %}
             </div>
             <h3><a href="{{ url_for('model_detail', model_id=model.id) }}">{{ model.name }}</a></h3>
             {% if model.department %}

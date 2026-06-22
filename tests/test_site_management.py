@@ -1527,6 +1527,100 @@ class SiteManagementTests(unittest.TestCase):
             res = self.client.get(path)
             self.assertEqual(res.status_code, 200)
 
+    def test_recommended_models_admin_and_public(self):
+        # 1. Admin page requires login
+        response = self.client.get("/admin/recommended-models")
+        self.assertEqual(response.status_code, 302)  # redirects to login
+
+        # 2. Renders checkbox list after login
+        self.sign_in()
+        response = self.client.get("/admin/recommended-models")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("name=\"recommended_ids\"", html)
+        self.assertIn("ลูกประคบ", html)
+        self.assertIn("ลิ้นจี่", html)
+
+        # 3. Default/fallback homepage still renders recommended models
+        home_res = self.client.get("/home")
+        self.assertEqual(home_res.status_code, 200)
+        home_html = home_res.get_data(as_text=True)
+        self.assertIn("แสดงตัวอย่างสูงสุด 6 รายการ", home_html)
+
+        # 4. Saving recommended models in admin settings persists and changes /home output
+        save_res = self.client.post("/admin/recommended-models", data={
+            "recommended_ids": ["lychee", "lukplakob"],
+            "sort_order_lychee": "1",
+            "sort_order_lukplakob": "2",
+        })
+        self.assertEqual(save_res.status_code, 302)
+
+        # 5. Check persistence in site settings
+        settings = module.get_site_settings()
+        self.assertEqual(settings.get("recommended_model_ids"), "lychee,lukplakob")
+
+        # 6. Check homepage output changes
+        home_res = self.client.get("/home")
+        self.assertEqual(home_res.status_code, 200)
+        home_html = home_res.get_data(as_text=True)
+        self.assertIn("แสดงโมเดลแนะนำ 2 รายการจากทั้งหมด", home_html)
+        self.assertIn("ลิ้นจี่", home_html)
+        self.assertIn("ลูกประคบ", home_html)
+
+        # 7. Unselected models do not appear if custom settings are used
+        featured_section = home_html.split('id="featured-models"')[1].split('</section>')[0]
+        self.assertNotIn("ธัญพืชอัดแท่ง", featured_section)
+
+        # 8. Invalid/deleted IDs are ignored
+        save_res = self.client.post("/admin/recommended-models", data={
+            "recommended_ids": ["lychee", "invalid-id"],
+            "sort_order_lychee": "1",
+            "sort_order_invalid-id": "2",
+        })
+        self.assertEqual(save_res.status_code, 302)
+        home_res = self.client.get("/home")
+        home_html = home_res.get_data(as_text=True)
+        featured_section = home_html.split('id="featured-models"')[1].split('</section>')[0]
+        self.assertIn("ลิ้นจี่", featured_section)
+        self.assertNotIn("invalid-id", featured_section)
+
+    def test_narration_audio_badge_on_public_cards(self):
+        # Modify default models to have/not have narration
+        models = module.load_models(include_hidden=True)
+        for m in models:
+            if m["id"] == "lychee":
+                m["narration_audio"] = "audio/lychee.mp3"
+            elif m["id"] == "lukplakob":
+                m["narration_audio"] = ""
+        module.save_models(models)
+
+        # 1. Model with narration_audio shows มีเสียงบรรยาย on /models
+        response = self.client.get("/models")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("มีเสียงบรรยาย", html)
+
+        # 2. No visible "ไม่มีเสียง" exists on public pages
+        self.assertNotIn("ไม่มีเสียง", html)
+
+        # 3. Homepage recommended cards also show badge when applicable
+        self.sign_in()
+        self.client.post("/admin/recommended-models", data={
+            "recommended_ids": ["lychee", "lukplakob"],
+            "sort_order_lychee": "1",
+            "sort_order_lukplakob": "2",
+        })
+
+        home_html = self.client.get("/home").get_data(as_text=True)
+        featured_section = home_html.split('id="featured-models"')[1].split('</section>')[0]
+        self.assertIn("มีเสียงบรรยาย", featured_section)
+
+        # Model detail narration page still works
+        detail_res = self.client.get("/models/lychee")
+        self.assertEqual(detail_res.status_code, 200)
+        detail_html = detail_res.get_data(as_text=True)
+        self.assertIn("ฟังคำบรรยาย", detail_html)
+
 
 if __name__ == "__main__":
     unittest.main()

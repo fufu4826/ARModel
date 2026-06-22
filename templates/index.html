@@ -161,7 +161,11 @@
           <p class="eyebrow">โมเดลแนะนำ</p>
           <h2 id="featured-models-title">เริ่มชมโมเดล 3D</h2>
         </div>
+        {% if is_custom_recommended %}
+        <p>แสดงโมเดลแนะนำ {{ featured_models|length }} รายการจากทั้งหมด {{ total_model_count }} โมเดล</p>
+        {% else %}
         <p>แสดงตัวอย่างสูงสุด 6 รายการจากทั้งหมด {{ total_model_count }} โมเดล</p>
+        {% endif %}
       </div>
 
       {% if featured_models %}
@@ -182,6 +186,12 @@
               <span class="badge">{{ model.project_name }}</span>
               {% if model.size_mb is not none %}
               <span class="count-pill">{{ "%.2f MB"|format(model.size_mb) }}</span>
+              {% endif %}
+              {% if model.narration_audio %}
+              <span class="model-audio-badge" aria-label="มีเสียงบรรยาย">
+                <span class="model-audio-badge__icon" aria-hidden="true"></span>
+                มีเสียงบรรยาย
+              </span>
               {% endif %}
             </div>
             <h3><a href="{{ url_for('model_detail', model_id=model.id) }}">{{ model.name }}</a></h3>

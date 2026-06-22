@@ -87,6 +87,7 @@ DEFAULT_SITE_SETTINGS = {
     "site_social_image": "",
     "favicon": "favicon.ico",
     "meta_description": DEFAULT_META_DESCRIPTION,
+    "recommended_model_ids": "",
 }
 LANDING_TYPOGRAPHY_SETTINGS = {
     "landing_text_max_width_desktop": (320, 900),
@@ -1766,13 +1767,33 @@ def home():
     projects = [project_with_urls(project, models) for project in get_projects(include_hidden=False)]
     counts = project_model_counts(projects, models)
     all_models = [model_with_project(model, projects) for model in models]
-    featured_models = all_models[:6]
+
+    # Select featured models
+    rec_ids_str = settings.get("recommended_model_ids", "")
+    recommended_ids = [r.strip() for r in rec_ids_str.split(",") if r.strip()]
+    is_custom_recommended = False
+
+    if recommended_ids:
+        model_map = {m["id"]: m for m in all_models}
+        featured_models = []
+        for mid in recommended_ids:
+            if mid in model_map and model_map[mid] not in featured_models:
+                featured_models.append(model_map[mid])
+        featured_models = featured_models[:6]
+        if featured_models:
+            is_custom_recommended = True
+        else:
+            featured_models = all_models[:6]
+    else:
+        featured_models = all_models[:6]
+
     sliders = [slider_with_url(item) for item in get_slider_items(include_inactive=False)]
     return render_template(
         "index.html",
         projects=projects,
         model_counts=counts,
         featured_models=featured_models,
+        is_custom_recommended=is_custom_recommended,
         total_project_count=len(projects),
         total_model_count=len(all_models),
         uses_online_data=is_supabase_enabled(),
@@ -2108,6 +2129,57 @@ def delete_slider(slider_id: str):
         return "", 204
     flash("ลบสไลด์แล้ว", "success")
     return redirect(url_for("admin_sliders"))
+
+
+@app.route("/admin/recommended-models", methods=["GET", "POST"])
+@admin_required
+def admin_recommended_models():
+    settings = get_site_settings()
+    if request.method == "POST":
+        if admin_write_blocked_on_vercel():
+            return redirect(url_for("admin_recommended_models"))
+
+        selected_ids = request.form.getlist("recommended_ids")
+
+        id_order_pairs = []
+        for mid in selected_ids:
+            try:
+                order_val = int(request.form.get(f"sort_order_{mid}", "0") or 0)
+            except (TypeError, ValueError):
+                order_val = 0
+            id_order_pairs.append((mid, order_val))
+
+        id_order_pairs.sort(key=lambda x: x[1])
+        sorted_ids = [pair[0] for pair in id_order_pairs]
+
+        settings["recommended_model_ids"] = ",".join(sorted_ids)
+
+        if is_supabase_enabled():
+            try:
+                upsert_supabase_site_settings(settings)
+            except SupabaseError as exc:
+                logger.exception("Unable to update site settings in Supabase")
+                flash(f"ไม่สามารถบันทึกข้อมูลไปยัง Supabase ได้: {exc}", "error")
+                return redirect(url_for("admin_recommended_models"))
+        else:
+            save_site_settings(settings)
+
+        flash("บันทึกรายชื่อโมเดลแนะนำแล้ว", "success")
+        return redirect(url_for("admin_recommended_models"))
+
+    models = get_models(include_hidden=False)
+    projects = get_projects(include_hidden=False)
+    all_models = [model_with_project(model, projects) for model in models]
+
+    rec_ids_str = settings.get("recommended_model_ids", "")
+    recommended_ids = [r.strip() for r in rec_ids_str.split(",") if r.strip()]
+    rec_order_map = {mid: i + 1 for i, mid in enumerate(recommended_ids)}
+
+    for m in all_models:
+        m["is_recommended"] = m["id"] in rec_order_map
+        m["recommend_order"] = rec_order_map.get(m["id"], "")
+
+    return render_template("admin_recommended_models.html", models=all_models)
 
 
 @app.post("/admin/settings")

@@ -800,3 +800,62 @@ tr:last-child td {
     gap: 12px;
   }
 }
+
+/* CSS-Only Admin Icon styling to replace emojis */
+.admin-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: monospace;
+}
+
+.admin-icon::before {
+  content: "?";
+}
+
+.admin-icon--models::before {
+  content: "M";
+}
+.admin-icon--add::before {
+  content: "+";
+}
+.admin-icon--landing::before {
+  content: "L";
+}
+.admin-icon--sliders::before {
+  content: "S";
+}
+.admin-icon--branding::before {
+  content: "B";
+}
+.admin-icon--intro::before {
+  content: "I";
+}
+.admin-icon--projects::before {
+  content: "P";
+}
+.admin-icon--view::before {
+  content: "V";
+}
+.admin-icon--logout::before {
+  content: "X";
+}
+.admin-icon--quick::before {
+  content: "Q";
+}
+.admin-icon--settings::before {
+  content: "C";
+}
+.admin-icon--recommended::before {
+  content: "R";
+}
+.admin-icon--gemini::before {
+  content: "AI";
+}

@@ -36,35 +36,35 @@
         <!-- Dashboard Layout Cards -->
         <section class="admin-dashboard-overview" aria-label="ส่วนลิงก์ด่วนแอดมิน">
           <div class="admin-dashboard-card">
-            <h3>⚡ Quick Actions (ทางลัดจัดการ)</h3>
+            <h3><span class="admin-icon admin-icon--quick" aria-hidden="true"></span> Quick Actions (ทางลัดจัดการ)</h3>
             <div class="admin-dashboard-card-links">
-              <a href="#add-project-section">➕ เพิ่มแหล่งเรียนรู้ใหม่</a>
-              <a href="#add-model-section">📦 เพิ่มโมเดลใหม่</a>
-              <a href="{{ url_for('home') }}" target="_blank">👁️ ดูหน้าเว็บไซต์สาธารณะ</a>
+              <a href="#add-project-section"><span class="admin-icon admin-icon--add" aria-hidden="true"></span> เพิ่มแหล่งเรียนรู้ใหม่</a>
+              <a href="#add-model-section"><span class="admin-icon admin-icon--models" aria-hidden="true"></span> เพิ่มโมเดลใหม่</a>
+              <a href="{{ url_for('home') }}" target="_blank"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> ดูหน้าเว็บไซต์สาธารณะ</a>
             </div>
           </div>
 
           <div class="admin-dashboard-card">
-            <h3>📝 Content Management (จัดการเนื้อหา)</h3>
+            <h3><span class="admin-icon admin-icon--landing" aria-hidden="true"></span> Content Management (จัดการเนื้อหา)</h3>
             <div class="admin-dashboard-card-links">
-              <a href="{{ url_for('admin_sliders') }}">🎠 จัดการภาพสไลด์หน้าแรก</a>
-              <a href="{{ url_for('admin_intro') }}">🎬 จัดการโลโก้ Intro Splash</a>
+              <a href="{{ url_for('admin_sliders') }}"><span class="admin-icon admin-icon--sliders" aria-hidden="true"></span> จัดการภาพสไลด์หน้าแรก</a>
+              <a href="{{ url_for('admin_intro') }}"><span class="admin-icon admin-icon--intro" aria-hidden="true"></span> จัดการโลโก้ Intro Splash</a>
             </div>
           </div>
 
           <div class="admin-dashboard-card">
-            <h3>📦 Model Management (จัดการโมเดล)</h3>
+            <h3><span class="admin-icon admin-icon--models" aria-hidden="true"></span> Model Management (จัดการโมเดล)</h3>
             <div class="admin-dashboard-card-links">
-              <a href="#models">🔍 รายการโมเดลทั้งหมด</a>
-              <a href="#projects">📂 รายการแหล่งเรียนรู้ทั้งหมด</a>
+              <a href="#models"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> รายการโมเดลทั้งหมด</a>
+              <a href="#projects"><span class="admin-icon admin-icon--projects" aria-hidden="true"></span> รายการแหล่งเรียนรู้ทั้งหมด</a>
             </div>
           </div>
 
           <div class="admin-dashboard-card">
-            <h3>🎨 Site Appearance (รูปลักษณ์เว็บไซต์)</h3>
+            <h3><span class="admin-icon admin-icon--branding" aria-hidden="true"></span> Site Appearance (รูปลักษณ์เว็บไซต์)</h3>
             <div class="admin-dashboard-card-links">
-              <a href="{{ url_for('admin_landing') }}">🖥️ ตั้งค่าหน้าปก (Landing Page)</a>
-              <a href="{{ url_for('admin_branding') }}">🏷️ ตั้งค่าแบรนด์ & SEO</a>
+              <a href="{{ url_for('admin_landing') }}"><span class="admin-icon admin-icon--landing" aria-hidden="true"></span> ตั้งค่าหน้าปก (Landing Page)</a>
+              <a href="{{ url_for('admin_branding') }}"><span class="admin-icon admin-icon--branding" aria-hidden="true"></span> ตั้งค่าแบรนด์ & SEO</a>
             </div>
           </div>
         </section>

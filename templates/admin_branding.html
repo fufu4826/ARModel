@@ -4,72 +4,104 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Site Branding - Admin</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  <link class="admin-stylesheet" rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
   {% include "_fonts.html" %}
 </head>
 <body>
-  <main class="admin-page">
-    <div class="admin-shell">
-      {% include "_admin_nav.html" %}
-      <header class="admin-heading" id="site-settings">
-        <div>
-          <p class="admin-eyebrow">Site Settings</p>
-          <h1>Site Branding</h1>
-          <p>จัดการชื่อเว็บไซต์ โลโก้ favicon และคำอธิบายสำหรับ SEO</p>
-        </div>
-        <a class="button secondary" href="{{ url_for('home') }}" target="_blank" rel="noopener">ดูหน้าเว็บไซต์</a>
-      </header>
+  <div class="admin-container">
+    {% include "_admin_nav.html" %}
 
-      {% include "_admin_messages.html" %}
+    <main class="admin-main-content">
+      <div class="admin-shell">
+        <header class="admin-heading" id="site-settings">
+          <div>
+            <p class="admin-eyebrow">Site Settings</p>
+            <h1>Site Branding & SEO</h1>
+            <p>จัดการชื่อเว็บไซต์ โลโก้ favicon และคำอธิบายสำหรับ SEO</p>
+          </div>
+          <a class="button secondary" href="{{ url_for('home') }}" target="_blank" rel="noopener">ดูหน้าเว็บไซต์</a>
+        </header>
 
-      <section class="admin-card">
+        {% include "_admin_messages.html" %}
+
         <form action="{{ url_for('update_admin_settings') }}" method="post" enctype="multipart/form-data" class="admin-form">
           <input type="hidden" name="section" value="branding" />
           <input type="hidden" name="return_to" value="{{ url_for('admin_branding') }}" />
           <input type="hidden" name="site_logo" value="{{ settings.site_logo }}" />
           <input type="hidden" name="favicon" value="{{ settings.favicon }}" />
 
-          <div class="field full">
-            <label for="site-name">Site Name</label>
-            <input id="site-name" name="site_name" value="{{ settings.site_name }}" required />
-            <span>ชื่อเว็บไซต์นี้ใช้เป็นชื่อบนแท็บและชื่อในการ์ดตัวอย่างเมื่อแชร์ลิงก์หน้า Landing และ Home</span>
-          </div>
-          <div class="field full">
-            <label for="meta-description">Meta Description</label>
-            <textarea id="meta-description" name="meta_description" rows="4" maxlength="320">{{ settings.meta_description }}</textarea>
-            <span>คำอธิบายนี้ใช้กับ Google และข้อความอธิบายในการ์ดตัวอย่างเมื่อแชร์ลิงก์</span>
-          </div>
+          <!-- Section 1: ข้อมูลทั่วไป -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">ข้อมูลทั่วไป</legend>
 
-          <div class="asset-field">
-            <div class="preview-panel">
-              <div class="logo-preview">
-                {% if settings.site_logo_url %}
-                <img data-image-preview="site-logo-file" src="{{ settings.site_logo_url }}" alt="ตัวอย่างโลโก้เว็บไซต์" />
+            <div class="field full">
+              <label for="site-name">Site Name (ชื่อเว็บไซต์)</label>
+              <input id="site-name" name="site_name" value="{{ settings.site_name }}" required />
+              <p class="meta">ชื่อเว็บไซต์นี้ใช้เป็นชื่อบนแท็บและชื่อในการ์ดตัวอย่างเมื่อแชร์ลิงก์หน้า Landing และ Home</p>
+            </div>
+
+            <div class="field full">
+              <label for="meta-description">Meta Description (คำอธิบายสำหรับ SEO)</label>
+              <textarea id="meta-description" name="meta_description" rows="4" maxlength="320">{{ settings.meta_description }}</textarea>
+              <p class="meta">คำอธิบายนี้ใช้กับระบบค้นหาของ Google และข้อความอธิบายในการ์ดตัวอย่างเมื่อแชร์ลิงก์</p>
+            </div>
+          </fieldset>
+
+          <!-- Section 2: โลโก้และไอคอน -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">โลโก้และไอคอน</legend>
+
+            <div class="asset-field">
+              <div class="preview-panel">
+                <div class="logo-preview">
+                  {% if settings.site_logo_url %}
+                  <img data-image-preview="site-logo-file" src="{{ settings.site_logo_url }}" alt="ตัวอย่างโลโก้เว็บไซต์" />
+                  {% else %}
+                  <img data-image-preview="site-logo-file" alt="ตัวอย่างโลโก้เว็บไซต์" hidden />
+                  <span class="preview-fallback">AR</span>
+                  {% endif %}
+                </div>
+                <div><strong>Site Logo</strong><span>JPG, PNG, WebP หรือ SVG ไม่เกิน 5 MB</span></div>
+              </div>
+              <div class="field">
+                <label for="site-logo-file">อัปโหลดโลโก้</label>
+                <input id="site-logo-file" name="site_logo_file" type="file" accept=".jpg,.jpeg,.png,.webp,.svg" data-upload-kind="site_logo" data-upload-target="site_logo" />
+              </div>
+            </div>
+
+            <div class="asset-field">
+              <div class="preview-panel">
+                <div class="favicon-preview">
+                  <img data-image-preview="favicon-file" src="{{ settings.favicon_url }}" alt="ตัวอย่าง favicon" />
+                </div>
+                <div><strong>Favicon</strong><span>PNG, ICO หรือ SVG ไม่เกิน 5 MB</span></div>
+              </div>
+              <div class="field">
+                <label for="favicon-file">อัปโหลด favicon</label>
+                <input id="favicon-file" name="favicon_file" type="file" accept=".png,.ico,.svg" data-upload-kind="favicon" data-upload-target="favicon" />
+                <p class="meta">Favicon ใช้เป็นไอคอนขนาดเล็กบนแท็บเบราว์เซอร์ หากยังไม่เปลี่ยนทันที ให้ลองล้างแคชหรือรีเฟรช</p>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Section 3: รูปภาพและ SEO -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">รูปภาพและแชร์ลิงก์ (Social Preview)</legend>
+
+            <div class="asset-field full">
+              <div class="preview-panel">
+                {% if settings.site_social_image_url %}
+                <img id="site-social-image-preview" data-image-preview="site-social-image-file" src="{{ settings.site_social_image_url }}" alt="ตัวอย่างรูปภาพเวลาส่งลิงก์" />
                 {% else %}
-                <img data-image-preview="site-logo-file" alt="ตัวอย่างโลโก้เว็บไซต์" hidden />
-                <span class="preview-fallback">AR</span>
+                <img id="site-social-image-preview" data-image-preview="site-social-image-file" src="{{ settings.landing_cover_url }}" alt="ตัวอย่างรูปภาพเวลาส่งลิงก์" />
                 {% endif %}
+                <div>
+                  <strong>รูปภาพตัวอย่างเวลาส่งลิงก์</strong>
+                  <span>ภาพนี้ใช้เป็นรูปใหญ่เมื่อแชร์ลิงก์ใน Facebook, LINE, Discord หรือแพลตฟอร์มอื่น ๆ แนะนำขนาด 1200x630 px</span>
+                </div>
               </div>
-              <div><strong>Site Logo</strong><span>JPG, PNG, WebP หรือ SVG ไม่เกิน 5 MB</span></div>
             </div>
-            <div class="field">
-              <label for="site-logo-file">อัปโหลดโลโก้</label>
-              <input id="site-logo-file" name="site_logo_file" type="file" accept=".jpg,.jpeg,.png,.webp,.svg" data-upload-kind="site_logo" data-upload-target="site_logo" />
-            </div>
-          </div>
 
-          <div class="asset-field full">
-            <div class="preview-panel">
-              {% if settings.site_social_image_url %}
-              <img id="site-social-image-preview" data-image-preview="site-social-image-file" src="{{ settings.site_social_image_url }}" alt="ตัวอย่างรูปภาพเวลาส่งลิงก์" />
-              {% else %}
-              <img id="site-social-image-preview" data-image-preview="site-social-image-file" src="{{ settings.landing_cover_url }}" alt="ตัวอย่างรูปภาพเวลาส่งลิงก์" />
-              {% endif %}
-              <div>
-                <strong>รูปภาพตัวอย่างเวลาส่งลิงก์</strong>
-                <span>ภาพนี้ใช้เป็นรูปใหญ่เมื่อแชร์ลิงก์ใน Facebook, LINE, Discord หรือแพลตฟอร์มอื่น ๆ แนะนำขนาด 1200x630 px</span>
-              </div>
-            </div>
             <div class="field">
               <label for="site-social-image-file">อัปโหลด Social Preview Image</label>
               <input id="site-social-image-file" name="site_social_image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="site_social_image" data-upload-target="site_social_image" />
@@ -77,40 +109,28 @@
             <div class="field">
               <label for="site-social-image">URL หรือ path รูปภาพตัวอย่างเวลาส่งลิงก์</label>
               <input id="site-social-image" name="site_social_image" value="{{ settings.site_social_image }}" placeholder="https://example.com/social-preview.jpg" data-image-preview-target="site-social-image-preview" />
-              <span>หากเว้นว่าง ระบบจะใช้ภาพหน้าปก Landing Page และ fallback ไปยังโลโก้หรือภาพเริ่มต้น</span>
+              <p class="meta">หากเว้นว่าง ระบบจะดึงภาพหน้าปก Landing Page อัตโนมัติ</p>
             </div>
-            <label class="check-field">
-              <input name="site_social_image_remove" type="checkbox" />
-              ลบรูปภาพตัวอย่างและกลับไปใช้ภาพหน้าปก Landing Page
-            </label>
-          </div>
-
-          <div class="asset-field">
-            <div class="preview-panel">
-              <div class="favicon-preview">
-                <img data-image-preview="favicon-file" src="{{ settings.favicon_url }}" alt="ตัวอย่าง favicon" />
-              </div>
-              <div><strong>Favicon</strong><span>PNG, ICO หรือ SVG ไม่เกิน 5 MB</span></div>
+            <div class="field full">
+              <label class="check-field">
+                <input name="site_social_image_remove" type="checkbox" />
+                ลบรูปภาพตัวอย่างและกลับไปใช้ภาพหน้าปก Landing Page
+              </label>
             </div>
-            <div class="field">
-              <label for="favicon-file">อัปโหลด favicon</label>
-              <input id="favicon-file" name="favicon_file" type="file" accept=".png,.ico,.svg" data-upload-kind="favicon" data-upload-target="favicon" />
-              <span>Favicon ใช้เป็นไอคอนขนาดเล็กบนแท็บเบราว์เซอร์ ไม่ใช่รูปภาพขนาดใหญ่ในการ์ดแชร์ลิงก์</span>
-              <span>หากไอคอนบนแท็บยังไม่เปลี่ยนทันที ให้ลองเปิดหน้าต่างใหม่หรือรีเฟรชแบบล้างแคช เนื่องจากเบราว์เซอร์มักแคช favicon ไว้</span>
-            </div>
-          </div>
+          </fieldset>
 
           <div class="admin-message info full">
-            หลังแก้ข้อมูลแล้ว บางแพลตฟอร์มอาจยังแสดงข้อมูลเก่า เพราะระบบแคชตัวอย่างลิงก์ไว้ ต้องรอสักครู่หรือลองส่งลิงก์ใหม่
+            หลังแก้ข้อมูลแล้ว บางแพลตฟอร์มอาจยังแสดงข้อมูลเก่า เพราะระบบแคชตัวอย่างลิงก์ไว้ ต้องรอสักครู่หรือใช้เครื่องมือดีบั๊กลิงก์ของแต่ละแพลตฟอร์ม
           </div>
 
-          <div class="form-actions full">
-            <button class="button" type="submit">บันทึก Branding</button>
+          <div class="admin-action-row">
+            <button class="button" type="submit">บันทึกข้อมูลทั้งหมด</button>
           </div>
         </form>
-      </section>
-    </div>
-  </main>
+      </div>
+    </main>
+  </div>
+
   <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
 </body>

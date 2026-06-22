@@ -8,172 +8,191 @@
   {% include "_fonts.html" %}
 </head>
 <body>
-  <main class="admin-page">
-    <div class="admin-shell">
-      {% include "_admin_nav.html" %}
-      <header class="admin-heading">
-        <div>
-          <p class="admin-eyebrow">Content Management</p>
-          <h1>Landing Page</h1>
-          <p>จัดการภาพหน้าปก ข้อความหลัก และปุ่มเข้าสู่เว็บไซต์</p>
-        </div>
-        <a class="button secondary" href="{{ url_for('index') }}" target="_blank" rel="noopener">ดูหน้า Landing</a>
-      </header>
+  <div class="admin-container">
+    {% include "_admin_nav.html" %}
 
-      {% include "_admin_messages.html" %}
+    <main class="admin-main-content">
+      <div class="admin-shell">
+        <header class="admin-heading">
+          <div>
+            <p class="admin-eyebrow">Content Management</p>
+            <h1>Landing Page Settings</h1>
+            <p>จัดการภาพหน้าปก ข้อความหลัก และปุ่มเข้าสู่เว็บไซต์</p>
+          </div>
+          <a class="button secondary" href="{{ url_for('index') }}" target="_blank" rel="noopener">ดูหน้า Landing หน้าเว็บจริง</a>
+        </header>
 
-      <section class="admin-card">
-        <form action="{{ url_for('update_admin_settings') }}" method="post" enctype="multipart/form-data" class="admin-form">
+        {% include "_admin_messages.html" %}
+
+        <form action="{{ url_for('update_admin_settings') }}" method="post" enctype="multipart/form-data" class="admin-page-grid">
           <input type="hidden" name="section" value="landing" />
           <input type="hidden" name="return_to" value="{{ url_for('admin_landing') }}" />
           <input id="landing-cover-value" type="hidden" name="landing_cover" value="{{ settings.landing_cover }}" />
           <input type="hidden" name="landing_mobile_cover_image" value="{{ settings.landing_mobile_cover_image }}" />
 
-          <div class="preview-panel full">
-            <img data-image-preview="landing-cover-file" src="{{ settings.landing_cover_url }}" alt="ตัวอย่างภาพหน้าปก Landing Page" />
-            <div>
-              <strong>Cover Image (Desktop)</strong>
-              <span>JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB</span>
+          <!-- Left Column: Settings Panel -->
+          <div class="admin-settings-column">
+
+            <!-- Group 1: ภาพหน้าปก -->
+            <fieldset class="admin-form-section full">
+              <legend class="admin-section-title">ภาพหน้าปก</legend>
+
+              <div class="preview-panel full">
+                <img data-image-preview="landing-cover-file" src="{{ settings.landing_cover_url }}" alt="ตัวอย่างภาพหน้าปก Landing Page" />
+                <div>
+                  <strong>Cover Image (Desktop)</strong>
+                  <span>JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB</span>
+                </div>
+              </div>
+
+              <div class="field full">
+                <label for="landing-cover-file">อัปโหลดภาพหน้าปก (Desktop)</label>
+                <input id="landing-cover-file" name="landing_cover_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="landing_cover" data-upload-target="landing_cover" />
+              </div>
+
+              <div class="preview-panel full" style="margin-top: 12px;">
+                <img data-image-preview="landing-mobile-cover-file" src="{{ settings.landing_mobile_cover_image_url }}" alt="ตัวอย่างภาพหน้าปกสำหรับมือถือ" />
+                <div>
+                  <strong>ภาพปกสำหรับมือถือ</strong>
+                  <span>ใช้เฉพาะหน้าจอโทรศัพท์ แนะนำภาพแนวตั้งหรือภาพที่จัดองค์ประกอบไว้ด้านขวา (ไม่เกิน 5 MB)</span>
+                </div>
+              </div>
+
+              <div class="field full">
+                <label for="landing-mobile-cover-file">อัปโหลดภาพหน้าปกสำหรับมือถือ</label>
+                <input id="landing-mobile-cover-file" name="landing_mobile_cover_image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="landing_mobile_cover_image" data-upload-target="landing_mobile_cover_image" />
+              </div>
+
+              <div class="field full">
+                <label class="check-field">
+                  <input name="landing_mobile_cover_image_remove" type="checkbox" />
+                  ลบภาพปกสำหรับมือถือและกลับไปใช้ภาพปกเริ่มต้น/เดสก์ท็อป
+                </label>
+              </div>
+            </fieldset>
+
+            <!-- Group 2: ข้อความหน้าปก -->
+            <fieldset class="admin-form-section full">
+              <legend class="admin-section-title">ข้อความหน้าปก</legend>
+
+              <div class="field full">
+                <label for="landing-headline">Headline</label>
+                <input id="landing-headline" name="landing_headline" value="{{ settings.landing_headline }}" required />
+              </div>
+              <div class="field full">
+                <label for="landing-subheadline">Subheadline</label>
+                <input id="landing-subheadline" name="landing_subheadline" value="{{ settings.landing_subheadline }}" required />
+              </div>
+              <div class="field full">
+                <label for="landing-description">คำอธิบาย</label>
+                <textarea id="landing-description" name="landing_description" rows="4">{{ settings.landing_description }}</textarea>
+              </div>
+              <div class="field">
+                <label for="landing-cta-text">CTA Button Text (ข้อความปุ่ม)</label>
+                <input id="landing-cta-text" name="landing_cta_text" value="{{ settings.landing_cta_text }}" required />
+              </div>
+              <div class="field">
+                <label for="landing-cta-url">CTA Button URL (ลิงก์ปุ่ม)</label>
+                <input id="landing-cta-url" name="landing_cta_url" value="{{ settings.landing_cta_url }}" required />
+              </div>
+            </fieldset>
+
+            <!-- Group 3: การจัดวางตัวหนังสือหน้าปก -->
+            <fieldset class="admin-form-section full">
+              <legend class="admin-section-title">การจัดวางตัวหนังสือหน้าปก</legend>
+
+              <div class="field full">
+                <label for="landing-text-max-width-desktop">ความกว้างกล่องข้อความบนคอมพิวเตอร์ (px)</label>
+                <input id="landing-text-max-width-desktop" name="landing_text_max_width_desktop" type="number" min="320" max="900" step="10" value="{{ settings.landing_text_max_width_desktop }}" />
+              </div>
+              <div class="field">
+                <label for="landing-headline-font-size-desktop">ขนาดหัวข้อหลักบนคอมพิวเตอร์ (px)</label>
+                <input id="landing-headline-font-size-desktop" name="landing_headline_font_size_desktop" type="number" min="28" max="96" step="1" value="{{ settings.landing_headline_font_size_desktop }}" />
+              </div>
+              <div class="field">
+                <label for="landing-subheadline-font-size-desktop">ขนาดหัวข้อรองบนคอมพิวเตอร์ (px)</label>
+                <input id="landing-subheadline-font-size-desktop" name="landing_subheadline_font_size_desktop" type="number" min="18" max="56" step="1" value="{{ settings.landing_subheadline_font_size_desktop }}" />
+              </div>
+              <div class="field">
+                <label for="landing-description-font-size-desktop">ขนาดคำอธิบายบนคอมพิวเตอร์ (px)</label>
+                <input id="landing-description-font-size-desktop" name="landing_description_font_size_desktop" type="number" min="14" max="28" step="1" value="{{ settings.landing_description_font_size_desktop }}" />
+              </div>
+              <div class="field">
+                <label for="landing-badge-font-size-desktop">ขนาดป้ายกำกับบนคอมพิวเตอร์ (px)</label>
+                <input id="landing-badge-font-size-desktop" name="landing_badge_font_size_desktop" type="number" min="10" max="22" step="1" value="{{ settings.landing_badge_font_size_desktop }}" />
+              </div>
+              <div class="field full">
+                <label for="landing-button-font-size-desktop">ขนาดตัวอักษรปุ่มบนคอมพิวเตอร์ (px)</label>
+                <input id="landing-button-font-size-desktop" name="landing_button_font_size_desktop" type="number" min="12" max="24" step="1" value="{{ settings.landing_button_font_size_desktop }}" />
+              </div>
+            </fieldset>
+
+            <!-- Group 4: ข้อความหน้าแรก / Home Hero -->
+            <fieldset class="admin-form-section full">
+              <legend class="admin-section-title">ข้อความหน้าแรก / Home Hero</legend>
+              <div class="field full" style="margin-bottom: 8px;">
+                <span class="meta">แก้ไขข้อความในส่วน Hero ของหน้าแรก <code>/home</code> โดยลิงก์ของปุ่มจะยังคงเดิม</span>
+              </div>
+
+              <div class="field">
+                <label for="home-hero-badge">ป้ายกำกับหน้าแรก</label>
+                <input id="home-hero-badge" name="home_hero_badge" value="{{ settings.home_hero_badge }}" required />
+              </div>
+              <div class="field">
+                <label for="home-hero-heading">หัวข้อหน้าแรก</label>
+                <input id="home-hero-heading" name="home_hero_heading" value="{{ settings.home_hero_heading }}" required />
+              </div>
+              <div class="field full">
+                <label for="home-hero-subheading">คำโปรยหน้าแรก</label>
+                <input id="home-hero-subheading" name="home_hero_subheading" value="{{ settings.home_hero_subheading }}" required />
+              </div>
+              <div class="field full">
+                <label for="home-hero-description">คำอธิบายหน้าแรก</label>
+                <textarea id="home-hero-description" name="home_hero_description" rows="4" required>{{ settings.home_hero_description }}</textarea>
+              </div>
+              <div class="field">
+                <label for="home-hero-primary-cta-text">ข้อความปุ่มหลัก</label>
+                <input id="home-hero-primary-cta-text" name="home_hero_primary_cta_text" value="{{ settings.home_hero_primary_cta_text }}" required />
+              </div>
+              <div class="field">
+                <label for="home-hero-secondary-cta-text">ข้อความปุ่มรอง</label>
+                <input id="home-hero-secondary-cta-text" name="home_hero_secondary_cta_text" value="{{ settings.home_hero_secondary_cta_text }}" required />
+              </div>
+            </fieldset>
+
+            <div class="admin-action-row">
+              <button class="button" type="submit">บันทึกข้อมูลทั้งหมด</button>
             </div>
           </div>
 
-          <div class="field full">
-            <label for="landing-cover-file">อัปโหลดภาพหน้าปก (Desktop)</label>
-            <input id="landing-cover-file" name="landing_cover_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="landing_cover" data-upload-target="landing_cover" />
+          <!-- Right Column: Sticky Live Preview Panel -->
+          <div class="admin-sticky-preview">
+            <section
+              class="landing-live-preview-card full"
+              data-landing-preview
+              data-current-cover-url="{{ settings.landing_cover_url }}"
+              data-default-badge="นิทรรศการดิจิทัล 3D / AR"
+            >
+              <div class="landing-live-preview-header">
+                <h2>พรีวิวหน้าปกแบบเรียลไทม์</h2>
+                <p>ตัวอย่างการแสดงผลบน Desktop โดยใช้ CSS เดียวกับหน้าจริง ปรับเปลี่ยนค่าด้านซ้ายเพื่อทดลองดูผลลัพธ์</p>
+              </div>
+              <div class="landing-preview-frame">
+                <iframe
+                  class="landing-preview-iframe"
+                  data-landing-preview-frame
+                  src="{{ url_for('admin_landing_preview') }}"
+                  title="พรีวิวหน้าปกแบบ Desktop"
+                ></iframe>
+              </div>
+            </section>
           </div>
 
-          <div class="preview-panel full">
-            <img data-image-preview="landing-mobile-cover-file" src="{{ settings.landing_mobile_cover_image_url }}" alt="ตัวอย่างภาพหน้าปกสำหรับมือถือ" />
-            <div>
-              <strong>ภาพปกสำหรับมือถือ</strong>
-              <span>ใช้เฉพาะหน้าจอโทรศัพท์ แนะนำภาพแนวตั้งหรือภาพที่จัดองค์ประกอบไว้ด้านขวา (JPG, PNG หรือ WebP ไม่เกิน 5 MB)</span>
-            </div>
-          </div>
-
-          <div class="field full">
-            <label for="landing-mobile-cover-file">อัปโหลดภาพหน้าปกสำหรับมือถือ</label>
-            <input id="landing-mobile-cover-file" name="landing_mobile_cover_image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="landing_mobile_cover_image" data-upload-target="landing_mobile_cover_image" />
-          </div>
-
-          <div class="field full">
-            <label class="check-field">
-              <input name="landing_mobile_cover_image_remove" type="checkbox" />
-              ลบภาพปกสำหรับมือถือและกลับไปใช้ภาพปกเริ่มต้น/เดสก์ท็อป
-            </label>
-          </div>
-          <div class="field full">
-            <label for="landing-headline">Headline</label>
-            <input id="landing-headline" name="landing_headline" value="{{ settings.landing_headline }}" required />
-          </div>
-          <div class="field full">
-            <label for="landing-subheadline">Subheadline</label>
-            <input id="landing-subheadline" name="landing_subheadline" value="{{ settings.landing_subheadline }}" required />
-          </div>
-          <div class="field full">
-            <label for="landing-description">คำอธิบาย</label>
-            <textarea id="landing-description" name="landing_description" rows="4">{{ settings.landing_description }}</textarea>
-          </div>
-
-          <div class="section-heading full">
-            <div>
-              <h2>การจัดวางตัวหนังสือหน้าปก</h2>
-              <p>ใช้ปรับไม่ให้ข้อความหน้าปกชนรูปภาพฝั่งขวาหรือขึ้นบรรทัดใหม่อ่านยาก</p>
-            </div>
-          </div>
-
-          <div class="field full">
-            <label for="landing-text-max-width-desktop">ความกว้างกล่องข้อความบนคอมพิวเตอร์ (px)</label>
-            <input id="landing-text-max-width-desktop" name="landing_text_max_width_desktop" type="number" min="320" max="900" step="10" value="{{ settings.landing_text_max_width_desktop }}" />
-          </div>
-          <div class="field">
-            <label for="landing-headline-font-size-desktop">ขนาดหัวข้อหลักบนคอมพิวเตอร์ (px)</label>
-            <input id="landing-headline-font-size-desktop" name="landing_headline_font_size_desktop" type="number" min="28" max="96" step="1" value="{{ settings.landing_headline_font_size_desktop }}" />
-          </div>
-          <div class="field">
-            <label for="landing-subheadline-font-size-desktop">ขนาดหัวข้อรองบนคอมพิวเตอร์ (px)</label>
-            <input id="landing-subheadline-font-size-desktop" name="landing_subheadline_font_size_desktop" type="number" min="18" max="56" step="1" value="{{ settings.landing_subheadline_font_size_desktop }}" />
-          </div>
-          <div class="field">
-            <label for="landing-description-font-size-desktop">ขนาดคำอธิบายบนคอมพิวเตอร์ (px)</label>
-            <input id="landing-description-font-size-desktop" name="landing_description_font_size_desktop" type="number" min="14" max="28" step="1" value="{{ settings.landing_description_font_size_desktop }}" />
-          </div>
-          <div class="field">
-            <label for="landing-badge-font-size-desktop">ขนาดป้ายกำกับบนคอมพิวเตอร์ (px)</label>
-            <input id="landing-badge-font-size-desktop" name="landing_badge_font_size_desktop" type="number" min="10" max="22" step="1" value="{{ settings.landing_badge_font_size_desktop }}" />
-          </div>
-          <div class="field">
-            <label for="landing-button-font-size-desktop">ขนาดตัวอักษรปุ่มบนคอมพิวเตอร์ (px)</label>
-            <input id="landing-button-font-size-desktop" name="landing_button_font_size_desktop" type="number" min="12" max="24" step="1" value="{{ settings.landing_button_font_size_desktop }}" />
-          </div>
-
-          <section
-            class="landing-live-preview-card full"
-            data-landing-preview
-            data-current-cover-url="{{ settings.landing_cover_url }}"
-            data-default-badge="นิทรรศการดิจิทัล 3D / AR"
-          >
-            <div class="landing-live-preview-header">
-              <h2>พรีวิวหน้าปกแบบเรียลไทม์</h2>
-              <p>ตัวอย่าง Desktop ใช้โครงสร้างและ CSS เดียวกับหน้า Landing จริง ปรับค่าด้านบนเพื่อดูก่อนบันทึก</p>
-            </div>
-            <div class="landing-preview-frame">
-              <iframe
-                class="landing-preview-iframe"
-                data-landing-preview-frame
-                src="{{ url_for('admin_landing_preview') }}"
-                title="พรีวิวหน้าปกแบบ Desktop"
-              ></iframe>
-            </div>
-          </section>
-
-          <div class="field">
-            <label for="landing-cta-text">CTA Button Text</label>
-            <input id="landing-cta-text" name="landing_cta_text" value="{{ settings.landing_cta_text }}" required />
-          </div>
-          <div class="field">
-            <label for="landing-cta-url">CTA Button URL</label>
-            <input id="landing-cta-url" name="landing_cta_url" value="{{ settings.landing_cta_url }}" required />
-          </div>
-
-          <div class="section-heading full">
-            <div>
-              <h2>ข้อความหน้าแรก / Home Hero</h2>
-              <p>แก้ไขข้อความในส่วน Hero ของหน้า <code>/home</code> โดยลิงก์ของปุ่มยังคงเดิม</p>
-            </div>
-          </div>
-
-          <div class="field">
-            <label for="home-hero-badge">ป้ายกำกับหน้าแรก</label>
-            <input id="home-hero-badge" name="home_hero_badge" value="{{ settings.home_hero_badge }}" required />
-          </div>
-          <div class="field">
-            <label for="home-hero-heading">หัวข้อหน้าแรก</label>
-            <input id="home-hero-heading" name="home_hero_heading" value="{{ settings.home_hero_heading }}" required />
-          </div>
-          <div class="field full">
-            <label for="home-hero-subheading">คำโปรยหน้าแรก</label>
-            <input id="home-hero-subheading" name="home_hero_subheading" value="{{ settings.home_hero_subheading }}" required />
-          </div>
-          <div class="field full">
-            <label for="home-hero-description">คำอธิบายหน้าแรก</label>
-            <textarea id="home-hero-description" name="home_hero_description" rows="4" required>{{ settings.home_hero_description }}</textarea>
-          </div>
-          <div class="field">
-            <label for="home-hero-primary-cta-text">ข้อความปุ่มหลัก</label>
-            <input id="home-hero-primary-cta-text" name="home_hero_primary_cta_text" value="{{ settings.home_hero_primary_cta_text }}" required />
-          </div>
-          <div class="field">
-            <label for="home-hero-secondary-cta-text">ข้อความปุ่มรอง</label>
-            <input id="home-hero-secondary-cta-text" name="home_hero_secondary_cta_text" value="{{ settings.home_hero_secondary_cta_text }}" required />
-          </div>
-
-          <div class="form-actions full">
-            <button class="button" type="submit">บันทึก Landing Page</button>
-          </div>
         </form>
-      </section>
-    </div>
-  </main>
+      </div>
+    </main>
+  </div>
+
   <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-landing-preview.js') }}?v=2" defer></script>

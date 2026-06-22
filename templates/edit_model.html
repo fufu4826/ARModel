@@ -3,82 +3,189 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>แก้ไขโมเดล</title>
+  <title>แก้ไขโมเดล - Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
   {% include "_fonts.html" %}
-  <style>
-    :root { --green:#1f5f3b; --cream:#fbfaf5; --text:#1d2a22; --muted:#66756b; --line:#dfe7dc; --radius:8px; --font-primary:"Kanit",system-ui,sans-serif; }
-    *{box-sizing:border-box} body{margin:0;background:var(--cream);color:var(--text);font-family:var(--font-primary)}.page{min-height:100vh;padding:24px 16px}.panel{width:min(860px,100%);margin:0 auto;background:white;border:1px solid var(--line);border-radius:var(--radius);padding:22px}h1{margin:0 0 18px;color:var(--green);letter-spacing:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:6px}.full{grid-column:1/-1}label{font-weight:800;color:var(--muted);font-size:13px}input,select,textarea{min-height:42px;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;font:inherit}textarea{min-height:110px}.check{flex-direction:row;align-items:center}.check input{min-height:0}.notice{margin:0 0 16px;padding:12px 14px;border-radius:var(--radius);background:#fff7df;color:#6b4a05;border:1px solid #ead799;font-weight:800;line-height:1.5}.actions{display:flex;gap:10px;margin-top:16px}.btn,.link{min-height:42px;padding:10px 14px;border-radius:var(--radius);font-weight:800;text-decoration:none;border:1px solid var(--line);cursor:pointer}.btn{background:var(--green);color:white;border-color:var(--green)}.link{background:white;color:var(--green)}@media(max-width:620px){.grid{grid-template-columns:1fr}.actions{display:block}.btn,.link{width:100%;display:flex;justify-content:center;margin-top:8px}}
-    .gallery-input-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}.gallery-input-preview img{width:100%;aspect-ratio:4/3;object-fit:cover;border:1px solid var(--line);border-radius:var(--radius);background:#eef1ea}.help{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
-    .admin-message{margin:0 0 14px;padding:12px 14px;border:1px solid #bfe3ca;border-radius:var(--radius);background:#eaf5ee;color:var(--green);font-weight:800}.admin-message.error{border-color:#f2c0c0;background:#fff2f2;color:#b42318}.admin-message.warning{border-color:#ead799;background:#fff7df;color:#6b4a05}
-  </style>
 </head>
 <body>
-  <main class="page">
-    <form class="panel" method="post" enctype="multipart/form-data">
-      <h1>แก้ไขโมเดล</h1>
-      {% include "_admin_messages.html" %}
-      {% if uploads_disabled %}
-      <div class="notice">This site is running on Vercel. File uploads are disabled. Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy.</div>
-      {% elif is_supabase %}
-      <div class="notice">Supabase is configured. Uploaded thumbnails and .glb files will be stored in Supabase Storage.</div>
-      {% endif %}
-      <div class="grid">
-        <div class="field"><label>ชื่อโมเดล</label><input name="name" value="{{ model.name }}" required></div>
-        <div class="field"><label>โครงการ</label><select name="project_id">{% for project in projects %}<option value="{{ project.id }}" {{ "selected" if project.id == model.project_id else "" }}>{{ project.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>หน่วยงาน/แผนก</label><input name="department" value="{{ model.department }}"></div>
-        <div class="field"><label>ขนาด</label><input name="scale" type="number" value="{{ model.scale }}" step="any" min="0.001"></div>
-        <div class="field full"><label>รายละเอียด</label><textarea name="description">{{ model.description }}</textarea></div>
-        <div class="field"><label>เปลี่ยนไฟล์ .glb (เลือกไฟล์โมเดล 3D)</label><input name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" data-max-bytes="{{ model_file_max_bytes }}" data-max-size-label="{{ model_file_max_mb }} MB" {{ "disabled" if uploads_disabled else "" }}><p class="help">รองรับไฟล์ .glb ขนาดไม่เกิน {{ model_file_max_mb }} MB หากไฟล์ใหญ่ควรบีบอัดโมเดลก่อนอัปโหลด</p></div>
-        <div class="field"><label>Path ไฟล์โมเดลในเครื่อง</label><input name="model_path" value="{{ model.model_path }}" {{ "disabled" if uploads_disabled else "" }}><p class="help">ระบุกรณีวางโมเดลในเครื่องแล้ว เช่น static/model/example.glb</p></div>
-        <div class="field full"><label>หรือระบุลิงก์ไฟล์โมเดลภายนอก (External .glb model URL)</label><input name="model_url" type="url" value="{{ model.model_url }}" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}><p class="help">ใช้กรณีที่ไฟล์โมเดลอยู่บนคลาวด์ หรือ Supabase Storage แล้ว</p></div>
-        <div class="field"><label>เปลี่ยน Thumbnail (เลือกไฟล์รูปปก)</label><input id="edit-image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="thumbnail" data-upload-target="thumbnail_url" {{ "disabled" if uploads_disabled else "" }}><p class="help">รูปปกหลักแสดงในหน้ารวม สัดส่วนแนะนำ 1:1 หรือ 4:3</p></div>
-        <div class="field"><label>Path รูปภาพปกหลัก</label><input name="image_path" value="{{ model.thumbnail_path }}" data-image-preview-target="edit-model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}><p class="help">ใช้ระบุพาทโลคอล เช่น static/pic/example.jpg</p></div>
-        <div class="field full"><label>หรือระบุลิงก์รูปปกหลักภายนอก (External thumbnail URL)</label><input name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" data-image-preview-target="edit-model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}><p class="help">ใช้ลิงก์ภาพออนไลน์อื่น หรือ Supabase Storage</p></div>
-        <div class="field full">
-          <div style="display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); padding: 12px; border-radius: var(--radius); background: #fdfdfd;">
-            <img id="edit-model-thumbnail-preview" data-image-preview="edit-image-file" src="{{ model.thumbnail_resolved_url or '' }}" alt="ตัวอย่างรูป Thumbnail" style="width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line);" {% if not model.thumbnail_resolved_url %}hidden{% endif %}>
-            <div>
-              <strong style="display: block; font-size: 14px; color: var(--green);">ตัวอย่างภาพ Thumbnail โมเดล</strong>
-              <span style="font-size: 12px; color: var(--muted);">รูปภาพปกปัจจุบันหรือรูปที่เลือกเพื่อเปลี่ยน</span>
-            </div>
+  <div class="admin-container">
+    {% include "_admin_nav.html" %}
+
+    <main class="admin-main-content">
+      <div class="admin-shell">
+        <header class="admin-heading">
+          <div>
+            <p class="admin-eyebrow">Model Management</p>
+            <h1>แก้ไขโมเดล</h1>
+            <p>แก้ไขข้อมูล ไฟล์ 3D ภาพประกอบ และการแสดงผลของโมเดล 3D</p>
           </div>
-        </div>
-        <div class="field full">
-          <label for="preview-images">รูปภาพตัวอย่างเพิ่มเติม (แกลเลอรีรูปภาพ)</label>
-          <textarea id="preview-images" name="preview_images" rows="5" data-gallery-input>{{ model.preview_images|join('\n') }}</textarea>
-          <p class="help">ใส่ลิงก์รูปภาพพรีวิวประกอบแกลเลอรีหน้าดูโมเดล หนึ่งภาพต่อหนึ่งบรรทัด</p>
-          <div class="gallery-input-preview" data-gallery-input-preview aria-live="polite"></div>
-        </div>
-        <div class="field">
-          <label for="edit-narration-audio-file">ไฟล์เสียงคำบรรยาย</label>
-          <input id="edit-narration-audio-file" name="narration_audio_file" type="file" accept=".mp3,.m4a,.wav,.ogg" data-upload-kind="model_narration_audio" data-upload-target="narration_audio" {{ "disabled" if uploads_disabled else "" }}>
-          <p class="help">รองรับ MP3, M4A, WAV หรือ OGG ขนาดไม่เกิน 20 MB</p>
-        </div>
-        <div class="field">
-          <label for="edit-narration-audio">หรือ URL/path ไฟล์เสียงคำบรรยาย</label>
-          <input id="edit-narration-audio" name="narration_audio" value="{{ model.narration_audio }}" placeholder="https://example.com/narration.mp3" {{ "disabled" if uploads_disabled else "" }}>
-          <p class="help">อัปโหลดหรือระบุ URL ไฟล์เสียง เช่น .mp3 หากไม่ใส่ ระบบจะลองใช้เสียงอ่านจากเบราว์เซอร์</p>
-        </div>
-        <div class="field full">
-          <button class="btn" type="submit" form="gemini-narration-form" formnovalidate {{ "disabled" if uploads_disabled else "" }}>
-            สร้างเสียงคำบรรยายด้วย Gemini
-          </button>
-          <p class="help">ใช้ชื่อและคำอธิบายโมเดลที่บันทึกไว้ล่าสุดสร้างไฟล์เสียงอัตโนมัติ ต้องตั้งค่า GEMINI_API_KEY บน Vercel ก่อน หากเพิ่งแก้ข้อความ กรุณากดบันทึกก่อนสร้างเสียง</p>
-        </div>
-        {% if model.narration_audio_url %}
-        <div class="field full">
-          <label>ตัวอย่างไฟล์เสียงปัจจุบัน</label>
-          <audio controls preload="none" src="{{ model.narration_audio_url }}" style="width: 100%;"></audio>
-          <label class="check"><input name="narration_audio_remove" type="checkbox"> ลบไฟล์เสียงคำบรรยายนี้</label>
-        </div>
+          <a class="button secondary" href="{{ url_for('admin') }}">กลับไปหน้า Dashboard</a>
+        </header>
+
+        {% include "_admin_messages.html" %}
+
+        {% if uploads_disabled %}
+        <div class="notice">This site is running on Vercel. File uploads are disabled. Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy.</div>
+        {% elif is_supabase %}
+        <div class="notice">Supabase is configured. Uploaded thumbnails and .glb files will be stored in Supabase Storage.</div>
         {% endif %}
-        <div class="field"><label>หมุนแกน X (องศาในแบบทศนิยม)</label><input name="rotate_x" type="number" value="{{ model.rotate_x }}" step="any"><p class="help">ปรับความเอียงเริ่มต้นแสดงผลโมเดล 3D</p></div>
-        <label class="field check"><input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> เผยแพร่โมเดล</label>
+
+        <form class="admin-form" method="post" enctype="multipart/form-data">
+          <!-- Section 1: ข้อมูลโมเดล -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">ข้อมูลโมเดล</legend>
+
+            <div class="field">
+              <label for="edit-model-name">ชื่อโมเดล</label>
+              <input id="edit-model-name" name="name" value="{{ model.name }}" required>
+            </div>
+            <div class="field">
+              <label for="edit-model-project">โครงการ</label>
+              <select id="edit-model-project" name="project_id">
+                {% for project in projects %}
+                <option value="{{ project.id }}" {{ "selected" if project.id == model.project_id else "" }}>{{ project.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="edit-model-dept">หน่วยงาน/แผนก</label>
+              <input id="edit-model-dept" name="department" value="{{ model.department }}">
+            </div>
+            <div class="field full">
+              <label for="edit-model-desc">รายละเอียด</label>
+              <textarea id="edit-model-desc" name="description">{{ model.description }}</textarea>
+            </div>
+          </fieldset>
+
+          <!-- Section 2: ไฟล์โมเดล 3D -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">ไฟล์โมเดล 3D (.glb)</legend>
+
+            <div class="field">
+              <label for="edit-model-file">เปลี่ยนไฟล์ .glb (เลือกไฟล์โมเดล 3D)</label>
+              <input id="edit-model-file" name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" data-max-bytes="{{ model_file_max_bytes }}" data-max-size-label="{{ model_file_max_mb }} MB" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">รองรับไฟล์ .glb ขนาดไม่เกิน {{ model_file_max_mb }} MB หากไฟล์ใหญ่ควรบีบอัดโมเดลก่อนอัปโหลด</p>
+            </div>
+            <div class="field">
+              <label for="edit-model-path">Path ไฟล์โมเดลในเครื่อง</label>
+              <input id="edit-model-path" name="model_path" value="{{ model.model_path }}" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">ระบุกรณีวางโมเดลในเครื่องแล้ว เช่น static/model/example.glb</p>
+            </div>
+            <div class="field full">
+              <label for="edit-model-url">หรือระบุลิงก์ไฟล์โมเดลภายนอก (External .glb model URL)</label>
+              <input id="edit-model-url" name="model_url" type="url" value="{{ model.model_url }}" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">ใช้กรณีที่ไฟล์โมเดลอยู่บนคลาวด์ หรือ Supabase Storage แล้ว</p>
+            </div>
+          </fieldset>
+
+          <!-- Section 3: รูปภาพหลัก (Thumbnail) -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">รูปภาพหลัก (Thumbnail)</legend>
+
+            <div class="field">
+              <label for="edit-image-file">เปลี่ยน Thumbnail (เลือกไฟล์รูปปก)</label>
+              <input id="edit-image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="thumbnail" data-upload-target="thumbnail_url" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">รูปปกหลักแสดงในหน้ารวม สัดส่วนแนะนำ 1:1 หรือ 4:3</p>
+            </div>
+            <div class="field">
+              <label for="edit-image-path">Path รูปภาพปกหลัก</label>
+              <input id="edit-image-path" name="image_path" value="{{ model.thumbnail_path }}" data-image-preview-target="edit-model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">ใช้ระบุพาทโลคอล เช่น static/pic/example.jpg</p>
+            </div>
+            <div class="field full">
+              <label for="edit-thumbnail-url">หรือระบุลิงก์รูปปกหลักภายนอก (External thumbnail URL)</label>
+              <input id="edit-thumbnail-url" name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" data-image-preview-target="edit-model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">ใช้ลิงก์ภาพออนไลน์อื่น หรือ Supabase Storage</p>
+            </div>
+            <div class="field full">
+              <div class="preview-panel">
+                <img id="edit-model-thumbnail-preview" data-image-preview="edit-image-file" src="{{ model.thumbnail_resolved_url or '' }}" alt="ตัวอย่างรูป Thumbnail" {% if not model.thumbnail_resolved_url %}hidden{% endif %}>
+                <div>
+                  <strong>ตัวอย่างภาพ Thumbnail โมเดล</strong>
+                  <span>รูปภาพปกปัจจุบันหรือรูปที่เลือกเพื่อเปลี่ยน</span>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Section 4: แกลเลอรีรูปภาพ -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">แกลเลอรีรูปภาพ</legend>
+
+            <div class="field full">
+              <label for="preview-images">รูปภาพตัวอย่างเพิ่มเติม (แกลเลอรีรูปภาพ)</label>
+              <textarea id="preview-images" name="preview_images" rows="5" data-gallery-input>{{ model.preview_images|join('\n') }}</textarea>
+              <p class="meta">ใส่ลิงก์รูปภาพพรีวิวประกอบแกลเลอรีหน้าดูโมเดล หนึ่งภาพต่อหนึ่งบรรทัด</p>
+              <div class="gallery-input-preview" data-gallery-input-preview aria-live="polite"></div>
+            </div>
+          </fieldset>
+
+          <!-- Section 5: เสียงบรรยาย -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">เสียงคำบรรยาย</legend>
+
+            <div class="field">
+              <label for="edit-narration-audio-file">ไฟล์เสียงคำบรรยาย</label>
+              <input id="edit-narration-audio-file" name="narration_audio_file" type="file" accept=".mp3,.m4a,.wav,.ogg" data-upload-kind="model_narration_audio" data-upload-target="narration_audio" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">รองรับ MP3, M4A, WAV หรือ OGG ขนาดไม่เกิน 20 MB</p>
+            </div>
+            <div class="field">
+              <label for="edit-narration-audio">หรือ URL/path ไฟล์เสียงคำบรรยาย</label>
+              <input id="edit-narration-audio" name="narration_audio" value="{{ model.narration_audio }}" placeholder="https://example.com/narration.mp3" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">อัปโหลดหรือระบุ URL ไฟล์เสียง เช่น .mp3 หากไม่ใส่ ระบบจะลองใช้เสียงอ่านจากเบราว์เซอร์</p>
+            </div>
+
+            <div class="field full" style="border-top: 1px solid var(--admin-line); padding-top: 12px; margin-top: 8px;">
+              <label>สร้างเสียงบรรยายอัตโนมัติด้วย AI</label>
+              <button class="button secondary" type="submit" form="gemini-narration-form" formnovalidate style="margin-top: 4px;" {{ "disabled" if uploads_disabled else "" }}>
+                🤖 สร้างเสียงคำบรรยายด้วย Gemini
+              </button>
+              <p class="meta" style="margin-top: 4px;">ใช้ชื่อและคำอธิบายโมเดลที่บันทึกไว้ล่าสุดสร้างไฟล์เสียงอัตโนมัติ (กรุณากดปุ่มบันทึกก่อนกดปุ่มนี้หากมีการแก้ไขข้อความข้างต้น)</p>
+            </div>
+
+            {% if model.narration_audio_url %}
+            <div class="field full" style="border-top: 1px solid var(--admin-line); padding-top: 12px; margin-top: 8px;">
+              <label>ตัวอย่างไฟล์เสียงปัจจุบัน</label>
+              <audio controls preload="none" src="{{ model.narration_audio_url }}" style="width: 100%; margin-top: 4px;"></audio>
+              <label class="check-field" style="margin-top: 8px;">
+                <input name="narration_audio_remove" type="checkbox"> ลบไฟล์เสียงคำบรรยายนี้และกลับไปใช้เสียงอ่านอัตโนมัติ
+              </label>
+            </div>
+            {% endif %}
+          </fieldset>
+
+          <!-- Section 6: การตั้งค่าการแสดงผล AR/3D -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">การตั้งค่าการแสดงผล AR/3D</legend>
+
+            <div class="field">
+              <label for="edit-model-scale">ขนาด (Scale)</label>
+              <input id="edit-model-scale" name="scale" type="number" value="{{ model.scale }}" step="any" min="0.001">
+              <p class="meta">ขนาดเริ่มต้นแสดงผลโมเดล 3D บนหน้าเว็บ</p>
+            </div>
+            <div class="field">
+              <label for="edit-model-rotate-x">หมุนแกน X (องศาในแบบทศนิยม)</label>
+              <input id="edit-model-rotate-x" name="rotate_x" type="number" value="{{ model.rotate_x }}" step="any">
+              <p class="meta">ปรับความเอียงเริ่มต้นแสดงผลโมเดล 3D</p>
+            </div>
+            <div class="field full">
+              <label class="check-field">
+                <input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> เผยแพร่โมเดลนี้บนเว็บไซต์
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="admin-action-row full">
+            <a class="button secondary" href="{{ url_for('admin') }}">ยกเลิก</a>
+            <button class="button" type="submit">บันทึกข้อมูล</button>
+          </div>
+        </form>
+
+        <form id="gemini-narration-form" action="{{ url_for('generate_model_narration', model_id=model.id) }}" method="post"></form>
       </div>
-      <div class="actions"><button class="btn" type="submit">บันทึก</button><a class="link" href="{{ url_for('admin') }}">ยกเลิก</a></div>
-    </form>
-    <form id="gemini-narration-form" action="{{ url_for('generate_model_narration', model_id=model.id) }}" method="post"></form>
-  </main>
+    </main>
+  </div>
+
   <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/preview-gallery-input.js') }}" defer></script>

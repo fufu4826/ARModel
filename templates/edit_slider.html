@@ -8,59 +8,92 @@
   {% include "_fonts.html" %}
 </head>
 <body>
-  <main class="admin-page">
-    <div class="admin-shell">
-      {% include "_admin_nav.html" %}
-      <header class="admin-heading">
-        <div>
-          <p class="admin-eyebrow">Homepage Slider</p>
-          <h1>แก้ไขสไลด์</h1>
-          <p>{{ slider.title }}</p>
-        </div>
-        <a class="button secondary" href="{{ url_for('admin_sliders') }}">กลับไปรายการ</a>
-      </header>
+  <div class="admin-container">
+    {% include "_admin_nav.html" %}
 
-      {% include "_admin_messages.html" %}
+    <main class="admin-main-content">
+      <div class="admin-shell">
+        <header class="admin-heading">
+          <div>
+            <p class="admin-eyebrow">Homepage Slider</p>
+            <h1>แก้ไขสไลด์</h1>
+            <p>แก้ไขข้อมูลและรูปภาพของสไลด์หน้าแรก: {{ slider.title }}</p>
+          </div>
+          <a class="button secondary" href="{{ url_for('admin_sliders') }}">กลับไปรายการสไลด์</a>
+        </header>
 
-      <section class="admin-card">
+        {% include "_admin_messages.html" %}
+
         <form action="{{ url_for('edit_slider', slider_id=slider.id) }}" method="post" enctype="multipart/form-data" class="admin-form">
           <input type="hidden" name="image_url" value="{{ slider.image_url }}" />
-          <div class="preview-panel full">
-            <img data-image-preview="slider-image-file" src="{{ slider.resolved_image_url }}" alt="ตัวอย่างภาพ {{ slider.title }}" />
-            <div><strong>ภาพสไลด์</strong><span>อัปโหลดไฟล์ใหม่เพื่อแทนที่ภาพเดิม</span></div>
-          </div>
-          <div class="field">
-            <label for="slider-title">Title</label>
-            <input id="slider-title" name="title" value="{{ slider.title }}" required />
-          </div>
-          <div class="field">
-            <label for="slider-sort-order">Sort Order</label>
-            <input id="slider-sort-order" name="sort_order" type="number" value="{{ slider.sort_order }}" step="1" />
-          </div>
-          <div class="field full">
-            <label for="slider-description">Description</label>
-            <textarea id="slider-description" name="description" rows="4">{{ slider.description }}</textarea>
-          </div>
-          <div class="field full">
-            <label for="slider-image-file">Image</label>
-            <input id="slider-image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="slider_image" data-upload-target="image_url" />
-          </div>
-          <div class="field">
-            <label for="slider-button-text">Button Text</label>
-            <input id="slider-button-text" name="button_text" value="{{ slider.button_text }}" />
-          </div>
-          <div class="field">
-            <label for="slider-button-url">Button URL</label>
-            <input id="slider-button-url" name="button_url" value="{{ slider.button_url }}" />
-          </div>
-          <label class="check-field full"><input name="visible" type="checkbox" {{ 'checked' if slider.active else '' }} /> เปิดแสดงผล</label>
-          <div class="form-actions full">
-            <button class="button" type="submit">บันทึกสไลด์</button>
+
+          <!-- Section 1: ข้อมูลสไลด์ -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">ข้อมูลสไลด์</legend>
+
+            <div class="field">
+              <label for="slider-title">Title (หัวข้อสไลด์)</label>
+              <input id="slider-title" name="title" value="{{ slider.title }}" required />
+            </div>
+            <div class="field">
+              <label for="slider-sort-order">Sort Order (ลำดับการแสดงผล)</label>
+              <input id="slider-sort-order" name="sort_order" type="number" value="{{ slider.sort_order }}" step="1" />
+            </div>
+            <div class="field full">
+              <label for="slider-description">Description (รายละเอียดคำอธิบาย)</label>
+              <textarea id="slider-description" name="description" rows="4">{{ slider.description }}</textarea>
+            </div>
+          </fieldset>
+
+          <!-- Section 2: รูปภาพสไลด์ -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">รูปภาพสไลด์</legend>
+
+            <div class="preview-panel full">
+              <img data-image-preview="slider-image-file" src="{{ slider.resolved_image_url }}" alt="ตัวอย่างภาพ {{ slider.title }}" />
+              <div><strong>ภาพสไลด์ปัจจุบัน</strong><span>อัปโหลดไฟล์ใหม่เพื่อแทนที่ภาพเดิม</span></div>
+            </div>
+            <div class="field full">
+              <label for="slider-image-file">อัปโหลดรูปภาพใหม่ (แทนที่รูปเดิม)</label>
+              <input id="slider-image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="slider_image" data-upload-target="image_url" />
+            </div>
+          </fieldset>
+
+          <!-- Section 3: ปุ่มและลิงก์ -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">ปุ่มและลิงก์เชื่อมโยง (CTA Button)</legend>
+
+            <div class="field">
+              <label for="slider-button-text">Button Text (ข้อความบนปุ่ม)</label>
+              <input id="slider-button-text" name="button_text" value="{{ slider.button_text }}" />
+            </div>
+            <div class="field">
+              <label for="slider-button-url">Button URL (ลิงก์ปลายทาง)</label>
+              <input id="slider-button-url" name="button_url" value="{{ slider.button_url }}" />
+            </div>
+          </fieldset>
+
+          <!-- Section 4: การตั้งค่าการแสดงผล -->
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">การตั้งค่าการแสดงผล</legend>
+
+            <div class="field full">
+              <label class="check-field">
+                <input name="visible" type="checkbox" {{ 'checked' if slider.active else '' }} />
+                เปิดการแสดงผลสไลด์นี้บนหน้าแรก
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="admin-action-row full">
+            <a class="button secondary" href="{{ url_for('admin_sliders') }}">ยกเลิก</a>
+            <button class="button" type="submit">บันทึกข้อมูลสไลด์</button>
           </div>
         </form>
-      </section>
-    </div>
-  </main>
+      </div>
+    </main>
+  </div>
+
   <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
 </body>

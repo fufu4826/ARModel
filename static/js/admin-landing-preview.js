@@ -6,16 +6,11 @@
     const form = preview.closest("form");
     if (!form) return;
 
-    const previewBg = preview.querySelector("[data-preview-bg]");
-    const previewContent = preview.querySelector("[data-preview-content]");
-    const previewBadge = preview.querySelector("[data-preview-badge]");
-    const previewHeadline = preview.querySelector("[data-preview-headline]");
-    const previewSubheadline = preview.querySelector("[data-preview-subheadline]");
-    const previewDescription = preview.querySelector("[data-preview-description]");
-    const previewPrimary = preview.querySelector("[data-preview-primary]");
+    const previewFrame = preview.querySelector("[data-landing-preview-frame]");
     const coverFile = form.querySelector("#landing-cover-file");
     const coverValue = form.querySelector("#landing-cover-value");
     let coverObjectUrl = "";
+    let previewDocument = null;
 
     const fields = {
       headline: form.querySelector("#landing-headline"),
@@ -43,47 +38,62 @@
       return `/static/${path.replace(/^static\//, "")}`;
     }
 
-    function setBackground(url) {
+    function previewElements() {
+      if (!previewDocument) return null;
+      return {
+        root: previewDocument.querySelector("[data-preview-root]"),
+        badge: previewDocument.querySelector("[data-preview-badge]"),
+        headline: previewDocument.querySelector("[data-preview-headline]"),
+        subheadline: previewDocument.querySelector("[data-preview-subheadline]"),
+        description: previewDocument.querySelector("[data-preview-description]"),
+        primary: previewDocument.querySelector("[data-preview-primary]"),
+      };
+    }
+
+    function setBackground(root, url) {
       const resolvedUrl = resolveAssetUrl(url);
-      previewBg.style.backgroundImage = resolvedUrl
-        ? `url(${JSON.stringify(resolvedUrl)})`
-        : "none";
+      const backgroundValue = resolvedUrl ? `url(${JSON.stringify(resolvedUrl)})` : "none";
+      root.style.setProperty("--landing-image", backgroundValue);
+      root.style.setProperty("--landing-cover-desktop", backgroundValue);
     }
 
     function updatePreview() {
-      previewBadge.textContent = preview.dataset.defaultBadge || "นิทรรศการดิจิทัล 3D / AR";
-      previewHeadline.textContent = fields.headline.value.trim() || "หัวข้อหน้าปก";
-      previewSubheadline.textContent = fields.subheadline.value.trim() || "หัวข้อรองหน้าปก";
-      previewDescription.textContent = fields.description.value.trim() || "คำอธิบายหน้าปก";
-      previewPrimary.textContent = fields.primary.value.trim() || "เข้าสู่เว็บไซต์";
+      const elements = previewElements();
+      if (!elements || !elements.root) return;
 
-      previewContent.style.setProperty(
-        "--preview-text-width",
+      elements.badge.textContent = preview.dataset.defaultBadge || "นิทรรศการดิจิทัล 3D / AR";
+      elements.headline.textContent = fields.headline.value.trim() || "หัวข้อหน้าปก";
+      elements.subheadline.textContent = fields.subheadline.value.trim() || "หัวข้อรองหน้าปก";
+      elements.description.textContent = fields.description.value.trim() || "คำอธิบายหน้าปก";
+      elements.primary.textContent = fields.primary.value.trim() || "เข้าสู่เว็บไซต์";
+
+      elements.root.style.setProperty(
+        "--landing-text-max-width-desktop",
         `${clampField(fields.textWidth, 320, 900, 520)}px`
       );
-      previewContent.style.setProperty(
-        "--preview-headline-size",
+      elements.root.style.setProperty(
+        "--landing-headline-font-size-desktop",
         `${clampField(fields.headlineSize, 28, 96, 56)}px`
       );
-      previewContent.style.setProperty(
-        "--preview-subheadline-size",
+      elements.root.style.setProperty(
+        "--landing-subheadline-font-size-desktop",
         `${clampField(fields.subheadlineSize, 18, 56, 28)}px`
       );
-      previewContent.style.setProperty(
-        "--preview-description-size",
+      elements.root.style.setProperty(
+        "--landing-description-font-size-desktop",
         `${clampField(fields.descriptionSize, 14, 28, 18)}px`
       );
-      previewContent.style.setProperty(
-        "--preview-badge-size",
+      elements.root.style.setProperty(
+        "--landing-badge-font-size-desktop",
         `${clampField(fields.badgeSize, 10, 22, 14)}px`
       );
-      previewContent.style.setProperty(
-        "--preview-button-size",
+      elements.root.style.setProperty(
+        "--landing-button-font-size-desktop",
         `${clampField(fields.buttonSize, 12, 24, 16)}px`
       );
 
       if (!coverObjectUrl) {
-        setBackground(coverValue.value || preview.dataset.currentCoverUrl);
+        setBackground(elements.root, coverValue.value || preview.dataset.currentCoverUrl);
       }
     }
 
@@ -107,11 +117,20 @@
         const file = coverFile.files && coverFile.files[0];
         if (file) {
           coverObjectUrl = URL.createObjectURL(file);
-          setBackground(coverObjectUrl);
+          const elements = previewElements();
+          if (elements && elements.root) setBackground(elements.root, coverObjectUrl);
         } else {
           updatePreview();
         }
       });
+    }
+
+    previewFrame.addEventListener("load", () => {
+      previewDocument = previewFrame.contentDocument;
+      updatePreview();
+    });
+    if (previewFrame.contentDocument && previewFrame.contentDocument.readyState === "complete") {
+      previewDocument = previewFrame.contentDocument;
     }
 
     window.addEventListener("pagehide", () => {

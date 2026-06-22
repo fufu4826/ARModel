@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1180, initial-scale=1.0" />
+  <title>Landing Desktop Preview</title>
+  {% include "_fonts.html" %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body class="landing-page landing-preview-document">
+  <main
+    class="landing-hero landing-preview-embed"
+    data-preview-root
+    style="--landing-image: url('{{ settings.landing_cover_url }}'); --landing-cover-desktop: url('{{ settings.landing_cover_url }}'); --landing-text-max-width-desktop: {{ settings.landing_text_max_width_desktop|int }}px; --landing-headline-font-size-desktop: {{ settings.landing_headline_font_size_desktop|int }}px; --landing-subheadline-font-size-desktop: {{ settings.landing_subheadline_font_size_desktop|int }}px; --landing-description-font-size-desktop: {{ settings.landing_description_font_size_desktop|int }}px; --landing-badge-font-size-desktop: {{ settings.landing_badge_font_size_desktop|int }}px; --landing-button-font-size-desktop: {{ settings.landing_button_font_size_desktop|int }}px;"
+  >
+    <div class="landing-overlay" aria-hidden="true"></div>
+    <header class="landing-topbar" aria-label="ชื่อเว็บไซต์">
+      <span class="landing-brand">
+        {% include "_brand_mark.html" %}
+      </span>
+    </header>
+    <section class="landing-content" aria-label="ตัวอย่างเนื้อหาหน้าปก">
+      <div class="desktop-only">
+        <div class="landing-hero-center">
+          <p class="eyebrow landing-eyebrow" data-preview-badge>นิทรรศการดิจิทัล 3D / AR</p>
+          <h1 class="landing-title" data-preview-headline>{{ settings.landing_headline }}</h1>
+          <p class="landing-subtitle" data-preview-subheadline>{{ settings.landing_subheadline }}</p>
+          <p class="landing-description" data-preview-description>{{ settings.landing_description }}</p>
+          <div class="landing-actions">
+            <span class="button landing-button" data-preview-primary>{{ settings.landing_cta_text }}</span>
+            <span class="button secondary landing-button">ดูรายการโมเดล</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

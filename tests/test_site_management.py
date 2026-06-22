@@ -239,16 +239,31 @@ class SiteManagementTests(unittest.TestCase):
         admin_html = self.client.get("/admin/landing").get_data(as_text=True)
         self.assertIn("พรีวิวหน้าปกแบบเรียลไทม์", admin_html)
         self.assertIn("data-landing-preview", admin_html)
-        self.assertIn("data-preview-bg", admin_html)
-        self.assertIn("data-preview-content", admin_html)
-        self.assertIn("data-preview-headline", admin_html)
-        self.assertIn("data-preview-subheadline", admin_html)
-        self.assertIn("data-preview-description", admin_html)
-        self.assertIn("data-preview-primary", admin_html)
-        self.assertIn('src="/static/js/admin-landing-preview.js?v=1"', admin_html)
+        self.assertIn("data-landing-preview-frame", admin_html)
+        self.assertIn('src="/admin/landing/preview"', admin_html)
+        self.assertIn('src="/static/js/admin-landing-preview.js?v=2"', admin_html)
 
         for field_name in module.LANDING_TYPOGRAPHY_SETTINGS:
             self.assertIn(f'name="{field_name}"', admin_html)
+
+        preview_html = self.client.get("/admin/landing/preview").get_data(as_text=True)
+        for shared_class in (
+            "landing-hero",
+            "landing-overlay",
+            "landing-content",
+            "landing-hero-center",
+            "landing-eyebrow",
+            "landing-title",
+            "landing-subtitle",
+            "landing-description",
+            "landing-actions",
+            "landing-button",
+        ):
+            self.assertIn(shared_class, preview_html)
+        for variable_name in module.LANDING_TYPOGRAPHY_SETTINGS:
+            css_variable = "--" + variable_name.replace("_", "-")
+            self.assertIn(css_variable, preview_html)
+        self.assertIn('href="/static/css/style.css"', preview_html)
 
         script = (
             Path(module.BASE_DIR) / "static" / "js" / "admin-landing-preview.js"
@@ -258,6 +273,15 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("Math.min", script)
         self.assertIn("Math.max", script)
         self.assertIn("URL.createObjectURL", script)
+        self.assertIn("--landing-text-max-width-desktop", script)
+        self.assertIn("--landing-headline-font-size-desktop", script)
+
+        admin_stylesheet = (
+            Path(module.BASE_DIR) / "static" / "css" / "admin.css"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn(".landing-preview-headline", admin_stylesheet)
+        self.assertNotIn(".landing-preview-subheadline", admin_stylesheet)
+        self.assertNotIn(".landing-preview-description", admin_stylesheet)
 
         self.assertEqual(self.client.get("/").status_code, 200)
         self.assertEqual(self.client.get("/home").status_code, 200)
@@ -916,7 +940,14 @@ class SiteManagementTests(unittest.TestCase):
         )
 
     def test_admin_management_routes_require_login(self):
-        for route in ("/admin", "/admin/landing", "/admin/branding", "/admin/intro", "/admin/sliders"):
+        for route in (
+            "/admin",
+            "/admin/landing",
+            "/admin/landing/preview",
+            "/admin/branding",
+            "/admin/intro",
+            "/admin/sliders",
+        ):
             with self.subTest(route=route):
                 response = self.client.get(route)
                 self.assertEqual(response.status_code, 302)

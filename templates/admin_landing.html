@@ -114,22 +114,15 @@
           >
             <div class="landing-live-preview-header">
               <h2>พรีวิวหน้าปกแบบเรียลไทม์</h2>
-              <p>ปรับข้อความ ภาพปก ความกว้าง และขนาดตัวอักษรเพื่อดูตัวอย่างก่อนบันทึก</p>
+              <p>ตัวอย่าง Desktop ใช้โครงสร้างและ CSS เดียวกับหน้า Landing จริง ปรับค่าด้านบนเพื่อดูก่อนบันทึก</p>
             </div>
             <div class="landing-preview-frame">
-              <div class="landing-preview-bg" data-preview-bg>
-                <div class="landing-preview-overlay" aria-hidden="true"></div>
-                <div class="landing-preview-content" data-preview-content>
-                  <span class="landing-preview-badge" data-preview-badge></span>
-                  <h3 class="landing-preview-headline" data-preview-headline></h3>
-                  <p class="landing-preview-subheadline" data-preview-subheadline></p>
-                  <p class="landing-preview-description" data-preview-description></p>
-                  <div class="landing-preview-actions">
-                    <span class="landing-preview-button landing-preview-button-primary" data-preview-primary></span>
-                    <span class="landing-preview-button landing-preview-button-secondary">ดูรายการโมเดล</span>
-                  </div>
-                </div>
-              </div>
+              <iframe
+                class="landing-preview-iframe"
+                data-landing-preview-frame
+                src="{{ url_for('admin_landing_preview') }}"
+                title="พรีวิวหน้าปกแบบ Desktop"
+              ></iframe>
             </div>
           </section>
 
@@ -183,6 +176,6 @@
   </main>
   <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='js/admin-landing-preview.js') }}?v=1" defer></script>
+  <script src="{{ url_for('static', filename='js/admin-landing-preview.js') }}?v=2" defer></script>
 </body>
 </html>

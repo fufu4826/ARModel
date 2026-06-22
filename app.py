@@ -1958,6 +1958,15 @@ def admin_landing():
     return render_template("admin_landing.html", settings=site_settings_with_urls(get_site_settings()))
 
 
+@app.route("/admin/landing/preview")
+@admin_required
+def admin_landing_preview():
+    return render_template(
+        "admin_landing_preview.html",
+        settings=site_settings_with_urls(get_site_settings()),
+    )
+
+
 @app.route("/admin/branding")
 @admin_required
 def admin_branding():

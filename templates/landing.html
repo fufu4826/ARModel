@@ -15,7 +15,10 @@
   <!-- mobile landing override active: 2026-06-20 -->
   <a class="skip-link" href="#landing-content">ข้ามไปยังเนื้อหา</a>
 
-  <main class="landing-hero {{ 'has-slider' if sliders else '' }}" style="--landing-image: url('{{ landing_image_url }}'); --landing-cover-desktop: url('{{ landing_image_url }}'); --landing-cover-mobile: url('{{ site_settings.landing_mobile_cover_image_url or landing_image_url }}');">
+  <main
+    class="landing-hero {{ 'has-slider' if sliders else '' }}"
+    style="--landing-image: url('{{ landing_image_url }}'); --landing-cover-desktop: url('{{ landing_image_url }}'); --landing-cover-mobile: url('{{ site_settings.landing_mobile_cover_image_url or landing_image_url }}'); --landing-text-max-width-desktop: {{ site_settings.landing_text_max_width_desktop|int }}px; --landing-headline-font-size-desktop: {{ site_settings.landing_headline_font_size_desktop|int }}px; --landing-subheadline-font-size-desktop: {{ site_settings.landing_subheadline_font_size_desktop|int }}px; --landing-description-font-size-desktop: {{ site_settings.landing_description_font_size_desktop|int }}px; --landing-badge-font-size-desktop: {{ site_settings.landing_badge_font_size_desktop|int }}px; --landing-button-font-size-desktop: {{ site_settings.landing_button_font_size_desktop|int }}px;"
+  >
     <div class="landing-overlay" aria-hidden="true"></div>
     <header class="landing-topbar" aria-label="ชื่อเว็บไซต์">
       <a href="{{ url_for('index') }}" class="landing-brand" aria-label="{{ site_settings.site_name }} หน้า Landing">

@@ -73,6 +73,39 @@
             <label for="landing-description">คำอธิบาย</label>
             <textarea id="landing-description" name="landing_description" rows="4">{{ settings.landing_description }}</textarea>
           </div>
+
+          <div class="section-heading full">
+            <div>
+              <h2>การจัดวางตัวหนังสือหน้าปก</h2>
+              <p>ใช้ปรับไม่ให้ข้อความหน้าปกชนรูปภาพฝั่งขวาหรือขึ้นบรรทัดใหม่อ่านยาก</p>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label for="landing-text-max-width-desktop">ความกว้างกล่องข้อความบนคอมพิวเตอร์ (px)</label>
+            <input id="landing-text-max-width-desktop" name="landing_text_max_width_desktop" type="number" min="320" max="900" step="10" value="{{ settings.landing_text_max_width_desktop }}" />
+          </div>
+          <div class="field">
+            <label for="landing-headline-font-size-desktop">ขนาดหัวข้อหลักบนคอมพิวเตอร์ (px)</label>
+            <input id="landing-headline-font-size-desktop" name="landing_headline_font_size_desktop" type="number" min="28" max="96" step="1" value="{{ settings.landing_headline_font_size_desktop }}" />
+          </div>
+          <div class="field">
+            <label for="landing-subheadline-font-size-desktop">ขนาดหัวข้อรองบนคอมพิวเตอร์ (px)</label>
+            <input id="landing-subheadline-font-size-desktop" name="landing_subheadline_font_size_desktop" type="number" min="18" max="56" step="1" value="{{ settings.landing_subheadline_font_size_desktop }}" />
+          </div>
+          <div class="field">
+            <label for="landing-description-font-size-desktop">ขนาดคำอธิบายบนคอมพิวเตอร์ (px)</label>
+            <input id="landing-description-font-size-desktop" name="landing_description_font_size_desktop" type="number" min="14" max="28" step="1" value="{{ settings.landing_description_font_size_desktop }}" />
+          </div>
+          <div class="field">
+            <label for="landing-badge-font-size-desktop">ขนาดป้ายกำกับบนคอมพิวเตอร์ (px)</label>
+            <input id="landing-badge-font-size-desktop" name="landing_badge_font_size_desktop" type="number" min="10" max="22" step="1" value="{{ settings.landing_badge_font_size_desktop }}" />
+          </div>
+          <div class="field">
+            <label for="landing-button-font-size-desktop">ขนาดตัวอักษรปุ่มบนคอมพิวเตอร์ (px)</label>
+            <input id="landing-button-font-size-desktop" name="landing_button_font_size_desktop" type="number" min="12" max="24" step="1" value="{{ settings.landing_button_font_size_desktop }}" />
+          </div>
+
           <div class="field">
             <label for="landing-cta-text">CTA Button Text</label>
             <input id="landing-cta-text" name="landing_cta_text" value="{{ settings.landing_cta_text }}" required />

@@ -3,6 +3,7 @@ import hashlib
 import io
 import json
 import logging
+import math
 import mimetypes
 import os
 import re
@@ -61,6 +62,12 @@ DEFAULT_SITE_SETTINGS = {
         "ศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ บ้านนานกเค้า "
         "ตำบลห้วยยาง อำเภอเมือง จังหวัดสกลนคร ในรูปแบบโมเดลสามมิติและเทคโนโลยี AR"
     ),
+    "landing_text_max_width_desktop": "520",
+    "landing_headline_font_size_desktop": "56",
+    "landing_subheadline_font_size_desktop": "28",
+    "landing_description_font_size_desktop": "18",
+    "landing_badge_font_size_desktop": "14",
+    "landing_button_font_size_desktop": "16",
     "landing_cta_text": "เข้าสู่เว็บไซต์",
     "landing_cta_url": "/home",
     "home_hero_badge": "นิทรรศการดิจิทัล 3D / AR",
@@ -80,6 +87,14 @@ DEFAULT_SITE_SETTINGS = {
     "site_social_image": "",
     "favicon": "favicon.ico",
     "meta_description": DEFAULT_META_DESCRIPTION,
+}
+LANDING_TYPOGRAPHY_SETTINGS = {
+    "landing_text_max_width_desktop": (320, 900),
+    "landing_headline_font_size_desktop": (28, 96),
+    "landing_subheadline_font_size_desktop": (18, 56),
+    "landing_description_font_size_desktop": (14, 28),
+    "landing_badge_font_size_desktop": (10, 22),
+    "landing_button_font_size_desktop": (12, 24),
 }
 DEFAULT_SLIDER_ITEMS = []
 PLACEHOLDER_THUMBNAIL = (
@@ -567,7 +582,21 @@ def normalize_site_settings(settings: dict | None) -> dict:
     for key, fallback in DEFAULT_SITE_SETTINGS.items():
         if not normalized[key]:
             normalized[key] = fallback
+    for key in LANDING_TYPOGRAPHY_SETTINGS:
+        normalized[key] = normalize_landing_typography_value(key, normalized[key])
     return normalized
+
+
+def normalize_landing_typography_value(key: str, value) -> str:
+    minimum, maximum = LANDING_TYPOGRAPHY_SETTINGS[key]
+    try:
+        numeric_value = float(str(value).strip())
+        if not math.isfinite(numeric_value):
+            raise ValueError
+        parsed_value = int(round(numeric_value))
+    except (TypeError, ValueError):
+        parsed_value = int(DEFAULT_SITE_SETTINGS[key])
+    return str(max(minimum, min(parsed_value, maximum)))
 
 
 def load_site_settings() -> dict:
@@ -2091,6 +2120,13 @@ def update_admin_settings():
                 "landing_headline": request.form.get("landing_headline", "").strip() or DEFAULT_SITE_SETTINGS["landing_headline"],
                 "landing_subheadline": request.form.get("landing_subheadline", "").strip() or DEFAULT_SITE_SETTINGS["landing_subheadline"],
                 "landing_description": request.form.get("landing_description", "").strip() or DEFAULT_SITE_SETTINGS["landing_description"],
+                **{
+                    key: normalize_landing_typography_value(
+                        key,
+                        request.form.get(key) or DEFAULT_SITE_SETTINGS[key],
+                    )
+                    for key in LANDING_TYPOGRAPHY_SETTINGS
+                },
                 "landing_cta_text": request.form.get("landing_cta_text", "").strip() or DEFAULT_SITE_SETTINGS["landing_cta_text"],
                 "landing_cta_url": validated_content_url(
                     request.form.get("landing_cta_url"),

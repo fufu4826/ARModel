@@ -162,6 +162,65 @@ class SiteManagementTests(unittest.TestCase):
         # Verify the unique admin-managed headline is rendered in the mobile hero title markup
         self.assertIn(f'class="landing-mobile-hero-title">{unique_headline}</h1>', landing_html)
 
+    def test_landing_typography_settings_are_admin_editable_and_sanitized(self):
+        self.sign_in()
+        admin_html = self.client.get("/admin/landing").get_data(as_text=True)
+        self.assertIn("การจัดวางตัวหนังสือหน้าปก", admin_html)
+        for field_name in module.LANDING_TYPOGRAPHY_SETTINGS:
+            self.assertIn(f'name="{field_name}"', admin_html)
+
+        response = self.client.post(
+            "/admin/settings",
+            data={
+                "section": "landing",
+                "return_to": "/admin/landing",
+                "landing_cover": "pic/og-cover.jpg",
+                "landing_headline": "Test headline",
+                "landing_subheadline": "Test subheadline",
+                "landing_description": "Test description",
+                "landing_cta_text": "Enter",
+                "landing_cta_url": "/home",
+                "landing_text_max_width_desktop": "1200",
+                "landing_headline_font_size_desktop": "72",
+                "landing_subheadline_font_size_desktop": "invalid);color:red",
+                "landing_description_font_size_desktop": "12",
+                "landing_badge_font_size_desktop": "18",
+                "landing_button_font_size_desktop": "30",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        settings = module.load_site_settings()
+        self.assertEqual(settings["landing_text_max_width_desktop"], "900")
+        self.assertEqual(settings["landing_headline_font_size_desktop"], "72")
+        self.assertEqual(
+            settings["landing_subheadline_font_size_desktop"],
+            module.DEFAULT_SITE_SETTINGS["landing_subheadline_font_size_desktop"],
+        )
+        self.assertEqual(settings["landing_description_font_size_desktop"], "14")
+        self.assertEqual(settings["landing_badge_font_size_desktop"], "18")
+        self.assertEqual(settings["landing_button_font_size_desktop"], "24")
+
+        landing_html = self.client.get("/").get_data(as_text=True)
+        self.assertIn("--landing-text-max-width-desktop: 900px", landing_html)
+        self.assertIn("--landing-headline-font-size-desktop: 72px", landing_html)
+        self.assertIn("--landing-description-font-size-desktop: 14px", landing_html)
+        self.assertNotIn("invalid);color:red", landing_html)
+        self.assertIn("landing-mobile-hero", landing_html)
+        self.assertIn("landing-mobile-details", landing_html)
+        self.assertEqual(
+            self.client.get("/api/settings").get_json()["landing_text_max_width_desktop"],
+            "900",
+        )
+
+        stylesheet = (
+            Path(module.BASE_DIR) / "static" / "css" / "style.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn("font-size: 16px !important;", stylesheet)
+
+        self.assertEqual(self.client.get("/home").status_code, 200)
+        self.assertEqual(self.client.get("/models").status_code, 200)
+        self.assertEqual(self.client.get("/models/lychee").status_code, 200)
+
     def test_home_hero_text_is_admin_editable_without_changing_links(self):
         home_html = self.client.get("/home").get_data(as_text=True)
         self.assertIn("นิทรรศการดิจิทัล 3D / AR", home_html)

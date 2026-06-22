@@ -70,4 +70,10 @@ add column if not exists preview_images jsonb not null default '[]'::jsonb;
 alter table models
 add column if not exists narration_audio text not null default '';
 
+alter table models
+add column if not exists rotate_y text not null default '0';
+
+alter table models
+add column if not exists rotate_z text not null default '0';
+
 commit;

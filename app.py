@@ -148,6 +148,8 @@ DEFAULT_MODELS = [
         "model": "model/lukplakob.glb",
         "image": "pic/lukplakob.JPG",
         "rotate_x": 3.141592653589793,
+        "rotate_y": 0,
+        "rotate_z": 0,
         "scale": 0.15,
         "visible": True,
     },
@@ -160,6 +162,8 @@ DEFAULT_MODELS = [
         "model": "model/audtang.glb",
         "image": "pic/audtang.JPG",
         "rotate_x": 0,
+        "rotate_y": 0,
+        "rotate_z": 0,
         "scale": 0.08,
         "visible": True,
     },
@@ -172,6 +176,8 @@ DEFAULT_MODELS = [
         "model": "model/Lychee.glb",
         "image": "pic/Lychee.jpg",
         "rotate_x": 0,
+        "rotate_y": 0,
+        "rotate_z": 0,
         "scale": 0.25,
         "visible": True,
     },
@@ -184,6 +190,8 @@ DEFAULT_MODELS = [
         "model": "model/mond.glb",
         "image": "pic/mond.JPG",
         "rotate_x": 0,
+        "rotate_y": 0,
+        "rotate_z": 0,
         "scale": 0.06,
         "visible": True,
     },
@@ -196,6 +204,8 @@ DEFAULT_MODELS = [
         "model": "model/ricephupan.glb",
         "image": "pic/ricephupan.JPG",
         "rotate_x": 0,
+        "rotate_y": 0,
+        "rotate_z": 0,
         "scale": 0.04,
         "visible": True,
     },
@@ -485,9 +495,13 @@ def normalize_model(model: dict, projects: list[dict]) -> dict:
 
     try:
         rotate_x = float(model.get("rotate_x") or 0)
+        rotate_y = float(model.get("rotate_y") or 0)
+        rotate_z = float(model.get("rotate_z") or 0)
         scale = float(model.get("scale") or 0.2)
     except (TypeError, ValueError):
         rotate_x = 0
+        rotate_y = 0
+        rotate_z = 0
         scale = 0.2
 
     model_url = str(model.get("model_url") or "").strip()
@@ -511,6 +525,8 @@ def normalize_model(model: dict, projects: list[dict]) -> dict:
         "preview_images": normalize_preview_images(model.get("preview_images")),
         "narration_audio": narration_audio,
         "rotate_x": rotate_x,
+        "rotate_y": rotate_y,
+        "rotate_z": rotate_z,
         "scale": scale,
         "visible": bool(model.get("visible", True)),
     }
@@ -851,9 +867,11 @@ def normalize_supabase_model(row: dict) -> dict:
         "preview_images": normalize_preview_images(row.get("preview_images")),
         "narration_audio": str(row.get("narration_audio") or "").strip(),
         "file_size_mb": size_mb,
-        "rotate_x": 0,
-        "scale": 0.2,
-        "visible": True,
+        "rotate_x": float(row.get("rotate_x") or 0) if row.get("rotate_x") is not None else 0,
+        "rotate_y": float(row.get("rotate_y") or 0) if row.get("rotate_y") is not None else 0,
+        "rotate_z": float(row.get("rotate_z") or 0) if row.get("rotate_z") is not None else 0,
+        "scale": float(row.get("scale") or 0.2) if row.get("scale") is not None else 0.2,
+        "visible": bool(row.get("visible", True)) if row.get("visible") is not None else True,
     }
 
 
@@ -1148,6 +1166,11 @@ def create_model(data: dict) -> dict:
         "preview_images": normalize_preview_images(data.get("preview_images")),
         "narration_audio": data.get("narration_audio", "").strip(),
         "file_size_mb": data.get("file_size_mb"),
+        "rotate_x": float(data.get("rotate_x") or 0) if data.get("rotate_x") is not None else 0,
+        "rotate_y": float(data.get("rotate_y") or 0) if data.get("rotate_y") is not None else 0,
+        "rotate_z": float(data.get("rotate_z") or 0) if data.get("rotate_z") is not None else 0,
+        "scale": float(data.get("scale") or 0.2) if data.get("scale") is not None else 0.2,
+        "visible": bool(data.get("visible", True)) if data.get("visible") is not None else True,
     }
     rows = supabase_request(
         "/rest/v1/models",
@@ -1168,6 +1191,11 @@ def update_model(model_id: str, data: dict) -> dict:
         "preview_images": normalize_preview_images(data.get("preview_images")),
         "narration_audio": data.get("narration_audio", "").strip(),
         "file_size_mb": data.get("file_size_mb"),
+        "rotate_x": float(data.get("rotate_x") or 0) if data.get("rotate_x") is not None else 0,
+        "rotate_y": float(data.get("rotate_y") or 0) if data.get("rotate_y") is not None else 0,
+        "rotate_z": float(data.get("rotate_z") or 0) if data.get("rotate_z") is not None else 0,
+        "scale": float(data.get("scale") or 0.2) if data.get("scale") is not None else 0.2,
+        "visible": bool(data.get("visible", True)) if data.get("visible") is not None else True,
     }
     rows = supabase_request(
         f"/rest/v1/models?id=eq.{quote(model_id)}",
@@ -2555,6 +2583,11 @@ def add_model():
                     "preview_images": preview_images,
                     "narration_audio": uploaded_narration_audio or narration_audio,
                     "file_size_mb": model_size_mb,
+                    "rotate_x": parse_float("rotate_x", 0),
+                    "rotate_y": parse_float("rotate_y", 0),
+                    "rotate_z": parse_float("rotate_z", 0),
+                    "scale": parse_float("scale", 0.2),
+                    "visible": form_visible(),
                 }
             )
             flash(f'เพิ่มโมเดล "{name}" แล้ว', "success")
@@ -2599,6 +2632,8 @@ def add_model():
             "preview_images": preview_images,
             "narration_audio": uploaded_narration_audio or narration_audio,
             "rotate_x": parse_float("rotate_x", 0),
+            "rotate_y": parse_float("rotate_y", 0),
+            "rotate_z": parse_float("rotate_z", 0),
             "scale": parse_float("scale", 0.2),
             "visible": form_visible(),
         }
@@ -2668,6 +2703,11 @@ def edit_model(model_id: str):
                         "preview_images": preview_images,
                         "narration_audio": final_narration_audio,
                         "file_size_mb": uploaded_size_mb if uploaded_size_mb is not None else model.get("file_size_mb"),
+                        "rotate_x": parse_float("rotate_x", 0),
+                        "rotate_y": parse_float("rotate_y", 0),
+                        "rotate_z": parse_float("rotate_z", 0),
+                        "scale": parse_float("scale", 0.2),
+                        "visible": form_visible(),
                     },
                 )
                 flash("บันทึกข้อมูลโมเดลแล้ว", "success")
@@ -2716,6 +2756,8 @@ def edit_model(model_id: str):
                 "preview_images": preview_images,
                 "narration_audio": narration_audio,
                 "rotate_x": parse_float("rotate_x", 0),
+                "rotate_y": parse_float("rotate_y", 0),
+                "rotate_z": parse_float("rotate_z", 0),
                 "scale": parse_float("scale", 0.2),
                 "visible": form_visible(),
             }

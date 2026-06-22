@@ -211,6 +211,26 @@ def upsert_model(model: dict, upload_assets: bool, dry_run: bool = False) -> Non
             dry_run,
         )
 
+    try:
+        rotate_x = float(model.get("rotate_x") or 0)
+    except (ValueError, TypeError):
+        rotate_x = 0.0
+
+    try:
+        rotate_y = float(model.get("rotate_y") or 0)
+    except (ValueError, TypeError):
+        rotate_y = 0.0
+
+    try:
+        rotate_z = float(model.get("rotate_z") or 0)
+    except (ValueError, TypeError):
+        rotate_z = 0.0
+
+    try:
+        scale = float(model.get("scale") or 0.2)
+    except (ValueError, TypeError):
+        scale = 0.2
+
     payload = {
         "id": model_id,
         "project_id": str(model.get("project_id") or "").strip() or None,
@@ -222,6 +242,11 @@ def upsert_model(model: dict, upload_assets: bool, dry_run: bool = False) -> Non
         "preview_images": preview_images,
         "narration_audio": narration_audio if is_external_url(narration_audio) else "",
         "file_size_mb": file_size_mb,
+        "rotate_x": rotate_x,
+        "rotate_y": rotate_y,
+        "rotate_z": rotate_z,
+        "scale": scale,
+        "visible": bool(model.get("visible", True)),
     }
 
     if dry_run:

@@ -9,12 +9,16 @@
   const pathInput = document.getElementById("edit-model-path") || document.getElementById("model-path");
   const urlInput = document.getElementById("edit-model-url") || document.getElementById("model-url");
   const scaleInput = document.getElementById("edit-model-scale") || document.getElementById("scale");
-  const rotateInput = document.getElementById("edit-model-rotate-x") || document.getElementById("rotate-x");
+  const rotateXInput = document.getElementById("edit-model-rotate-x") || document.getElementById("rotate-x");
+  const rotateYInput = document.getElementById("edit-model-rotate-y") || document.getElementById("rotate-y");
+  const rotateZInput = document.getElementById("edit-model-rotate-z") || document.getElementById("rotate-z");
 
   let currentBlobUrl = null;
   let lastSrc = "";
   let lastScale = null;
   let lastRotateX = null;
+  let lastRotateY = null;
+  let lastRotateZ = null;
 
   function updatePreview() {
     let modelSrc = "";
@@ -67,10 +71,26 @@
     }
 
     let rotateX = 0;
-    if (rotateInput && rotateInput.value) {
-      const parsedRotateX = parseFloat(rotateInput.value);
+    if (rotateXInput && rotateXInput.value) {
+      const parsedRotateX = parseFloat(rotateXInput.value);
       if (!isNaN(parsedRotateX)) {
         rotateX = parsedRotateX;
+      }
+    }
+
+    let rotateY = 0;
+    if (rotateYInput && rotateYInput.value) {
+      const parsedRotateY = parseFloat(rotateYInput.value);
+      if (!isNaN(parsedRotateY)) {
+        rotateY = parsedRotateY;
+      }
+    }
+
+    let rotateZ = 0;
+    if (rotateZInput && rotateZInput.value) {
+      const parsedRotateZ = parseFloat(rotateZInput.value);
+      if (!isNaN(parsedRotateZ)) {
+        rotateZ = parsedRotateZ;
       }
     }
 
@@ -97,9 +117,11 @@
       modelViewer.setAttribute("scale", `${scale} ${scale} ${scale}`);
     }
 
-    if (rotateX !== lastRotateX) {
+    if (rotateX !== lastRotateX || rotateY !== lastRotateY || rotateZ !== lastRotateZ) {
       lastRotateX = rotateX;
-      modelViewer.setAttribute("orientation", `${rotateX}rad 0rad 0rad`);
+      lastRotateY = rotateY;
+      lastRotateZ = rotateZ;
+      modelViewer.setAttribute("orientation", `${rotateX}rad ${rotateY}rad ${rotateZ}rad`);
     }
   }
 
@@ -119,10 +141,45 @@
     scaleInput.addEventListener("input", updatePreview);
     scaleInput.addEventListener("change", updatePreview);
   }
-  if (rotateInput) {
-    rotateInput.addEventListener("input", updatePreview);
-    rotateInput.addEventListener("change", updatePreview);
+  if (rotateXInput) {
+    rotateXInput.addEventListener("input", updatePreview);
+    rotateXInput.addEventListener("change", updatePreview);
   }
+  if (rotateYInput) {
+    rotateYInput.addEventListener("input", updatePreview);
+    rotateYInput.addEventListener("change", updatePreview);
+  }
+  if (rotateZInput) {
+    rotateZInput.addEventListener("input", updatePreview);
+    rotateZInput.addEventListener("change", updatePreview);
+  }
+
+  // Handle Preset Buttons
+  const presetButtons = document.querySelectorAll(".preset-btn");
+  presetButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const px = btn.getAttribute("data-preset-x");
+      const py = btn.getAttribute("data-preset-y");
+      const pz = btn.getAttribute("data-preset-z");
+
+      if (px !== null && rotateXInput) {
+        rotateXInput.value = px;
+        rotateXInput.dispatchEvent(new Event("input"));
+        rotateXInput.dispatchEvent(new Event("change"));
+      }
+      if (py !== null && rotateYInput) {
+        rotateYInput.value = py;
+        rotateYInput.dispatchEvent(new Event("input"));
+        rotateYInput.dispatchEvent(new Event("change"));
+      }
+      if (pz !== null && rotateZInput) {
+        rotateZInput.value = pz;
+        rotateZInput.dispatchEvent(new Event("input"));
+        rotateZInput.dispatchEvent(new Event("change"));
+      }
+    });
+  });
+
 
   // Poll for programmatic direct upload values
   const pollInterval = setInterval(updatePreview, 500);

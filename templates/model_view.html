@@ -60,7 +60,9 @@
           ar-modes="webxr scene-viewer quick-look"
           shadow-intensity="1"
           exposure="1"
-          environment-image="neutral">
+          environment-image="neutral"
+          scale="{{ model.scale or 0.2 }} {{ model.scale or 0.2 }} {{ model.scale or 0.2 }}"
+          orientation="{{ model.rotate_x or 0 }}rad {{ model.rotate_y or 0 }}rad {{ model.rotate_z or 0 }}rad">
           <button class="ar-button" slot="ar-button" type="button" aria-label="เปิด {{ model_name }} ในโหมด AR">เปิด AR</button>
         </model-viewer>
         <div class="viewer-state is-visible" id="modelLoadingState" role="status" aria-live="polite">กำลังโหลดโมเดล 3D...</div>

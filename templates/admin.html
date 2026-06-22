@@ -145,10 +145,7 @@
                   <label for="model-dept">หน่วยงาน/แผนก</label>
                   <input id="model-dept" name="department">
                 </div>
-                <div class="field">
-                  <label for="scale">ขนาด</label>
-                  <input id="scale" name="scale" type="number" value="0.2" step="any" min="0.001">
-                </div>
+
                 <div class="field full">
                   <label for="model-desc">รายละเอียด</label>
                   <textarea id="model-desc" name="description"></textarea>
@@ -203,7 +200,7 @@
                 </div>
 
                 <div class="field full" style="border-top: 1px solid var(--admin-line); padding-top: 12px; margin-top: 8px;">
-                  <strong style="color: var(--admin-green); font-size: 14px;">เสียงคำบรรยาย & การแสดงผล</strong>
+                  <strong style="color: var(--admin-green); font-size: 14px;">เสียงคำบรรยาย</strong>
                 </div>
                 <div class="field">
                   <label for="narration-audio-file">ไฟล์เสียงคำบรรยาย</label>
@@ -215,14 +212,46 @@
                   <input id="narration-audio" name="narration_audio" placeholder="https://example.com/narration.mp3" {{ "disabled" if uploads_disabled else "" }}>
                   <p class="meta">หากไม่ใส่ ระบบจะลองใช้เสียงอ่านภาษาไทยจากเบราว์เซอร์</p>
                 </div>
-                <div class="field">
-                  <label for="rotate-x">หมุนแกน X (องศาในแบบทศนิยม)</label>
-                  <input id="rotate-x" name="rotate_x" type="number" value="0" step="any">
-                  <p class="meta">ใช้ปรับมุมเอียงเริ่มต้นในการแสดงผลโมเดล 3D บนหน้าเว็บ</p>
+
+                <div class="field full" style="border-top: 1px solid var(--admin-line); padding-top: 12px; margin-top: 8px;">
+                  <strong style="color: var(--admin-green); font-size: 14px;">การตั้งค่าการแสดงผล AR/3D</strong>
                 </div>
-                <label class="check-field">
-                  <input name="visible" type="checkbox" checked> เผยแพร่โมเดล
-                </label>
+                <div class="field">
+                  <label for="scale">ขนาด (Scale)</label>
+                  <input id="scale" name="scale" type="number" value="0.2" step="any" min="0.001">
+                  <p class="meta">ขนาดเริ่มต้นแสดงผลโมเดล 3D บนหน้าเว็บ</p>
+                </div>
+                <div class="field">
+                  <label for="rotate-x">หมุนแกน X (เรเดียน)</label>
+                  <input id="rotate-x" name="rotate_x" type="number" value="0" step="any">
+                  <p class="meta">ปรับความเอียงเริ่มต้นแกน X (0 = ไม่หมุน, 3.1416 = 180°)</p>
+                </div>
+                <div class="field">
+                  <label for="rotate-y">หมุนแกน Y (เรเดียน)</label>
+                  <input id="rotate-y" name="rotate_y" type="number" value="0" step="any">
+                  <p class="meta">ปรับมุมหมุนแกน Y (0 = ไม่หมุน, 3.1416 = 180°)</p>
+                </div>
+                <div class="field">
+                  <label for="rotate-z">หมุนแกน Z (เรเดียน)</label>
+                  <input id="rotate-z" name="rotate_z" type="number" value="0" step="any">
+                  <p class="meta">ปรับมุมเอียงแกน Z (0 = ไม่หมุน, 3.1416 = 180°)</p>
+                </div>
+
+                <div class="field full">
+                  <label>ปุ่มหมุนด่วน (Presets)</label>
+                  <div class="admin-presets">
+                    <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="0" data-preset-z="0">ไม่หมุน</button>
+                    <button type="button" class="preset-btn" data-preset-x="3.1416" data-preset-y="0" data-preset-z="0">กลับหัว X 180°</button>
+                    <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="3.1416" data-preset-z="0">กลับด้าน Y 180°</button>
+                    <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="0" data-preset-z="3.1416">หมุน Z 180°</button>
+                  </div>
+                </div>
+
+                <div class="field full">
+                  <label class="check-field">
+                    <input name="visible" type="checkbox" checked> เผยแพร่โมเดลนี้บนเว็บไซต์
+                  </label>
+                </div>
 
                 <!-- Model 3D Preview Panel -->
                 <div class="field full admin-model-preview-card" data-admin-model-preview-root>

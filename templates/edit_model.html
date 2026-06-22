@@ -164,10 +164,31 @@
               <p class="meta">ขนาดเริ่มต้นแสดงผลโมเดล 3D บนหน้าเว็บ</p>
             </div>
             <div class="field">
-              <label for="edit-model-rotate-x">หมุนแกน X (องศาในแบบทศนิยม)</label>
-              <input id="edit-model-rotate-x" name="rotate_x" type="number" value="{{ model.rotate_x }}" step="any">
-              <p class="meta">ปรับความเอียงเริ่มต้นแสดงผลโมเดล 3D</p>
+              <label for="edit-model-rotate-x">หมุนแกน X (เรเดียน)</label>
+              <input id="edit-model-rotate-x" name="rotate_x" type="number" value="{{ model.rotate_x or 0 }}" step="any">
+              <p class="meta">ปรับความเอียงเริ่มต้นแกน X (0 = ไม่หมุน, 3.1416 = 180°)</p>
             </div>
+            <div class="field">
+              <label for="edit-model-rotate-y">หมุนแกน Y (เรเดียน)</label>
+              <input id="edit-model-rotate-y" name="rotate_y" type="number" value="{{ model.rotate_y or 0 }}" step="any">
+              <p class="meta">ปรับมุมหมุนแกน Y (0 = ไม่หมุน, 3.1416 = 180°)</p>
+            </div>
+            <div class="field">
+              <label for="edit-model-rotate-z">หมุนแกน Z (เรเดียน)</label>
+              <input id="edit-model-rotate-z" name="rotate_z" type="number" value="{{ model.rotate_z or 0 }}" step="any">
+              <p class="meta">ปรับมุมเอียงแกน Z (0 = ไม่หมุน, 3.1416 = 180°)</p>
+            </div>
+
+            <div class="field full">
+              <label>ปุ่มหมุนด่วน (Presets)</label>
+              <div class="admin-presets">
+                <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="0" data-preset-z="0">ไม่หมุน</button>
+                <button type="button" class="preset-btn" data-preset-x="3.1416" data-preset-y="0" data-preset-z="0">กลับหัว X 180°</button>
+                <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="3.1416" data-preset-z="0">กลับด้าน Y 180°</button>
+                <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="0" data-preset-z="3.1416">หมุน Z 180°</button>
+              </div>
+            </div>
+
             <div class="field full">
               <label class="check-field">
                 <input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> เผยแพร่โมเดลนี้บนเว็บไซต์

@@ -1041,3 +1041,28 @@ tr:last-child td {
   height: 360px;
   display: block;
 }
+
+.admin-presets {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.preset-btn {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-line);
+  color: var(--admin-text);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.preset-btn:hover {
+  background: var(--admin-green);
+  color: white;
+  border-color: var(--admin-green);
+}

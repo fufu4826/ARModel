@@ -539,6 +539,8 @@ class SiteManagementTests(unittest.TestCase):
         )
         self.assertEqual(legacy_model["preview_images"], [])
         self.assertEqual(legacy_model["narration_audio"], "")
+        self.assertEqual(legacy_model["rotate_y"], 0)
+        self.assertEqual(legacy_model["rotate_z"], 0)
 
         models = module.load_models(include_hidden=True)
         models.append(
@@ -1462,6 +1464,8 @@ class SiteManagementTests(unittest.TestCase):
             "alter table slider_items enable row level security",
             "add column if not exists preview_images jsonb not null default '[]'::jsonb",
             "add column if not exists narration_audio text not null default ''",
+            "add column if not exists rotate_y text not null default '0'",
+            "add column if not exists rotate_z text not null default '0'",
         ):
             self.assertIn(required, sql)
 
@@ -1634,6 +1638,46 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(detail_res.status_code, 200)
         detail_html = detail_res.get_data(as_text=True)
         self.assertIn("ฟังคำบรรยาย", detail_html)
+
+    def test_model_rotation_controls_and_presets(self):
+        self.sign_in()
+        with patch.object(module, "is_supabase_enabled", return_value=False):
+            response = self.client.post(
+                "/admin/models",
+                data={
+                    "name": "Rotation Test Model",
+                    "project_id": "garden",
+                    "model_url": "https://example.com/rotate-test.glb",
+                    "scale": "0.3",
+                    "rotate_x": "1.23",
+                    "rotate_y": "4.56",
+                    "rotate_z": "-1.57",
+                    "visible": "on",
+                },
+            )
+            self.assertEqual(response.status_code, 302)
+            saved = next(
+                item for item in module.load_models(include_hidden=True)
+                if item["name"] == "Rotation Test Model"
+            )
+            self.assertEqual(saved["rotate_x"], 1.23)
+            self.assertEqual(saved["rotate_y"], 4.56)
+            self.assertEqual(saved["rotate_z"], -1.57)
+
+            # Public page orientation check
+            detail_html = self.client.get(f"/models/{saved['id']}").get_data(as_text=True)
+            self.assertIn('orientation="1.23rad 4.56rad -1.57rad"', detail_html)
+
+            # Admin preview JS validation
+            js_content = (Path(module.BASE_DIR) / "static" / "js" / "admin-model-preview.js").read_text(encoding="utf-8")
+            self.assertIn("rotateYInput", js_content)
+            self.assertIn("rotateZInput", js_content)
+            self.assertIn("preset-btn", js_content)
+
+            # Check that admin pages render preset buttons
+            admin_add_html = self.client.get("/admin").get_data(as_text=True)
+            self.assertIn('class="preset-btn"', admin_add_html)
+            self.assertIn('data-preset-x="3.1416"', admin_add_html)
 
 
 if __name__ == "__main__":

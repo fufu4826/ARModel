@@ -1462,6 +1462,46 @@ class SiteManagementTests(unittest.TestCase):
         ):
             self.assertIn(required, sql)
 
+    def test_learning_source_labels_and_model_department_field(self):
+        # 1. Check that public pages /, /home, /models render successfully and do not contain generic labels like "ดูโครงการทั้งหมด" or "รายการโครงการ" but instead say "แหล่งเรียนรู้"
+        for route in ("/", "/home", "/models"):
+            response = self.client.get(route)
+            self.assertEqual(response.status_code, 200)
+            html = response.get_data(as_text=True)
+            self.assertNotIn("ดูโครงการทั้งหมด", html)
+            self.assertNotIn("รายการโครงการ", html)
+
+        # 2. Check model detail page renders and displays department
+        # First with a model that has department
+        response = self.client.get("/models/lychee")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("หน่วยงาน/แผนก", html)
+        self.assertIn("งานกิจกรรมพืชสวน", html)
+
+        # Second with a model that has NO department
+        models = module.load_models(include_hidden=True)
+        for m in models:
+            if m["id"] == "lychee":
+                m["department"] = ""
+        module.save_models(models)
+
+        response = self.client.get("/models/lychee")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertNotIn("หน่วยงาน/แผนก", html)
+
+        # 3. Check admin page renders with แหล่งเรียนรู้ labels
+        self.sign_in()
+        response = self.client.get("/admin")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("เพิ่มแหล่งเรียนรู้", html)
+        self.assertIn("จัดการแหล่งเรียนรู้", html)
+        self.assertIn("รายการแหล่งเรียนรู้", html)
+        self.assertNotIn("เพิ่มโครงการ", html)
+        self.assertNotIn("จัดการโครงการ", html)
+
 
 if __name__ == "__main__":
     unittest.main()

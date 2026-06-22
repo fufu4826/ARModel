@@ -130,6 +130,12 @@
       </section>
 
       <dl class="meta-list">
+        {% if model.department %}
+        <div>
+          <dt>หน่วยงาน/แผนก</dt>
+          <dd id="modelDepartment">{{ model.department }}</dd>
+        </div>
+        {% endif %}
         <div>
           <dt>แหล่งเรียนรู้</dt>
           <dd id="modelProjectName">{{ model.project_name }}</dd>

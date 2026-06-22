@@ -40,7 +40,7 @@
           <a class="button secondary" href="#projects">{{ site_settings.home_hero_secondary_cta_text }}</a>
         </div>
       </div>
-      <div class="hero-media" aria-label="สไลด์ภาพโครงการ">
+      <div class="hero-media" aria-label="สไลด์ภาพแหล่งเรียนรู้">
         <div class="hero-slideshow" data-hero-slideshow>
           {% set ns = namespace(has_images=false, first_shown=false) %}
           {% for p in projects %}
@@ -53,7 +53,7 @@
             {% for p in projects %}
               {% if p.cover_image_url %}
                 <div class="hero-slide{% if not ns.first_shown %} is-active{% set ns.first_shown = true %}{% endif %}" data-hero-slide>
-                  <img src="{{ p.cover_image_url }}" alt="ภาพโครงการ {{ p.name }}" />
+                  <img src="{{ p.cover_image_url }}" alt="ภาพแหล่งเรียนรู้ {{ p.name }}" />
                   <div class="hero-slide-overlay">
                     <span class="hero-slide-title">{{ p.name }}</span>
                   </div>
@@ -127,7 +127,7 @@
       <div class="card-grid project-grid">
         {% for project in projects %}
         <article class="project-card">
-          <a class="card-media" href="{{ url_for('project_detail', project_id=project.id) }}" aria-label="ดูโครงการ {{ project.name }}">
+          <a class="card-media" href="{{ url_for('project_detail', project_id=project.id) }}" aria-label="ดูแหล่งเรียนรู้ {{ project.name }}">
             {% if project.cover_image_url %}
             <img src="{{ project.cover_image_url }}" alt="{{ project.name }}" loading="{{ 'eager' if loop.first else 'lazy' }}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
             <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
@@ -141,7 +141,7 @@
               <span class="count-pill">{{ model_counts.get(project.id, 0) }} โมเดล</span>
             </div>
             <h3><a href="{{ url_for('project_detail', project_id=project.id) }}">{{ project.name }}</a></h3>
-            <p>{{ project.description or "รวมโมเดล 3D และ AR สำหรับการเรียนรู้ภายในโครงการนี้" }}</p>
+            <p>{{ project.description or "รวมโมเดล 3D และ AR สำหรับการเรียนรู้ภายในแหล่งเรียนรู้นี้" }}</p>
             <a class="button small" href="{{ url_for('project_detail', project_id=project.id) }}">เรียนรู้เพิ่มเติม</a>
           </div>
         </article>
@@ -149,8 +149,8 @@
       </div>
       {% else %}
       <div class="empty-state">
-        <h3>ยังไม่มีโครงการที่เผยแพร่</h3>
-        <p>เมื่อมีข้อมูลโครงการ ระบบจะแสดงรายการสำหรับเข้าชมโมเดล 3D ที่นี่</p>
+        <h3>ยังไม่มีแหล่งเรียนรู้ที่เผยแพร่</h3>
+        <p>เมื่อมีข้อมูลแหล่งเรียนรู้ ระบบจะแสดงรายการสำหรับเข้าชมโมเดล 3D ที่นี่</p>
       </div>
       {% endif %}
     </section>

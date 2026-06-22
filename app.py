@@ -35,7 +35,7 @@ MAX_MODEL_FILE_SIZE_MB = 50
 MAX_MODEL_FILE_SIZE_BYTES = MAX_MODEL_FILE_SIZE_MB * 1024 * 1024
 VERCEL_UPLOAD_MESSAGE = "ระบบไม่รองรับการอัปโหลดไฟล์โดยตรงบน Vercel กรุณาระบุรูปภาพหรือไฟล์โมเดลผ่านลิงก์เว็บภายนอก (URL)"
 VERCEL_EDIT_MESSAGE = "ระบบแอดมินทำงานในโหมดอ่านอย่างเดียวบน Vercel (ไม่รองรับการเขียนไฟล์บนคลาวด์) กรุณาแก้ไขไฟล์ข้อมูลภายในเครื่อง แล้ว Commit และ Deploy ใหม่ หรือกำหนดค่าเชื่อมต่อ Supabase ก่อนใช้งาน"
-UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในโครงการ"
+UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในแหล่งเรียนรู้"
 PUBLIC_SITE_URL = (
     os.environ.get("SITE_BASE_URL")
     or os.environ.get("PUBLIC_SITE_URL")
@@ -391,7 +391,7 @@ def save_models(models: list[dict]) -> None:
 
 
 def normalize_project(project: dict) -> dict:
-    name = str(project.get("name") or project.get("project_name") or "โครงการ").strip()
+    name = str(project.get("name") or project.get("project_name") or "แหล่งเรียนรู้").strip()
     image_url = str(project.get("image_url") or "").strip()
     image_path = str(project.get("image_path") or project.get("cover_image") or project.get("image") or "").strip()
     return {
@@ -2308,7 +2308,7 @@ def add_project():
 
     name = request.form.get("name", "").strip()
     if not name:
-        abort(400, "จำเป็นต้องกรอกชื่อโครงการ (Project Name)")
+        abort(400, "จำเป็นต้องกรอกชื่อแหล่งเรียนรู้ (Project Name)")
 
     image_url = request.form.get("image_url", "").strip()
     if is_supabase_enabled():
@@ -2321,10 +2321,10 @@ def add_project():
                     "image_url": uploaded_image_url or image_url,
                 }
             )
-            flash(f'เพิ่มโครงการ "{name}" แล้ว', "success")
+            flash(f'เพิ่มแหล่งเรียนรู้ "{name}" แล้ว', "success")
         except SupabaseError as exc:
             logger.exception("Unable to create project in Supabase")
-            flash(f"ไม่สามารถบันทึกโครงการไปยัง Supabase ได้: {exc}", "error")
+            flash(f"ไม่สามารถบันทึกแหล่งเรียนรู้ไปยัง Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     cover_image = image_url or save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
@@ -2342,7 +2342,7 @@ def add_project():
         }
     )
     save_projects(projects)
-    flash(f'เพิ่มโครงการ "{name}" แล้ว', "success")
+    flash(f'เพิ่มแหล่งเรียนรู้ "{name}" แล้ว', "success")
     return redirect(url_for("admin"))
 
 
@@ -2370,11 +2370,11 @@ def edit_project(project_id: str):
                         "image_url": image_url,
                     },
                 )
-                flash("บันทึกข้อมูลโครงการแล้ว", "success")
+                flash("บันทึกข้อมูลแหล่งเรียนรู้แล้ว", "success")
                 return redirect(url_for("admin"))
             except SupabaseError as exc:
                 logger.exception("Unable to update project in Supabase")
-                flash(f"ไม่สามารถบันทึกข้อมูลโครงการไปยัง Supabase ได้: {exc}", "error")
+                flash(f"ไม่สามารถบันทึกข้อมูลแหล่งเรียนรู้ไปยัง Supabase ได้: {exc}", "error")
                 return redirect(url_for("edit_project", project_id=project_id))
 
         old_cover = project.get("cover_image")
@@ -2394,7 +2394,7 @@ def edit_project(project_id: str):
         if new_cover and old_cover and not image_url:
             delete_static_file(old_cover)
         save_projects(projects)
-        flash("บันทึกข้อมูลโครงการแล้ว", "success")
+        flash("บันทึกข้อมูลแหล่งเรียนรู้แล้ว", "success")
         return redirect(url_for("admin"))
 
     return render_template("edit_project.html", project=project_with_urls(project))
@@ -2409,10 +2409,10 @@ def delete_project_route(project_id: str):
     if is_supabase_enabled():
         try:
             delete_project(project_id)
-            flash("ลบโครงการแล้ว", "success")
+            flash("ลบแหล่งเรียนรู้แล้ว", "success")
         except SupabaseError as exc:
             logger.exception("Unable to delete project in Supabase")
-            flash(f"ไม่สามารถลบโครงการออกจาก Supabase ได้: {exc}", "error")
+            flash(f"ไม่สามารถลบแหล่งเรียนรู้ออกจาก Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     projects = load_projects(include_hidden=True)
@@ -2431,7 +2431,7 @@ def delete_project_route(project_id: str):
     delete_static_file(project.get("cover_image"))
     save_models(models)
     save_projects(projects)
-    flash(f'ลบโครงการ "{project.get("name", "")}" และโมเดลในโครงการแล้ว', "success")
+    flash(f'ลบแหล่งเรียนรู้ "{project.get("name", "")}" และโมเดลในแหล่งเรียนรู้แล้ว', "success")
     return redirect(url_for("admin"))
 
 
@@ -2446,7 +2446,7 @@ def add_model():
     if not name:
         abort(400, "จำเป็นต้องกรอกชื่อโมเดล (Model Name)")
     if find_project(project_id, include_hidden=True) is None:
-        abort(400, "จำเป็นต้องเลือกโครงการ (Project)")
+        abort(400, "จำเป็นต้องเลือกแหล่งเรียนรู้ (Project)")
 
     model_url = request.form.get("model_url", "").strip()
     thumbnail_url = request.form.get("thumbnail_url", "").strip()
@@ -2550,7 +2550,7 @@ def edit_model(model_id: str):
 
         project_id = request.form.get("project_id", "").strip()
         if find_project(project_id, include_hidden=True) is None:
-            abort(400, "จำเป็นต้องเลือกโครงการ (Project)")
+            abort(400, "จำเป็นต้องเลือกแหล่งเรียนรู้ (Project)")
         preview_images = parse_preview_images_field(request.form.get("preview_images"))
         remove_narration_audio = request.form.get("narration_audio_remove") in {"1", "true", "on", "yes"}
 

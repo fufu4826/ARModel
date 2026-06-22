@@ -57,7 +57,7 @@
   <main class="panel">
     <div class="mark">AR</div>
     <h1>{{ "ตั้งค่าผู้ดูแล" if first_run else "Admin Login" }}</h1>
-    <p>{{ "สร้างรหัสผ่านผู้ดูแลครั้งแรกเพื่อเปิดใช้หน้าจัดการโครงการและโมเดล" if first_run else "เข้าสู่ระบบเพื่อจัดการโครงการและโมเดล AR" }}</p>
+    <p>{{ "สร้างรหัสผ่านผู้ดูแลครั้งแรกเพื่อเปิดใช้หน้าจัดการแหล่งเรียนรู้และโมเดล" if first_run else "เข้าสู่ระบบเพื่อจัดการแหล่งเรียนรู้และโมเดล AR" }}</p>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}

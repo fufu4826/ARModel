@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>แก้ไขโครงการ - Admin</title>
+  <title>แก้ไขแหล่งเรียนรู้ - Admin</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
   {% include "_fonts.html" %}
 </head>
@@ -16,8 +16,8 @@
         <header class="admin-heading">
           <div>
             <p class="admin-eyebrow">Content Management</p>
-            <h1>แก้ไขโครงการ</h1>
-            <p>แก้ไขข้อมูลและภาพปกของโครงการจัดแสดง</p>
+            <h1>แก้ไขแหล่งเรียนรู้</h1>
+            <p>แก้ไขข้อมูลและภาพปกของแหล่งเรียนรู้จัดแสดง</p>
           </div>
           <a class="button secondary" href="{{ url_for('admin') }}">กลับไปหน้า Dashboard</a>
         </header>
@@ -31,12 +31,12 @@
         {% endif %}
 
         <form class="admin-form" method="post" enctype="multipart/form-data">
-          <!-- Section 1: ข้อมูลโครงการ -->
+          <!-- Section 1: ข้อมูลแหล่งเรียนรู้ -->
           <fieldset class="admin-form-section full">
-            <legend class="admin-section-title">ข้อมูลโครงการ</legend>
+            <legend class="admin-section-title">ข้อมูลแหล่งเรียนรู้</legend>
 
             <div class="field">
-              <label for="edit-project-name">ชื่อโครงการ</label>
+              <label for="edit-project-name">ชื่อแหล่งเรียนรู้</label>
               <input id="edit-project-name" name="name" value="{{ project.name }}" required>
             </div>
             <div class="field">
@@ -49,9 +49,9 @@
             </div>
           </fieldset>
 
-          <!-- Section 2: ภาพปกโครงการ -->
+          <!-- Section 2: ภาพปกแหล่งเรียนรู้ -->
           <fieldset class="admin-form-section full">
-            <legend class="admin-section-title">ภาพปกโครงการ</legend>
+            <legend class="admin-section-title">ภาพปกแหล่งเรียนรู้</legend>
 
             <div class="field">
               <label for="edit-project-cover">เปลี่ยนภาพปก (เลือกไฟล์รูปภาพ)</label>
@@ -65,9 +65,9 @@
             </div>
             <div class="field full">
               <div class="preview-panel">
-                <img id="edit-project-cover-preview" data-image-preview="edit-project-cover" src="{{ project.cover_image_url or '' }}" alt="ตัวอย่างภาพปกโครงการ" {% if not project.cover_image_url %}hidden{% endif %}>
+                <img id="edit-project-cover-preview" data-image-preview="edit-project-cover" src="{{ project.cover_image_url or '' }}" alt="ตัวอย่างภาพปกแหล่งเรียนรู้" {% if not project.cover_image_url %}hidden{% endif %}>
                 <div>
-                  <strong>ตัวอย่างภาพปกโครงการ</strong>
+                  <strong>ตัวอย่างภาพปกแหล่งเรียนรู้</strong>
                   <span>แสดงรูปภาพปกปัจจุบันหรือรูปที่เลือกเพื่อเปลี่ยน</span>
                 </div>
               </div>

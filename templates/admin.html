@@ -17,7 +17,7 @@
           <div>
             <p class="admin-eyebrow">ระบบผู้ดูแลระบบ</p>
             <h1>Admin Dashboard</h1>
-            <p>จัดการโครงการและโมเดล AR สำหรับหน้าแสดงนิทรรศการ</p>
+            <p>จัดการแหล่งเรียนรู้และโมเดล AR สำหรับหน้าแสดงนิทรรศการ</p>
           </div>
         </header>
 
@@ -38,7 +38,7 @@
           <div class="admin-dashboard-card">
             <h3>⚡ Quick Actions (ทางลัดจัดการ)</h3>
             <div class="admin-dashboard-card-links">
-              <a href="#add-project-section">➕ เพิ่มโครงการใหม่</a>
+              <a href="#add-project-section">➕ เพิ่มแหล่งเรียนรู้ใหม่</a>
               <a href="#add-model-section">📦 เพิ่มโมเดลใหม่</a>
               <a href="{{ url_for('home') }}" target="_blank">👁️ ดูหน้าเว็บไซต์สาธารณะ</a>
             </div>
@@ -56,7 +56,7 @@
             <h3>📦 Model Management (จัดการโมเดล)</h3>
             <div class="admin-dashboard-card-links">
               <a href="#models">🔍 รายการโมเดลทั้งหมด</a>
-              <a href="#projects">📂 รายการโครงการทั้งหมด</a>
+              <a href="#projects">📂 รายการแหล่งเรียนรู้ทั้งหมด</a>
             </div>
           </div>
 
@@ -75,10 +75,10 @@
           <section id="add-project-section" class="admin-settings-column">
             <form class="admin-form" action="{{ url_for('add_project') }}" method="post" enctype="multipart/form-data">
               <fieldset class="admin-form-section full">
-                <legend class="admin-section-title">เพิ่มโครงการ</legend>
+                <legend class="admin-section-title">เพิ่มแหล่งเรียนรู้</legend>
 
                 <div class="field">
-                  <label for="project-name">ชื่อโครงการ</label>
+                  <label for="project-name">ชื่อแหล่งเรียนรู้</label>
                   <input id="project-name" name="name" required>
                 </div>
                 <div class="field">
@@ -91,9 +91,9 @@
                 </div>
 
                 <div class="field full">
-                  <label for="project-cover">ภาพปกโครงการ (เลือกไฟล์รูปภาพ)</label>
+                  <label for="project-cover">ภาพปกแหล่งเรียนรู้ (เลือกไฟล์รูปภาพ)</label>
                   <input id="project-cover" name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="project_image" data-upload-target="image_url" {{ "disabled" if uploads_disabled else "" }}>
-                  <p class="meta">แนะนำใช้ไฟล์รูปภาพประเภท JPG, PNG หรือ WebP (ขนาดไม่เกิน 5 MB) ภาพนี้จะแสดงเป็นภาพปกของการ์ดโครงการ</p>
+                  <p class="meta">แนะนำใช้ไฟล์รูปภาพประเภท JPG, PNG หรือ WebP (ขนาดไม่เกิน 5 MB) ภาพนี้จะแสดงเป็นภาพปกของการ์ดแหล่งเรียนรู้</p>
                 </div>
 
                 <div class="field full">
@@ -104,9 +104,9 @@
 
                 <div class="field full">
                   <div class="preview-panel compact">
-                    <img id="project-cover-preview" data-image-preview="project-cover" alt="ตัวอย่างภาพปกโครงการ" hidden>
+                    <img id="project-cover-preview" data-image-preview="project-cover" alt="ตัวอย่างภาพปกแหล่งเรียนรู้" hidden>
                     <div>
-                      <strong>ตัวอย่างภาพปกโครงการ</strong>
+                      <strong>ตัวอย่างภาพปกแหล่งเรียนรู้</strong>
                       <span>แสดงภาพจำลองเมื่อเลือกไฟล์หรือระบุ URL ด้านบน</span>
                     </div>
                   </div>
@@ -117,7 +117,7 @@
                 </label>
 
                 <div class="admin-action-row">
-                  <button class="button" type="submit">เพิ่มโครงการ</button>
+                  <button class="button" type="submit">เพิ่มแหล่งเรียนรู้</button>
                 </div>
               </fieldset>
             </form>
@@ -134,7 +134,7 @@
                   <input id="model-name" name="name" required>
                 </div>
                 <div class="field">
-                  <label for="model-project">โครงการ</label>
+                  <label for="model-project">แหล่งเรียนรู้</label>
                   <select id="model-project" name="project_id" required>
                     {% for project in projects %}
                     <option value="{{ project.id }}">{{ project.name }}</option>
@@ -234,13 +234,13 @@
 
         <!-- Projects Table Section -->
         <section id="projects" class="admin-card">
-          <h2>รายการโครงการ</h2>
+          <h2>รายการแหล่งเรียนรู้</h2>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>ภาพ</th>
-                  <th>โครงการ</th>
+                  <th>แหล่งเรียนรู้</th>
                   <th>หน่วยงาน</th>
                   <th>โมเดล</th>
                   <th>สถานะ</th>
@@ -272,7 +272,7 @@
                     <div class="row-actions">
                       <a class="button secondary" href="{{ url_for('edit_project', project_id=project.id) }}">แก้ไข</a>
                       <form action="{{ url_for('delete_project', project_id=project.id) }}" method="post">
-                        <button class="button danger" data-confirm="คำเตือน: การลบโครงการนี้จะส่งผลให้โมเดล 3D ทั้งหมดภายใต้โครงการนี้ถูกลบออกไปถาวรทันที! ยืนยันการลบโครงการ?" type="submit">ลบ</button>
+                        <button class="button danger" data-confirm="คำเตือน: การลบแหล่งเรียนรู้นี้จะส่งผลให้โมเดล 3D ทั้งหมดภายใต้แหล่งเรียนรู้นี้ถูกลบออกไปถาวรทันที! ยืนยันการลบแหล่งเรียนรู้?" type="submit">ลบ</button>
                       </form>
                     </div>
                   </td>
@@ -292,7 +292,7 @@
                 <tr>
                   <th>ภาพ</th>
                   <th>โมเดล</th>
-                  <th>โครงการ</th>
+                  <th>แหล่งเรียนรู้</th>
                   <th>หน่วยงาน</th>
                   <th>สถานะ</th>
                   <th>จัดการ</th>

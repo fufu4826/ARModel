@@ -40,7 +40,7 @@
               <input id="edit-model-name" name="name" value="{{ model.name }}" required>
             </div>
             <div class="field">
-              <label for="edit-model-project">โครงการ</label>
+              <label for="edit-model-project">แหล่งเรียนรู้</label>
               <select id="edit-model-project" name="project_id">
                 {% for project in projects %}
                 <option value="{{ project.id }}" {{ "selected" if project.id == model.project_id else "" }}>{{ project.name }}</option>

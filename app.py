@@ -41,14 +41,17 @@ PUBLIC_SITE_URL = (
     or os.environ.get("PUBLIC_SITE_URL")
     or "https://phuphan-ar.vercel.app"
 ).rstrip("/")
-DEFAULT_META_TITLE = "ภูพาน AR สกลนคร | ศูนย์ศึกษาการพัฒนาภูพาน"
+DEFAULT_META_TITLE = "ภูพาน AR สกลนคร | โมเดล 3D และแหล่งเรียนรู้ท้องถิ่นออนไลน์"
 DEFAULT_META_DESCRIPTION = (
-    "สำรวจศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ จังหวัดสกลนคร "
-    "ผ่านโมเดล 3D และ AR รวมวัตถุ ผลิตภัณฑ์ ภูมิปัญญา และของดีสกลนครในรูปแบบดิจิทัล"
+    "เรียนรู้ของดีสกลนคร แหล่งเรียนรู้ภูพาน และพิพิธภัณฑ์ท้องถิ่นผ่านโมเดล 3D และ AR "
+    "ในรูปแบบออนไลน์เสมือนจริง ค้นพบผลิตภัณฑ์ท้องถิ่นสกลนคร"
 )
 DEFAULT_META_KEYWORDS = (
-    "ภูพาน, พูพาน, ภูพาน สกลนคร, พูพาน สกลนคร, ศูนย์ศึกษาการพัฒนาภูพาน, "
-    "ศูนย์ภูพาน, สกลนคร, สกล, ของดีสกลนคร, โมเดล 3D, AR, AR สกลนคร, "
+    "ภูพาน ar, ภูพาน AR สกลนคร, ภูพาน โมเดล 3D, ภูพาน 3D, ภูพาน สกลนคร AR, phuphan ar, phu phan ar, "
+    "พูพาน ar, พูพาน สกลนคร, ภูพาน สกลนคร, ภูพาน 3d ar, ของดีสกลนคร 3D, ของดีสกลนคร AR, "
+    "แหล่งเรียนรู้สกลนคร, พิพิธภัณฑ์ท้องถิ่นสกลนคร ออนไลน์, โมเดล 3D สกลนคร, "
+    "ลูกประคบ สกลนคร 3D, ลิ้นจี่ สกลนคร 3D, ข้าวสกลนคร 3D, "
+    "ศูนย์ศึกษาการพัฒนาภูพาน, ศูนย์ภูพาน, สกลนคร, สกล, ของดีสกลนคร, โมเดล 3D, AR, AR สกลนคร, "
     "Phu Phan, PhuPhan AR, Sakon Nakhon"
 )
 DEFAULT_META_IMAGE_PATH = "pic/og-cover.jpg"
@@ -57,11 +60,11 @@ DEFAULT_SITE_SETTINGS = {
     "landing_cover": DEFAULT_META_IMAGE_PATH,
     "landing_mobile_cover_image": "",
     "landing_headline": "ภูพาน AR สกลนคร",
-    "landing_subheadline": "เรียนรู้ศูนย์ศึกษาการพัฒนาภูพานผ่านโมเดล 3D และ AR",
+    "landing_subheadline": "โมเดล 3D และแหล่งเรียนรู้ท้องถิ่นออนไลน์ ของดีสกลนคร",
     "landing_description": (
         "เว็บไซต์รวบรวมวัตถุ ผลิตภัณฑ์ องค์ความรู้ และของดีสกลนครจาก"
         "ศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ บ้านนานกเค้า "
-        "ตำบลห้วยยาง อำเภอเมือง จังหวัดสกลนคร ในรูปแบบโมเดลสามมิติและเทคโนโลยี AR"
+        "ตำบลห้วยยาง อำเภอเมือง จังหวัดสกลนคร ในรูปแบบโมเดล 3D และเทคโนโลยี AR เสมือนจริง"
     ),
     "landing_text_max_width_desktop": "520",
     "landing_headline_font_size_desktop": "56",
@@ -84,7 +87,7 @@ DEFAULT_SITE_SETTINGS = {
     "intro_logo_duration_ms": "1400",
     "intro_display_mode": "sequence",
     "site_logo": "",
-    "site_name": "PhuPhan-AR | ภูพาน AR สกลนคร",
+    "site_name": "ภูพาน AR สกลนคร | โมเดล 3D และแหล่งเรียนรู้ท้องถิ่นออนไลน์",
     "site_social_image": "",
     "favicon": "favicon.ico",
     "meta_description": DEFAULT_META_DESCRIPTION,
@@ -296,6 +299,7 @@ def inject_runtime_flags():
 
 def public_structured_data(settings: dict) -> dict:
     place_id = f"{PUBLIC_SITE_URL}/#phu-phan-centre"
+    org_id = f"{PUBLIC_SITE_URL}/#organization"
     return {
         "@context": "https://schema.org",
         "@graph": [
@@ -304,10 +308,23 @@ def public_structured_data(settings: dict) -> dict:
                 "@id": f"{PUBLIC_SITE_URL}/#website",
                 "url": PUBLIC_SITE_URL,
                 "name": settings["site_name"],
-                "alternateName": ["PhuPhan AR", "ภูพาน AR สกลนคร", "พูพาน AR"],
+                "alternateName": ["PhuPhan AR", "ภูพาน AR", "พูพาน AR", "ภูพาน สกลนคร"],
                 "description": settings["meta_description"],
                 "inLanguage": "th",
                 "about": {"@id": place_id},
+            },
+            {
+                "@type": "EducationalOrganization",
+                "@id": org_id,
+                "name": "โครงการเพิ่มศักยภาพแหล่งเรียนรู้และพิพิธภัณฑ์ท้องถิ่นจังหวัดสกลนคร",
+                "url": PUBLIC_SITE_URL,
+                "description": "โครงการเสริมสร้างศักยภาพของแหล่งเรียนรู้และพิพิธภัณฑ์ท้องถิ่นในจังหวัดสกลนครผ่านนวัตกรรมดิจิทัล 3D และ AR",
+                "address": {
+                    "@type": "PostalAddress",
+                    "addressLocality": "เมืองสกลนคร",
+                    "addressRegion": "สกลนคร",
+                    "addressCountry": "TH"
+                }
             },
             {
                 "@type": "Place",
@@ -331,6 +348,69 @@ def public_structured_data(settings: dict) -> dict:
             },
         ],
     }
+
+
+def public_models_structured_data(settings: dict, models: list) -> dict:
+    base = public_structured_data(settings)
+    item_list_elements = []
+    for i, m in enumerate(models):
+        item_list_elements.append({
+            "@type": "ListItem",
+            "position": i + 1,
+            "url": f"{PUBLIC_SITE_URL}/models/{m['id']}",
+            "name": m.get("name", "")
+        })
+    item_list = {
+        "@type": "ItemList",
+        "@id": f"{PUBLIC_SITE_URL}/models#item-list",
+        "name": "รายการโมเดล 3D และ AR แหล่งเรียนรู้ภูพาน สกลนคร",
+        "description": "คลังโมเดล 3D และวัตถุเสมือนจริง (AR) ของดีเมืองสกลนคร",
+        "itemListElement": item_list_elements
+    }
+    base["@graph"].append(item_list)
+    return base
+
+
+def public_model_detail_structured_data(settings: dict, model: dict) -> dict:
+    base = public_structured_data(settings)
+    model_url = f"{PUBLIC_SITE_URL}/models/{model['id']}"
+    creative_work = {
+        "@type": "CreativeWork",
+        "@id": f"{model_url}#creativework",
+        "name": model.get("name", ""),
+        "description": model.get("description") or f"โมเดล 3D และ AR ของ {model.get('name', '')} แหล่งเรียนรู้ภูพาน สกลนคร",
+        "url": model_url,
+        "provider": {
+            "@id": f"{PUBLIC_SITE_URL}/#organization"
+        }
+    }
+    thumbnail = model.get("thumbnail_url") or model.get("thumbnail_resolved_url")
+    if thumbnail:
+        from urllib.parse import urljoin
+        creative_work["image"] = urljoin(PUBLIC_SITE_URL, thumbnail)
+    base["@graph"].append(creative_work)
+    return base
+
+
+def public_project_detail_structured_data(settings: dict, project: dict, models: list) -> dict:
+    base = public_structured_data(settings)
+    project_url = f"{PUBLIC_SITE_URL}/projects/{project['id']}"
+    creative_work = {
+        "@type": "CreativeWork",
+        "@id": f"{project_url}#project",
+        "name": project.get("name", ""),
+        "description": project.get("description") or f"แหล่งเรียนรู้ {project.get('name', '')} ของดีสกลนคร",
+        "url": project_url,
+        "provider": {
+            "@id": f"{PUBLIC_SITE_URL}/#organization"
+        }
+    }
+    if project.get("cover_image_url"):
+        from urllib.parse import urljoin
+        creative_work["image"] = urljoin(PUBLIC_SITE_URL, project["cover_image_url"])
+    base["@graph"].append(creative_work)
+    return base
+
 
 
 def ensure_data_files() -> None:
@@ -1862,8 +1942,9 @@ def models_index():
         "models.html",
         models=all_models,
         project_filters=project_filters,
-        page_title="โมเดล 3D ภูพาน | ของดีสกลนครในรูปแบบ AR",
-        page_description=settings["meta_description"],
+        page_title="โมเดล 3D ภูพาน AR สกลนคร | ของดีสกลนครและแหล่งเรียนรู้ท้องถิ่นออนไลน์",
+        page_description="สำรวจและค้นหาโมเดล 3D และ AR ของดีสกลนคร เช่น ลูกประคบ ลิ้นจี่ ข้าวสกลนคร และแหล่งเรียนรู้ภูพานในพิพิธภัณฑ์ออนไลน์เสมือนจริง",
+        structured_data=public_models_structured_data(settings, all_models),
         page_url=public_url_for("models_index"),
     )
 
@@ -1885,12 +1966,13 @@ def project_detail(project_id: str):
         "project.html",
         project=project,
         models=models,
-        page_title=f"{project.get('name', '')} | ภูพาน สกลนคร",
+        page_title=f"{project.get('name', '')} | แหล่งเรียนรู้สกลนคร ภูพาน โมเดล 3D AR ของดีสกลนคร",
         page_description=(
             f"{project.get('description')} เรียนรู้ผ่านโมเดล 3D และ AR ของศูนย์ศึกษาการพัฒนาภูพาน จังหวัดสกลนคร"
             if project.get("description")
-            else settings["meta_description"]
+            else f"ร่วมเรียนรู้และอนุรักษ์ {project.get('name', '')} ของดีสกลนคร ภูพาน ในรูปแบบออนไลน์ 3D AR"
         ),
+        structured_data=public_project_detail_structured_data(settings, project, models),
         page_image=public_meta_image_url(project.get("cover_image_url")),
         page_url=public_url_for("project_detail", project_id=project_id),
     )
@@ -1926,12 +2008,13 @@ def model_detail(model_id: str):
         size_mb=model_size_mb(model),
         related_models=related_models,
         mode=request.args.get("mode", "3d"),
-        page_title=f"{model.get('name', '')} | โมเดล 3D ภูพาน AR",
+        page_title=f"{model.get('name', '')} | โมเดล 3D AR ภูพาน สกลนคร ของดีสกลนคร",
         page_description=(
-            f"{model.get('description')} ชมโมเดล 3D และ AR จากเนื้อหาภูพาน สกลนคร"
+            f"โมเดล 3D และ AR {model.get('name', '')} ของดีสกลนคร: {model.get('description', '')[:120]} เรียนรู้ภูพาน สกลนคร ในพิพิธภัณฑ์ออนไลน์"
             if model.get("description")
-            else settings["meta_description"]
+            else f"ชมโมเดล 3D และ AR {model.get('name', '')} แหล่งเรียนรู้ภูพาน สกลนคร และของดีสกลนครแบบเสมือนจริง"
         ),
+        structured_data=public_model_detail_structured_data(settings, model),
         page_image=public_meta_image_url(resolve_thumbnail_url(model)),
         page_url=public_url_for("model_detail", model_id=model_id),
     )

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ page_title }}</title>
   {% include "_public_meta.html" %}
+  {% include "_structured_data.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
@@ -35,8 +36,8 @@
     <section class="project-hero models-hero">
       <div class="project-hero-copy">
         <p class="eyebrow">คลังโมเดล 3D / AR</p>
-        <h1>รายการโมเดล</h1>
-        <p class="lead">เลือกชมวัตถุและผลิตภัณฑ์ในรูปแบบ 3D และ AR</p>
+        <h1>โมเดล 3D และ AR แหล่งเรียนรู้สกลนคร</h1>
+        <p class="lead">เลือกชมและค้นหาของดีสกลนคร ผลิตภัณฑ์ท้องถิ่น และแหล่งเรียนรู้สกลนครในรูปแบบโมเดล 3D และเทคโนโลยี AR เสมือนจริง</p>
         <div class="summary-strip" aria-label="สรุปโมเดล">
           <div>
             <strong>{{ models|length }}</strong>
@@ -52,7 +53,7 @@
         <div>
           <span class="eyebrow">ARModel</span>
           <strong>ค้นหา เลือกแหล่งเรียนรู้ แล้วเปิดชมโมเดลที่ต้องการ</strong>
-          <p>รายการนี้แสดงทุกโมเดลจากแหล่งข้อมูลปัจจุบัน รวมถึงโมเดลที่ยังไม่ได้จัดอยู่ในแหล่งเรียนรู้</p>
+          <p>ค้นพบของดีสกลนครและแหล่งเรียนรู้ภูพาน ผ่านพิพิธภัณฑ์ท้องถิ่นออนไลน์ รวมโมเดล 3D และ AR สกลนครไว้ในที่เดียว</p>
         </div>
       </div>
     </section>
@@ -92,7 +93,7 @@
           {% set card_thumbnail_url = model.thumbnail_url or model.thumbnail_resolved_url %}
           <a class="card-media square" href="{{ url_for('model_detail', model_id=model.id) }}" aria-label="ดูโมเดล 3D {{ model.name }}">
             {% if card_thumbnail_url %}
-            <img src="{{ card_thumbnail_url }}" alt="ภาพตัวอย่าง {{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+            <img src="{{ card_thumbnail_url }}" alt="{{ model.name }} สกลนคร โมเดล 3D AR" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
             <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
             {% else %}
             <span class="image-placeholder">ไม่มีรูปภาพ</span>
@@ -142,7 +143,7 @@
   </main>
 
   <footer class="site-footer">
-    <span>ARModel ภูพาน</span>
+    <span>เว็บไซต์นี้เกี่ยวกับภูพาน สกลนคร และแหล่งเรียนรู้ของดีสกลนครในรูปแบบโมเดล 3D และ AR</span>
     <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
   </footer>
   <script src="{{ url_for('static', filename='js/mobile-nav.js') }}" defer></script>

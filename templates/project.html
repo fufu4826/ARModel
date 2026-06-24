@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ page_title }}</title>
   {% include "_public_meta.html" %}
+  {% include "_structured_data.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
@@ -49,7 +50,7 @@
       </div>
       <div class="project-hero-media">
         {% if project.cover_image_url %}
-        <img src="{{ project.cover_image_url }}" alt="ภาพแหล่งเรียนรู้ {{ project.name }}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+        <img src="{{ project.cover_image_url }}" alt="ภาพแหล่งเรียนรู้ {{ project.name }} สกลนคร โมเดล 3D AR" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
         <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
         {% else %}
         <span class="image-placeholder">ไม่มีรูปภาพ</span>
@@ -73,7 +74,7 @@
           {% set card_thumbnail_url = model.thumbnail_url or model.thumbnail_resolved_url %}
           <a class="card-media square" href="{{ url_for('model_detail', model_id=model.id) }}" aria-label="ดูโมเดล 3D {{ model.name }}">
             {% if card_thumbnail_url %}
-            <img src="{{ card_thumbnail_url }}" alt="{{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+            <img src="{{ card_thumbnail_url }}" alt="{{ model.name }} สกลนคร โมเดล 3D AR" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
             <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
             {% else %}
             <span class="image-placeholder">ไม่มีรูปภาพ</span>
@@ -106,7 +107,7 @@
     </section>
   </main>
   <footer class="site-footer">
-    <span>ARModel ภูพาน</span>
+    <span>เว็บไซต์นี้เกี่ยวกับภูพาน สกลนคร และแหล่งเรียนรู้ของดีสกลนครในรูปแบบโมเดล 3D และ AR</span>
     <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
   </footer>
   <script src="{{ url_for('static', filename='js/mobile-nav.js') }}" defer></script>

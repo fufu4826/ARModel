@@ -129,7 +129,7 @@
         <article class="project-card">
           <a class="card-media" href="{{ url_for('project_detail', project_id=project.id) }}" aria-label="ดูแหล่งเรียนรู้ {{ project.name }}">
             {% if project.cover_image_url %}
-            <img src="{{ project.cover_image_url }}" alt="{{ project.name }}" loading="{{ 'eager' if loop.first else 'lazy' }}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+            <img src="{{ project.cover_image_url }}" alt="{{ project.name }} แหล่งเรียนรู้สกลนคร ภูพาน" loading="{{ 'eager' if loop.first else 'lazy' }}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
             <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
             {% else %}
             <span class="image-placeholder">ไม่มีรูปภาพ</span>
@@ -175,7 +175,7 @@
           {% set card_thumbnail_url = model.thumbnail_url or model.thumbnail_resolved_url %}
           <a class="card-media square" href="{{ url_for('model_detail', model_id=model.id) }}" aria-label="ดูโมเดล 3D {{ model.name }}">
             {% if card_thumbnail_url %}
-            <img src="{{ card_thumbnail_url }}" alt="ภาพตัวอย่าง {{ model.name }}" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
+            <img src="{{ card_thumbnail_url }}" alt="{{ model.name }} สกลนคร โมเดล 3D AR" loading="lazy" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
             <span class="image-placeholder" hidden>ไม่มีรูปภาพ</span>
             {% else %}
             <span class="image-placeholder">ไม่มีรูปภาพ</span>
@@ -220,7 +220,7 @@
   <footer class="site-footer site-footer-rich">
     <div>
       <strong>PhuPhan AR | ภูพาน AR สกลนคร</strong>
-      <p>โครงการเพิ่มศักยภาพแหล่งเรียนรู้และพิพิธภัณฑ์ท้องถิ่นจังหวัดสกลนครในรูปแบบออนไลน์เสมือนจริง</p>
+      <p>เว็บไซต์นี้รวบรวมของดีสกลนคร แหล่งเรียนรู้ภูพาน และพิพิธภัณฑ์ท้องถิ่นออนไลน์ผ่านโมเดล 3D และ AR เสมือนจริง ภายใต้โครงการเพิ่มศักยภาพแหล่งเรียนรู้และพิพิธภัณฑ์ท้องถิ่นจังหวัดสกลนครในรูปแบบออนไลน์เสมือนจริง</p>
       <span>phuphan-ar.vercel.app</span>
     </div>
     <nav aria-label="ลิงก์ท้ายเว็บไซต์">

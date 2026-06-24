@@ -70,7 +70,7 @@ class SiteManagementTests(unittest.TestCase):
                 self.assertEqual(self.client.get(route).status_code, expected)
 
         settings = self.client.get("/api/settings").get_json()
-        self.assertEqual(settings["site_name"], "PhuPhan-AR | ภูพาน AR สกลนคร")
+        self.assertEqual(settings["site_name"], "ภูพาน AR สกลนคร | โมเดล 3D และแหล่งเรียนรู้ท้องถิ่นออนไลน์")
         self.assertTrue(settings["landing_cover_url"].endswith("/static/pic/og-cover.jpg"))
         self.assertEqual(settings["site_social_image"], "")
         self.assertEqual(
@@ -421,21 +421,43 @@ class SiteManagementTests(unittest.TestCase):
         landing_html = self.client.get("/").get_data(as_text=True)
         home_html = self.client.get("/home").get_data(as_text=True)
         models_html = self.client.get("/models").get_data(as_text=True)
+        model_detail_html = self.client.get("/models/lychee").get_data(as_text=True)
 
-        self.assertIn("<title>PhuPhan-AR | ภูพาน AR สกลนคร</title>", landing_html)
-        self.assertIn("<title>PhuPhan-AR | ภูพาน AR สกลนคร</title>", home_html)
-        self.assertIn("<title>โมเดล 3D ภูพาน | ของดีสกลนครในรูปแบบ AR</title>", models_html)
-        self.assertIn('property="og:title" content="PhuPhan-AR | ภูพาน AR สกลนคร"', landing_html)
-        self.assertIn('property="og:description"', landing_html)
-        self.assertIn(
-            'property="og:image" content="https://phuphan-ar.vercel.app/static/pic/og-cover.jpg"',
-            landing_html,
-        )
-        self.assertIn('name="keywords"', landing_html)
-        self.assertIn("พูพาน สกลนคร", landing_html)
-        self.assertIn('type="application/ld+json"', landing_html)
-        self.assertIn("Phu Phan Royal Development Study Centre", landing_html)
-        self.assertIn('rel="canonical" href="https://phuphan-ar.vercel.app/"', landing_html)
+        # 1. / contains improved title/description
+        self.assertIn("<title>ภูพาน AR สกลนคร | โมเดล 3D และแหล่งเรียนรู้ท้องถิ่นออนไลน์</title>", landing_html)
+        self.assertIn('property="og:title" content="ภูพาน AR สกลนคร | โมเดล 3D และแหล่งเรียนรู้ท้องถิ่นออนไลน์"', landing_html)
+        self.assertIn('property="og:description" content="เรียนรู้ของดีสกลนคร แหล่งเรียนรู้ภูพาน และพิพิธภัณฑ์ท้องถิ่นผ่านโมเดล 3D และ AR ในรูปแบบออนไลน์เสมือนจริง ค้นพบผลิตภัณฑ์ท้องถิ่นสกลนคร"', landing_html)
+
+        # 2. /home contains natural SEO phrase
+        self.assertIn("<title>ภูพาน AR สกลนคร | โมเดล 3D และแหล่งเรียนรู้ท้องถิ่นออนไลน์</title>", home_html)
+        self.assertIn("เว็บไซต์นี้รวบรวมของดีสกลนคร แหล่งเรียนรู้ภูพาน และพิพิธภัณฑ์ท้องถิ่นออนไลน์ผ่านโมเดล 3D และ AR เสมือนจริง", home_html)
+
+        # 3. /models renders SEO title/meta
+        self.assertIn("<title>โมเดล 3D ภูพาน AR สกลนคร | ของดีสกลนครและแหล่งเรียนรู้ท้องถิ่นออนไลน์</title>", models_html)
+        self.assertIn('name="description" content="สำรวจและค้นหาโมเดล 3D และ AR ของดีสกลนคร เช่น ลูกประคบ ลิ้นจี่ ข้าวสกลนคร และแหล่งเรียนรู้ภูพานในพิพิธภัณฑ์ออนไลน์เสมือนจริง"', models_html)
+
+        # 4. model detail page title includes model name and 3D/AR
+        self.assertIn("โมเดล 3D AR ภูพาน สกลนคร ของดีสกลนคร", model_detail_html)
+
+        # 5. sitemap includes /models and model detail URLs
+        sitemap_text = self.client.get("/sitemap.xml").get_data(as_text=True)
+        self.assertIn("https://phuphan-ar.vercel.app/models", sitemap_text)
+        self.assertIn("https://phuphan-ar.vercel.app/models/lychee", sitemap_text)
+
+        # 6. robots references sitemap
+        robots_text = self.client.get("/robots.txt").get_data(as_text=True)
+        self.assertIn("Sitemap: https://phuphan-ar.vercel.app/sitemap.xml", robots_text)
+
+        # 7. JSON-LD includes alternateName values
+        self.assertIn("alternateName", landing_html)
+        self.assertIn("PhuPhan AR", landing_html)
+        self.assertIn("\\u0e20\\u0e39\\u0e1e\\u0e32\\u0e19 AR", landing_html)
+        self.assertIn("\\u0e1e\\u0e39\\u0e1e\\u0e32\\u0e19 AR", landing_html)
+        self.assertIn("\\u0e20\\u0e39\\u0e1e\\u0e32\\u0e19 \\u0e2a\\u0e01\\u0e25\\u0e19\\u0e04\\u0e23", landing_html)
+
+        # 8. no hidden keyword spam block added
+        self.assertNotIn('style="display:none"', landing_html.replace(" ", ""))
+        self.assertNotIn('style="visibility:hidden"', landing_html.replace(" ", ""))
         for alternate_term in ("ศูนย์ภูพาน", "พูพาน สกลนคร", "Phu Phan", "Sakon Nakhon"):
             self.assertIn(alternate_term, home_html)
 
@@ -1496,7 +1518,7 @@ class SiteManagementTests(unittest.TestCase):
         # Verify script is included
         self.assertIn('src="/static/js/models-filter.js"', models_html)
         # Verify Thai labels
-        self.assertIn('<h1>รายการโมเดล</h1>', models_html)
+        self.assertIn('<h1>โมเดล 3D และ AR แหล่งเรียนรู้สกลนคร</h1>', models_html)
         self.assertIn('<span>รายการโมเดล</span>', models_html)
         self.assertIn('<p class="eyebrow">รายการโมเดล</p>', models_html)
         # Verify model card markup attributes

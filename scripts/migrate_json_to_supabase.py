@@ -141,7 +141,10 @@ def upload_file(relative_path: str, folder: str, allowed_extensions: set[str], d
         method="PUT",
         data=data,
         content_type=content_type,
-        extra_headers={"Cache-Control": "3600", "x-upsert": "false"},
+        extra_headers={
+            "Cache-Control": "max-age=31536000, immutable",
+            "x-upsert": "false",
+        },
     )
     return public_url(object_path), round(len(data) / (1024 * 1024), 2)
 

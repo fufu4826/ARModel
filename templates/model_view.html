@@ -7,7 +7,7 @@
   {% include "_public_meta.html" %}
   {% include "_structured_data.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  {% include "_model_viewer_loader.html" %}
 </head>
 <body class="viewer-page">
   <a class="skip-link" href="#viewer">ข้ามไปยังโมเดล</a>
@@ -50,7 +50,8 @@
       <div class="viewer-card">
         <model-viewer
           id="mainModelViewer"
-          src="{{ model_url }}"
+          data-model-src="{{ model_url }}"
+          data-auto-ar="{{ 'true' if mode == 'ar' else 'false' }}"
           poster="{{ thumbnail_url }}"
           alt="{{ model_name }} สกลนคร โมเดล 3D AR"
           aria-label="ตัวแสดงโมเดลสามมิติ {{ model_name }}"
@@ -203,16 +204,6 @@
   <script src="{{ url_for('static', filename='js/model-gallery.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/model-narration.js', v='3') }}" defer></script>
   <script src="{{ url_for('static', filename='js/mobile-nav.js') }}" defer></script>
-  {% if mode == "ar" %}
-  <script>
-    window.addEventListener("load", () => {
-      const viewer = document.getElementById("mainModelViewer");
-      setTimeout(() => {
-        if (viewer && viewer.activateAR) viewer.activateAR();
-      }, 900);
-    });
-  </script>
-  {% endif %}
   <footer class="site-footer viewer-footer">
     <span>เว็บไซต์นี้เกี่ยวกับภูพาน สกลนคร และแหล่งเรียนรู้ของดีสกลนครในรูปแบบโมเดล 3D และ AR</span>
     <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>

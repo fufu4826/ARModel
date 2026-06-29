@@ -5,17 +5,15 @@
   const loadingState = document.getElementById("modelLoadingState");
   const errorState = document.getElementById("modelErrorState");
   const arButton = viewer.querySelector(".ar-button");
+  const modelSource = viewer.dataset.modelSrc || "";
+  const shouldAutoActivateAr = viewer.dataset.autoAr === "true";
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let loadTimeout = window.setTimeout(showError, 30000);
+  let loadTimeout = null;
+  let loadStarted = false;
+  let autoArActivated = false;
 
   if (prefersReducedMotion) {
     viewer.removeAttribute("auto-rotate");
-  }
-
-  if (!window.customElements) {
-    showError();
-  } else if (!window.customElements.get("model-viewer")) {
-    window.customElements.whenDefined("model-viewer").catch(showError);
   }
 
   function clearLoadTimeout() {
@@ -56,7 +54,7 @@
   function showError() {
     clearLoadTimeout();
     hideLoading();
-    console.warn("Unable to load 3D model:", viewer.src);
+    console.warn("Unable to load 3D model:", modelSource);
     if (errorState) {
       errorState.hidden = false;
       errorState.classList.add("is-visible");
@@ -68,10 +66,30 @@
     arButton.hidden = viewer.canActivateAR === false;
   }
 
+  function startModelLoad() {
+    if (loadStarted) return;
+    loadStarted = true;
+    if (!modelSource) {
+      showError();
+      return;
+    }
+
+    showLoading();
+    loadTimeout = window.setTimeout(showError, 30000);
+
+    // Assign the GLB URL once and only near the viewport. This prevents
+    // hidden/off-screen viewers from consuming Supabase egress.
+    viewer.src = modelSource;
+  }
+
   viewer.addEventListener("load", () => {
     hideLoading();
     hideError();
     setTimeout(updateArButtonAvailability, 250);
+    if (shouldAutoActivateAr && !autoArActivated && viewer.activateAR) {
+      autoArActivated = true;
+      viewer.activateAR();
+    }
   });
   viewer.addEventListener("error", showError);
   viewer.addEventListener("model-visibility", () => {
@@ -86,4 +104,26 @@
     }
     updateArButtonAvailability();
   });
+
+  if (!window.customElements) {
+    showError();
+    return;
+  }
+
+  window.customElements.whenDefined("model-viewer").then(() => {
+    if (!("IntersectionObserver" in window)) {
+      startModelLoad();
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        startModelLoad();
+      },
+      { rootMargin: "200px 0px" }
+    );
+    observer.observe(viewer);
+  }).catch(showError);
 })();

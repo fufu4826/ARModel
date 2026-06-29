@@ -1109,7 +1109,12 @@ def upload_to_supabase_storage(
         method="PUT",
         data=data,
         content_type=content_type,
-        extra_headers={"Cache-Control": "3600", "x-upsert": "false"},
+        # Asset names are unique, so clients can safely retain them. This
+        # prevents repeat GLB downloads from consuming cached egress.
+        extra_headers={
+            "Cache-Control": "max-age=31536000, immutable",
+            "x-upsert": "false",
+        },
     )
     return supabase_public_url(object_path), round(len(data) / (1024 * 1024), 2)
 
@@ -1138,7 +1143,10 @@ def save_generated_narration_audio(
             method="PUT",
             data=audio_data,
             content_type=content_type,
-            extra_headers={"Cache-Control": "3600", "x-upsert": "false"},
+            extra_headers={
+                "Cache-Control": "max-age=31536000, immutable",
+                "x-upsert": "false",
+            },
         )
         return supabase_public_url(object_path)
 

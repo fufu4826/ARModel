@@ -118,7 +118,12 @@
       const upload = await createUploadUrl(input, file);
       const response = await fetch(upload.upload_url, {
         method: "PUT",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+          // Unique object names make immutable caching safe and stop repeat
+          // model views from consuming Supabase egress.
+          "Cache-Control": "max-age=31536000, immutable",
+        },
         body: file,
       });
       if (!response.ok) {

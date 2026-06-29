@@ -123,6 +123,12 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(self.client.get("/models").status_code, 200)
         model_html = self.client.get("/models/lychee").get_data(as_text=True)
         self.assertIn('id="mainModelViewer"', model_html)
+        self.assertIn('data-model-src="', model_html)
+        self.assertIn("meshoptDecoderLocation", model_html)
+        self.assertNotIn(
+            '<model-viewer\n          id="mainModelViewer"\n          src="',
+            model_html,
+        )
         self.assertIn("การควบคุมโมเดล", model_html)
 
     def test_hidden_image_placeholders_do_not_take_space(self):

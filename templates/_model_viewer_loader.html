@@ -1,0 +1,8 @@
+<script>
+  // Some production GLBs use EXT_meshopt_compression. model-viewer leaves
+  // this decoder disabled unless its location is configured before upgrade.
+  self.ModelViewerElement = self.ModelViewerElement || {};
+  self.ModelViewerElement.meshoptDecoderLocation =
+    "https://cdn.jsdelivr.net/npm/meshoptimizer@0.24.0/meshopt_decoder.js";
+</script>
+<script type="module" src="https://unpkg.com/@google/model-viewer@4.3.1/dist/model-viewer.min.js"></script>

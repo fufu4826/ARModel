@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th" data-direct-uploads="{{ 'true' if is_supabase else 'false' }}">
+<html lang="th" data-admin-read-only="{{ 'true' if admin_read_only else 'false' }}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -29,8 +29,8 @@
 
         {% if uploads_disabled %}
         <div class="notice">This site is running on Vercel. File uploads are disabled. Use external URLs for images and models. Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy.</div>
-        {% elif is_supabase %}
-        <div class="notice">Supabase is configured. Uploaded images and .glb files will be stored in Supabase Storage, and metadata will be stored in Supabase Database.</div>
+        {% else %}
+        <div class="notice">โหมดพัฒนาในเครื่อง: การแก้ไขจะบันทึกลงไฟล์ JSON/local static เท่านั้น</div>
         {% endif %}
 
         <!-- Dashboard Layout Cards -->
@@ -99,7 +99,7 @@
                 <div class="field full">
                   <label for="project-image-url">หรือระบุลิงก์รูปภาพภายนอก (External image URL)</label>
                   <input id="project-image-url" name="image_url" type="url" placeholder="https://example.com/project.jpg" data-image-preview-target="project-cover-preview" {{ "disabled" if uploads_disabled else "" }}>
-                  <p class="meta">ใช้เมื่อรูปภาพอยู่บนระบบออนไลน์อื่นหรือ Supabase Storage เรียบร้อยแล้ว</p>
+                  <p class="meta">ใช้เมื่อรูปภาพอยู่บน Cloudflare R2 หรือระบบออนไลน์อื่นเรียบร้อยแล้ว</p>
                 </div>
 
                 <div class="field full">
@@ -167,7 +167,7 @@
                 <div class="field full">
                   <label for="model-url">หรือระบุลิงก์ไฟล์โมเดลภายนอก (External .glb model URL)</label>
                   <input id="model-url" name="model_url" type="url" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}>
-                  <p class="meta">ใช้กรณีที่ไฟล์โมเดลอยู่บนคลาวด์ หรือ Supabase Storage แล้ว</p>
+                  <p class="meta">ใช้กรณีที่ไฟล์โมเดลอยู่บน Cloudflare R2 หรือคลาวด์อื่นแล้ว</p>
                 </div>
 
                 <div class="field full" style="border-top: 1px solid var(--admin-line); padding-top: 12px; margin-top: 8px;">
@@ -181,7 +181,7 @@
                 <div class="field">
                   <label for="thumbnail-url">หรือระบุลิงก์รูปปกหลักภายนอก (External thumbnail URL)</label>
                   <input id="thumbnail-url" name="thumbnail_url" type="url" placeholder="https://example.com/thumb.jpg" data-image-preview-target="model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}>
-                  <p class="meta">ใช้ระบุ URL ตรงของรูปปกออนไลน์อื่น หรือ Supabase Storage</p>
+                  <p class="meta">ใช้ระบุ URL ตรงของรูปปกบน Cloudflare R2 หรือระบบออนไลน์อื่น</p>
                 </div>
                 <div class="field full">
                   <div class="preview-panel compact">
@@ -388,7 +388,6 @@
   </div>
 
   <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/preview-gallery-input.js') }}" defer></script>
   {% include "_model_viewer_loader.html" %}
   <script src="{{ url_for('static', filename='js/admin-model-preview.js') }}" defer></script>

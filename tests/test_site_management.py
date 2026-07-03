@@ -684,7 +684,7 @@ class SiteManagementTests(unittest.TestCase):
                 "generate_gemini_tts_audio",
                 return_value=(fake_wav, ".wav"),
             ) as generate_audio,
-            patch.object(module, "is_supabase_enabled", return_value=False),
+            patch.object(module, "is_vercel_runtime", return_value=False),
             patch.object(
                 module,
                 "resolve_narration_audio_url",
@@ -744,28 +744,15 @@ class SiteManagementTests(unittest.TestCase):
         )
         self.assertTrue(wav_data.startswith(b"RIFF"))
 
-        with (
-            patch.dict(
-                module.os.environ,
-                {
-                    "SUPABASE_URL": "https://example.supabase.co",
-                    "SUPABASE_SERVICE_ROLE_KEY": "test-service-key",
-                    "SUPABASE_STORAGE_BUCKET": "test-assets",
-                },
-            ),
-            patch.object(module, "is_supabase_enabled", return_value=True),
-            patch.object(module, "supabase_request") as storage_request,
-        ):
-            generated_url = module.save_generated_narration_audio(
-                "lychee",
-                wav_data,
-                ".wav",
-            )
-        self.assertIn("/models/narration/lychee-gemini-", generated_url)
+        generated_url = module.save_generated_narration_audio(
+            "lychee",
+            wav_data,
+            ".wav",
+        )
+        self.assertIn("audio/lychee-gemini-", generated_url)
         self.assertTrue(generated_url.endswith(".wav"))
-        self.assertEqual(storage_request.call_args.kwargs["method"], "PUT")
         self.assertTrue(
-            storage_request.call_args.kwargs["content_type"].startswith("audio/")
+            (module.AUDIO_DIR / Path(generated_url).name).is_file()
         )
 
     def test_gemini_tts_rest_request_and_error_handling(self):
@@ -861,7 +848,7 @@ class SiteManagementTests(unittest.TestCase):
             'id="scale" name="scale" type="number" value="0.2" step="any" min="0.001"',
             add_form_html,
         )
-        with patch.object(module, "is_supabase_enabled", return_value=False):
+        with patch.object(module, "is_vercel_runtime", return_value=False):
             response = self.client.post(
                 "/admin/models",
                 data={
@@ -996,26 +983,20 @@ class SiteManagementTests(unittest.TestCase):
                 self.assertNotIn("data-admin-busy-modal", html)
                 self.assertNotIn("admin-busy.js", html)
 
-    def test_duplicate_model_slug_error_has_thai_message(self):
-        duplicate_error = module.SupabaseError(
-            'Supabase POST /rest/v1/models failed: 409 '
-            '{"code":"23505","details":"Key (slug)=(1) already exists.",'
-            '"message":"duplicate key value violates unique constraint '
-            '\\"models_slug_key\\""}'
+    def test_runtime_source_has_no_legacy_backend_dependency(self):
+        source = (Path(module.BASE_DIR) / "app.py").read_text(encoding="utf-8")
+        forbidden = (
+            "SUPABASE_URL",
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "SUPABASE_STORAGE_BUCKET",
+            "storage/v1/object/public",
         )
-        self.assertEqual(
-            module.model_supabase_error_message(duplicate_error),
-            "ไม่สามารถบันทึกได้: รหัส/slug นี้มีอยู่แล้ว กรุณาเปลี่ยนรหัสโมเดล",
-        )
-        other_error = module.SupabaseError("Supabase connection failed")
-        self.assertIn(
-            "Supabase connection failed",
-            module.model_supabase_error_message(other_error),
-        )
+        for token in forbidden:
+            self.assertNotIn(token, source)
 
     def test_model_scale_rejects_non_numeric_input(self):
         self.sign_in()
-        with patch.object(module, "is_supabase_enabled", return_value=False):
+        with patch.object(module, "is_vercel_runtime", return_value=False):
             response = self.client.post(
                 "/admin/models/lychee/edit",
                 data={
@@ -1031,21 +1012,27 @@ class SiteManagementTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 400)
 
-    def test_supabase_model_preview_images_normalization(self):
-        without_gallery = module.normalize_supabase_model({"id": "one", "name": "One"})
-        with_gallery = module.normalize_supabase_model(
+    def test_json_model_preview_images_normalization(self):
+        projects = module.load_projects(include_hidden=True)
+        without_gallery = module.normalize_model(
+            {"id": "one", "name": "One"},
+            projects,
+        )
+        with_gallery = module.normalize_model(
             {
                 "id": "two",
                 "name": "Two",
                 "preview_images": ["https://example.com/two.jpg"],
-            }
+            },
+            projects,
         )
         self.assertEqual(without_gallery["preview_images"], [])
         self.assertEqual(with_gallery["preview_images"], ["https://example.com/two.jpg"])
         self.assertEqual(without_gallery["narration_audio"], "")
         self.assertEqual(
-            module.normalize_supabase_model(
-                {"id": "three", "narration_audio": "https://example.com/three.mp3"}
+            module.normalize_model(
+                {"id": "three", "narration_audio": "https://example.com/three.mp3"},
+                projects,
             )["narration_audio"],
             "https://example.com/three.mp3",
         )
@@ -1322,26 +1309,6 @@ class SiteManagementTests(unittest.TestCase):
 
     def test_narration_audio_upload_validation(self):
         with module.app.test_request_context():
-            object_path, public_url = module.direct_upload_target(
-                "narration.mp3",
-                "model_narration_audio",
-                file_size=1024,
-            )
-            self.assertTrue(object_path.startswith("models/narration/"))
-            self.assertTrue(public_url.endswith(".mp3"))
-
-            with self.assertRaises(RequestEntityTooLarge):
-                module.direct_upload_target(
-                    "too-large.mp3",
-                    "model_narration_audio",
-                    file_size=module.NARRATION_AUDIO_MAX_BYTES + 1,
-                )
-            with self.assertRaises(BadRequest):
-                module.direct_upload_target(
-                    "unsafe.svg",
-                    "model_narration_audio",
-                    file_size=1024,
-                )
             self.assertEqual(
                 module.parse_narration_audio_field(
                     "https://example.com/narration.mp3?version=1"
@@ -1355,22 +1322,17 @@ class SiteManagementTests(unittest.TestCase):
                     "https://example.com/not-audio.svg"
                 )
 
-    def test_model_direct_upload_enforces_fifty_mb_limit(self):
-        with module.app.test_request_context():
-            object_path, public_url = module.direct_upload_target(
-                "learning-model.glb",
-                "model",
-                file_size=module.MAX_MODEL_FILE_SIZE_BYTES,
-            )
-            self.assertTrue(object_path.startswith("models/"))
-            self.assertTrue(public_url.endswith(".glb"))
-
-            with self.assertRaises(RequestEntityTooLarge):
-                module.direct_upload_target(
-                    "too-large.glb",
-                    "model",
-                    file_size=module.MAX_MODEL_FILE_SIZE_BYTES + 1,
-                )
+    def test_direct_upload_endpoint_is_disabled(self):
+        self.sign_in()
+        response = self.client.post(
+            "/admin/api/create-upload-url",
+            json={
+                "filename": "learning-model.glb",
+                "kind": "model",
+                "file_size": module.MAX_MODEL_FILE_SIZE_BYTES,
+            },
+        )
+        self.assertEqual(response.status_code, 403)
 
     def test_model_forms_expose_direct_upload_limit_and_metadata_post(self):
         self.sign_in()
@@ -1387,7 +1349,7 @@ class SiteManagementTests(unittest.TestCase):
             self.assertIn("data-admin-model-preview", html)
             self.assertIn("admin-model-preview.js", html)
 
-        with patch.object(module, "is_supabase_enabled", return_value=False):
+        with patch.object(module, "is_vercel_runtime", return_value=False):
             response = self.client.post(
                 "/admin/models",
                 data={
@@ -1401,34 +1363,26 @@ class SiteManagementTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 302)
 
-    def test_direct_upload_javascript_handles_model_size_errors(self):
-        script = (
-            Path(module.BASE_DIR) / "static" / "js" / "admin-direct-upload.js"
-        ).read_text(encoding="utf-8")
-        self.assertIn("input.dataset.maxBytes", script)
-        self.assertIn("response.status === 413", script)
-        self.assertIn("กรุณาลดขนาดไฟล์ .glb", script)
-        self.assertNotIn('throw new Error(message || "การอัปโหลดไฟล์ไปยังระบบจัดเก็บข้อมูลล้มเหลว")', script)
+    def test_direct_upload_frontend_is_removed(self):
+        script = Path(module.BASE_DIR) / "static" / "js" / "admin-direct-upload.js"
+        self.assertFalse(script.exists())
+        for template_name in (
+            "admin.html",
+            "edit_model.html",
+            "edit_project.html",
+            "admin_branding.html",
+            "admin_intro.html",
+            "admin_landing.html",
+            "admin_sliders.html",
+            "edit_slider.html",
+        ):
+            template = (
+                Path(module.BASE_DIR) / "templates" / template_name
+            ).read_text(encoding="utf-8")
+            self.assertNotIn("admin-direct-upload.js", template)
+            self.assertNotIn("data-direct-uploads", template)
 
-    def test_direct_upload_uses_random_names_and_rejects_invalid_types(self):
-        with module.app.test_request_context():
-            first_path, _ = module.direct_upload_target("cover.png", "landing_cover", 1024)
-            second_path, _ = module.direct_upload_target("cover.png", "landing_cover", 1024)
-            self.assertNotEqual(first_path, second_path)
-            self.assertTrue(first_path.startswith("site/landing/"))
-            self.assertTrue(first_path.endswith(".png"))
-            intro_path, _ = module.direct_upload_target("intro.webp", "intro_logo_1", 1024)
-            self.assertTrue(intro_path.startswith("site/intro/"))
-            self.assertTrue(intro_path.endswith(".webp"))
-            social_path, _ = module.direct_upload_target(
-                "social.jpg", "site_social_image", 1024
-            )
-            self.assertTrue(social_path.startswith("site/social/"))
-            self.assertTrue(social_path.endswith(".jpg"))
-            with self.assertRaises(BadRequest):
-                module.direct_upload_target("payload.exe", "landing_cover", 1024)
-
-    def test_supabase_read_failure_falls_back_to_local_json(self):
+    def test_json_reads_are_the_only_runtime_source(self):
         module.save_site_settings({**module.DEFAULT_SITE_SETTINGS, "site_name": "Fallback Brand"})
         module.save_slider_items(
             [
@@ -1441,13 +1395,8 @@ class SiteManagementTests(unittest.TestCase):
                 }
             ]
         )
-        with (
-            patch.object(module, "is_supabase_enabled", return_value=True),
-            patch.object(module, "fetch_supabase_site_settings", side_effect=module.SupabaseError("missing table")),
-            patch.object(module, "fetch_supabase_slider_items", side_effect=module.SupabaseError("missing table")),
-        ):
-            self.assertEqual(module.get_site_settings()["site_name"], "Fallback Brand")
-            self.assertEqual(module.get_slider_items(False)[0]["id"], "fallback-slide")
+        self.assertEqual(module.get_site_settings()["site_name"], "Fallback Brand")
+        self.assertEqual(module.get_slider_items(False)[0]["id"], "fallback-slide")
 
     def test_active_slider_renders_on_landing_and_home(self):
         module.save_slider_items(
@@ -1546,25 +1495,24 @@ class SiteManagementTests(unittest.TestCase):
         html = response.get_data(as_text=True)
         self.assertIn("fonts.googleapis.com/css2?family=Kanit", html)
 
-    def test_supabase_schema_is_hardened_and_non_destructive(self):
-        sql = (Path(module.BASE_DIR) / "docs" / "supabase_schema.sql").read_text(encoding="utf-8").lower()
-        for forbidden in ("drop table", "truncate", "delete from", "alter table site_settings drop", "alter table slider_items drop"):
-            self.assertNotIn(forbidden, sql)
-        for required in (
-            "begin;",
-            "commit;",
-            "armodel_site_content_set_updated_at",
-            "add column if not exists updated_at",
-            "slider_items_active_sort_idx",
-            "on conflict (key) do nothing",
-            "alter table site_settings enable row level security",
-            "alter table slider_items enable row level security",
-            "add column if not exists preview_images jsonb not null default '[]'::jsonb",
-            "add column if not exists narration_audio text not null default ''",
-            "add column if not exists rotate_y text not null default '0'",
-            "add column if not exists rotate_z text not null default '0'",
-        ):
-            self.assertIn(required, sql)
+    def test_default_runtime_data_directory_is_versioned_data(self):
+        self.assertEqual(module.DATA_DIR, Path(module.BASE_DIR) / "data")
+        self.assertEqual(
+            self.original_paths["CATALOG_FILE"],
+            module.DATA_DIR / "models.json",
+        )
+        self.assertEqual(
+            self.original_paths["PROJECTS_FILE"],
+            module.DATA_DIR / "projects.json",
+        )
+        self.assertEqual(
+            self.original_paths["SITE_SETTINGS_FILE"],
+            module.DATA_DIR / "site_settings.json",
+        )
+        self.assertEqual(
+            self.original_paths["SLIDER_ITEMS_FILE"],
+            module.DATA_DIR / "slider_items.json",
+        )
 
     def test_learning_source_labels_and_model_department_field(self):
         # 1. Check that public pages /, /home, /models render successfully and do not contain generic labels like "ดูโครงการทั้งหมด" or "รายการโครงการ" but instead say "แหล่งเรียนรู้"
@@ -1744,7 +1692,7 @@ class SiteManagementTests(unittest.TestCase):
 
     def test_model_rotation_controls_and_presets(self):
         self.sign_in()
-        with patch.object(module, "is_supabase_enabled", return_value=False):
+        with patch.object(module, "is_vercel_runtime", return_value=False):
             response = self.client.post(
                 "/admin/models",
                 data={
@@ -1781,6 +1729,125 @@ class SiteManagementTests(unittest.TestCase):
             admin_add_html = self.client.get("/admin").get_data(as_text=True)
             self.assertIn('class="preset-btn"', admin_add_html)
             self.assertIn('data-preset-x="3.1416"', admin_add_html)
+
+
+class ZeroSupabaseRuntimeTests(unittest.TestCase):
+    def setUp(self):
+        module._JSON_CACHE.clear()
+        module.app.config.update(TESTING=True, SECRET_KEY="test-only-key")
+        self.client = module.app.test_client()
+
+    def sign_in(self):
+        with self.client.session_transaction() as session:
+            session["admin"] = True
+
+    def test_versioned_json_counts_and_public_apis(self):
+        models = json.loads((module.DATA_DIR / "models.json").read_text("utf-8"))
+        projects = json.loads((module.DATA_DIR / "projects.json").read_text("utf-8"))
+        settings = json.loads(
+            (module.DATA_DIR / "site_settings.json").read_text("utf-8")
+        )
+        sliders = json.loads(
+            (module.DATA_DIR / "slider_items.json").read_text("utf-8")
+        )
+        self.assertEqual(
+            (len(models), len(projects), len(settings), len(sliders)),
+            (41, 10, 31, 1),
+        )
+
+        api_models = self.client.get("/api/models")
+        api_projects = self.client.get("/api/projects")
+        api_settings = self.client.get("/api/settings")
+        api_sliders = self.client.get("/api/sliders")
+        for response in (api_models, api_projects, api_settings, api_sliders):
+            self.assertEqual(response.status_code, 200)
+            self.assertNotIn("supabase.co", response.get_data(as_text=True).lower())
+
+        model_payload = api_models.get_json()
+        self.assertEqual(len(model_payload), 41)
+        self.assertTrue(
+            all(
+                item["model_url"].startswith(
+                    "https://pub-b7cd49a1aa5b4bb1ba339dfd78d4ec75.r2.dev/"
+                )
+                for item in model_payload
+            )
+        )
+        self.assertEqual(len(api_projects.get_json()), 10)
+        self.assertTrue(set(settings).issubset(api_settings.get_json()))
+        self.assertEqual(len(api_sliders.get_json()), 1)
+
+    def test_public_runtime_works_without_legacy_environment(self):
+        with patch.dict(module.os.environ, {}, clear=False):
+            for name in (
+                "SUPABASE_URL",
+                "SUPABASE_SERVICE_ROLE_KEY",
+                "SUPABASE_STORAGE_BUCKET",
+            ):
+                module.os.environ.pop(name, None)
+            for route in (
+                "/",
+                "/home",
+                "/models",
+                "/models/lukplakob",
+                "/models/lychee",
+                "/models/audtang",
+                "/api/models",
+                "/api/projects",
+                "/api/settings",
+                "/api/sliders",
+            ):
+                with self.subTest(route=route):
+                    response = self.client.get(route)
+                    self.assertEqual(response.status_code, 200)
+                    if route.startswith("/api/"):
+                        self.assertNotIn(
+                            "supabase.co",
+                            response.get_data(as_text=True).lower(),
+                        )
+
+    def test_production_admin_mutations_are_read_only(self):
+        self.sign_in()
+        project_id = module.get_projects(True)[0]["id"]
+        model_id = module.get_models(True)[0]["id"]
+        slider_id = module.get_slider_items(True)[0]["id"]
+        requests = (
+            ("/admin/settings", {}),
+            ("/admin/intro", {}),
+            ("/admin/sliders", {}),
+            (f"/admin/sliders/{slider_id}/edit", {}),
+            (f"/admin/sliders/{slider_id}", {}),
+            ("/admin/recommended-models", {}),
+            ("/admin/projects", {}),
+            (f"/admin/projects/{project_id}/edit", {}),
+            (f"/admin/projects/{project_id}/delete", {}),
+            ("/admin/models", {}),
+            (f"/admin/models/{model_id}/edit", {}),
+            (f"/admin/models/{model_id}/delete", {}),
+            (f"/admin/models/{model_id}/generate-narration", {}),
+            (
+                "/admin/api/create-upload-url",
+                {
+                    "json": {
+                        "filename": "blocked.glb",
+                        "kind": "model",
+                        "file_size": 1024,
+                    }
+                },
+            ),
+        )
+        with patch.dict(
+            module.os.environ,
+            {"VERCEL": "1", "GEMINI_API_KEY": "test-only"},
+        ):
+            admin_html = self.client.get("/admin").get_data(as_text=True)
+            self.assertIn('data-admin-read-only="true"', admin_html)
+            self.assertIn("admin-read-only.js", admin_html)
+            self.assertNotIn("admin-direct-upload.js", admin_html)
+            for route, kwargs in requests:
+                with self.subTest(route=route):
+                    response = self.client.post(route, **kwargs)
+                    self.assertEqual(response.status_code, 403)
 
 
 if __name__ == "__main__":

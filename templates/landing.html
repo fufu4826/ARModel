@@ -68,9 +68,21 @@
       </div>
     </section>
     {% if sliders %}
-    <div class="landing-carousel">
-      {% include "_slider.html" %}
-    </div>
+    <aside class="landing-carousel" data-news-panel aria-label="ข่าวสารและประชาสัมพันธ์">
+      <button
+        class="landing-news-toggle"
+        type="button"
+        aria-expanded="true"
+        aria-controls="landing-news-panel"
+        aria-label="ซ่อนข่าวสาร"
+        data-news-panel-toggle
+      >
+        <span data-news-panel-toggle-text>ซ่อนข่าวสาร &gt;</span>
+      </button>
+      <div class="landing-news-content" id="landing-news-panel" data-news-panel-content>
+        {% include "_slider.html" %}
+      </div>
+    </aside>
     {% endif %}
   </main>
   <section class="landing-seo-section" aria-labelledby="landing-about-title">
@@ -98,6 +110,7 @@
   {% if sliders %}
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/site-carousel.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/landing-news-panel.js') }}" defer></script>
   {% endif %}
   <script src="{{ url_for('static', filename='js/landing-intro.js') }}" defer></script>
 </body>

@@ -181,6 +181,28 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn('href="/home"', landing_html)
         self.assertIn('href="/models"', landing_html)
 
+    def test_landing_news_panel_has_accessible_collapse_controls(self):
+        module.save_slider_items(
+            [
+                {
+                    "id": "news-1",
+                    "title": "ข่าวทดสอบ",
+                    "description": "รายละเอียดข่าว",
+                    "image_url": "https://example.com/news.webp",
+                    "button_text": "",
+                    "button_url": "",
+                    "sort_order": 0,
+                    "active": True,
+                }
+            ]
+        )
+        landing_html = self.client.get("/").get_data(as_text=True)
+        self.assertIn("data-news-panel", landing_html)
+        self.assertIn("data-news-panel-toggle", landing_html)
+        self.assertIn('aria-controls="landing-news-panel"', landing_html)
+        self.assertIn('aria-expanded="true"', landing_html)
+        self.assertIn("landing-news-panel.js", landing_html)
+
     def test_landing_mobile_headline_dynamic(self):
         settings = module.load_site_settings()
         unique_headline = "DYNAMIC_MOBILE_HEADLINE_12345"

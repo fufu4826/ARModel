@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th" data-direct-uploads="{{ 'true' if is_supabase else 'false' }}">
+<html lang="th" data-admin-read-only="{{ 'true' if admin_read_only else 'false' }}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -26,8 +26,8 @@
 
         {% if uploads_disabled %}
         <div class="notice">This site is running on Vercel. File uploads are disabled. Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy.</div>
-        {% elif is_supabase %}
-        <div class="notice">Supabase is configured. Uploaded thumbnails and .glb files will be stored in Supabase Storage.</div>
+        {% else %}
+        <div class="notice">โหมดพัฒนาในเครื่อง: การแก้ไขจะบันทึกลงไฟล์ JSON/local static เท่านั้น</div>
         {% endif %}
 
         <form class="admin-form" method="post" enctype="multipart/form-data">
@@ -74,7 +74,7 @@
             <div class="field full">
               <label for="edit-model-url">หรือระบุลิงก์ไฟล์โมเดลภายนอก (External .glb model URL)</label>
               <input id="edit-model-url" name="model_url" type="url" value="{{ model.model_url }}" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">ใช้กรณีที่ไฟล์โมเดลอยู่บนคลาวด์ หรือ Supabase Storage แล้ว</p>
+              <p class="meta">ใช้กรณีที่ไฟล์โมเดลอยู่บน Cloudflare R2 หรือคลาวด์อื่นแล้ว</p>
             </div>
           </fieldset>
 
@@ -95,7 +95,7 @@
             <div class="field full">
               <label for="edit-thumbnail-url">หรือระบุลิงก์รูปปกหลักภายนอก (External thumbnail URL)</label>
               <input id="edit-thumbnail-url" name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" data-image-preview-target="edit-model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">ใช้ลิงก์ภาพออนไลน์อื่น หรือ Supabase Storage</p>
+              <p class="meta">ใช้ลิงก์ภาพจาก Cloudflare R2 หรือระบบออนไลน์อื่น</p>
             </div>
             <div class="field full">
               <div class="preview-panel">
@@ -228,7 +228,6 @@
   </div>
 
   <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/preview-gallery-input.js') }}" defer></script>
   {% include "_model_viewer_loader.html" %}
   <script src="{{ url_for('static', filename='js/admin-model-preview.js') }}" defer></script>

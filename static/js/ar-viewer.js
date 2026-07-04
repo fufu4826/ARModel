@@ -78,7 +78,7 @@
     loadTimeout = window.setTimeout(showError, 30000);
 
     // Assign the GLB URL once and only near the viewport. This prevents
-    // hidden/off-screen viewers from consuming Supabase egress.
+    // Avoid unnecessary downloads for hidden/off-screen viewers.
     viewer.src = modelSource;
   }
 

@@ -16,7 +16,7 @@ from functools import wraps
 from pathlib import Path
 from threading import Timer
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from flask import abort, flash, Flask, jsonify, redirect, render_template, request, session, url_for
@@ -33,8 +33,8 @@ SITE_ASSET_MAX_BYTES = 5 * 1024 * 1024
 NARRATION_AUDIO_MAX_BYTES = 20 * 1024 * 1024
 MAX_MODEL_FILE_SIZE_MB = 50
 MAX_MODEL_FILE_SIZE_BYTES = MAX_MODEL_FILE_SIZE_MB * 1024 * 1024
-VERCEL_UPLOAD_MESSAGE = "ระบบไม่รองรับการอัปโหลดไฟล์โดยตรงบน Vercel กรุณาระบุรูปภาพหรือไฟล์โมเดลผ่านลิงก์เว็บภายนอก (URL)"
-VERCEL_EDIT_MESSAGE = "ระบบแอดมินทำงานในโหมดอ่านอย่างเดียวบน Vercel (ไม่รองรับการเขียนไฟล์บนคลาวด์) กรุณาแก้ไขไฟล์ข้อมูลภายในเครื่อง แล้ว Commit และ Deploy ใหม่ หรือกำหนดค่าเชื่อมต่อ Supabase ก่อนใช้งาน"
+VERCEL_UPLOAD_MESSAGE = "ระบบ production เป็นโหมดอ่านอย่างเดียว กรุณาอัปโหลดไฟล์ไปยัง R2 และแก้ไขไฟล์ data/*.json ผ่านขั้นตอนเผยแพร่ที่กำหนด"
+VERCEL_EDIT_MESSAGE = "ระบบแอดมิน production เป็นโหมดอ่านอย่างเดียว กรุณาแก้ไขไฟล์ data/*.json ภายในเครื่อง ตรวจสอบความถูกต้อง แล้ว Commit และ Deploy ใหม่"
 UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในแหล่งเรียนรู้"
 PUBLIC_SITE_URL = (
     os.environ.get("SITE_BASE_URL")
@@ -216,7 +216,7 @@ DEFAULT_MODELS = [
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = Path(os.environ.get("ARMODEL_DATA_DIR", BASE_DIR))
+DATA_DIR = Path(os.environ.get("ARMODEL_DATA_DIR", BASE_DIR / "data"))
 STATIC_DIR = Path(os.environ.get("ARMODEL_STATIC_DIR", BASE_DIR / "static"))
 MODEL_DIR = STATIC_DIR / "model"
 PIC_DIR = STATIC_DIR / "pic"
@@ -246,14 +246,6 @@ def is_vercel_runtime() -> bool:
     return bool(os.environ.get("VERCEL"))
 
 
-def is_supabase_enabled() -> bool:
-    return bool(
-        os.environ.get("SUPABASE_URL")
-        and os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        and os.environ.get("SUPABASE_STORAGE_BUCKET")
-    )
-
-
 def public_absolute_url(path_or_url: str | None) -> str:
     value = str(path_or_url or "").strip()
     if not value:
@@ -278,13 +270,12 @@ def public_meta_image_url(path_or_url: str | None) -> str:
 
 @app.context_processor
 def inject_runtime_flags():
-    supabase_enabled = is_supabase_enabled()
     settings = get_site_settings()
     public_settings = site_settings_with_urls(settings)
     return {
         "is_vercel": is_vercel_runtime(),
-        "is_supabase": supabase_enabled,
-        "uploads_disabled": is_vercel_runtime() and not supabase_enabled,
+        "admin_read_only": is_vercel_runtime(),
+        "uploads_disabled": is_vercel_runtime(),
         "default_meta_title": DEFAULT_META_TITLE,
         "default_meta_description": settings["meta_description"],
         "default_meta_keywords": DEFAULT_META_KEYWORDS,
@@ -488,6 +479,7 @@ def normalize_project(project: dict) -> dict:
     image_path = str(project.get("image_path") or project.get("cover_image") or project.get("image") or "").strip()
     return {
         "id": str(project.get("id") or uuid.uuid4().hex),
+        "slug": str(project.get("slug") or "").strip(),
         "name": name,
         "description": str(project.get("description") or "").strip(),
         "department": str(project.get("department") or project.get("unit") or "").strip(),
@@ -495,6 +487,8 @@ def normalize_project(project: dict) -> dict:
         "image_url": image_url,
         "image_path": image_path,
         "visible": bool(project.get("visible", True)),
+        "created_at": str(project.get("created_at") or "").strip(),
+        "updated_at": str(project.get("updated_at") or "").strip(),
     }
 
 
@@ -589,9 +583,15 @@ def normalize_model(model: dict, projects: list[dict]) -> dict:
     thumbnail_url = str(model.get("thumbnail_url") or "").strip()
     thumbnail_path = str(model.get("thumbnail_path") or model.get("image") or model.get("thumbnail") or "").strip()
     narration_audio = str(model.get("narration_audio") or "").strip()
+    size_mb = model.get("file_size_mb")
+    try:
+        size_mb = float(size_mb) if size_mb is not None else None
+    except (TypeError, ValueError):
+        size_mb = None
 
     return {
         "id": model_id,
+        "slug": str(model.get("slug") or "").strip(),
         "name": str(model.get("name") or "โมเดล").strip(),
         "description": str(model.get("description") or model.get("info") or "").strip(),
         "department": str(model.get("department") or model.get("unit") or "").strip(),
@@ -604,11 +604,14 @@ def normalize_model(model: dict, projects: list[dict]) -> dict:
         "thumbnail_path": thumbnail_path,
         "preview_images": normalize_preview_images(model.get("preview_images")),
         "narration_audio": narration_audio,
+        "file_size_mb": size_mb,
         "rotate_x": rotate_x,
         "rotate_y": rotate_y,
         "rotate_z": rotate_z,
         "scale": scale,
         "visible": bool(model.get("visible", True)),
+        "created_at": str(model.get("created_at") or "").strip(),
+        "updated_at": str(model.get("updated_at") or "").strip(),
     }
 
 
@@ -737,19 +740,6 @@ def save_slider_items(items: list[dict]) -> None:
     write_json(SLIDER_ITEMS_FILE, normalized)
 
 
-class SupabaseError(RuntimeError):
-    pass
-
-
-def model_supabase_error_message(error: SupabaseError) -> str:
-    detail = str(error)
-    if "23505" in detail and (
-        "models_slug_key" in detail or "Key (slug)" in detail
-    ):
-        return "ไม่สามารถบันทึกได้: รหัส/slug นี้มีอยู่แล้ว กรุณาเปลี่ยนรหัสโมเดล"
-    return f"ไม่สามารถบันทึกโมเดลไปยัง Supabase ได้: {detail}"
-
-
 class GeminiTTSError(RuntimeError):
     pass
 
@@ -854,269 +844,26 @@ def generate_gemini_tts_audio(text: str) -> tuple[bytes, str]:
     return convert_to_wav(audio_bytes, mime_type)
 
 
-def supabase_base_url() -> str:
-    return os.environ.get("SUPABASE_URL", "").rstrip("/")
-
-
-def supabase_service_key() -> str:
-    return os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-
-
-def supabase_bucket() -> str:
-    return os.environ.get("SUPABASE_STORAGE_BUCKET", "")
-
-
-def supabase_headers(content_type: str | None = "application/json") -> dict[str, str]:
-    headers = {
-        "apikey": supabase_service_key(),
-        "Authorization": f"Bearer {supabase_service_key()}",
-    }
-    if content_type:
-        headers["Content-Type"] = content_type
-    return headers
-
-
-def supabase_request(
-    path: str,
-    method: str = "GET",
-    payload: dict | list | None = None,
-    data: bytes | None = None,
-    content_type: str | None = "application/json",
-    extra_headers: dict[str, str] | None = None,
-):
-    if not is_supabase_enabled():
-        raise SupabaseError("Supabase is not configured.")
-
-    body = data
-    headers = supabase_headers(content_type)
-    if extra_headers:
-        headers.update(extra_headers)
-    if payload is not None:
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-
-    request_obj = Request(f"{supabase_base_url()}{path}", data=body, headers=headers, method=method)
-    try:
-        with urlopen(request_obj, timeout=45) as response:
-            response_body = response.read()
-            if not response_body:
-                return None
-            content = response_body.decode("utf-8")
-            return json.loads(content) if content else None
-    except HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise SupabaseError(f"Supabase {method} {path} failed: {exc.code} {detail}") from exc
-    except URLError as exc:
-        raise SupabaseError(f"Supabase {method} {path} failed: {exc.reason}") from exc
-    except OSError as exc:
-        raise SupabaseError(f"Supabase {method} {path} failed: {exc}") from exc
-
-
 def slugify(value: str, fallback: str | None = None) -> str:
     raw = secure_filename(value or "") or (fallback or "")
     slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", raw).strip("-_").lower()
     return slug or uuid.uuid4().hex
 
 
-def normalize_supabase_project(row: dict) -> dict:
-    image_url = str(row.get("image_url") or "").strip()
-    return {
-        "id": str(row.get("id") or uuid.uuid4().hex),
-        "slug": str(row.get("slug") or "").strip(),
-        "name": str(row.get("name") or "Project").strip(),
-        "description": str(row.get("description") or "").strip(),
-        "department": "",
-        "cover_image": image_url,
-        "image_url": image_url,
-        "image_path": "",
-        "visible": True,
-    }
-
-
-def normalize_supabase_model(row: dict) -> dict:
-    model_url = str(row.get("model_url") or "").strip()
-    thumbnail_url = str(row.get("thumbnail_url") or "").strip()
-    size_mb = row.get("file_size_mb")
-    try:
-        size_mb = float(size_mb) if size_mb is not None else None
-    except (TypeError, ValueError):
-        size_mb = None
-    return {
-        "id": str(row.get("id") or uuid.uuid4().hex),
-        "slug": str(row.get("slug") or "").strip(),
-        "name": str(row.get("name") or "Model").strip(),
-        "description": str(row.get("description") or "").strip(),
-        "department": "",
-        "project_id": str(row.get("project_id") or "").strip(),
-        "model": model_url,
-        "model_url": model_url,
-        "model_path": "",
-        "image": thumbnail_url,
-        "thumbnail_url": thumbnail_url,
-        "thumbnail_path": "",
-        "preview_images": normalize_preview_images(row.get("preview_images")),
-        "narration_audio": str(row.get("narration_audio") or "").strip(),
-        "file_size_mb": size_mb,
-        "rotate_x": float(row.get("rotate_x") or 0) if row.get("rotate_x") is not None else 0,
-        "rotate_y": float(row.get("rotate_y") or 0) if row.get("rotate_y") is not None else 0,
-        "rotate_z": float(row.get("rotate_z") or 0) if row.get("rotate_z") is not None else 0,
-        "scale": float(row.get("scale") or 0.2) if row.get("scale") is not None else 0.2,
-        "visible": bool(row.get("visible", True)) if row.get("visible") is not None else True,
-    }
-
-
-def fetch_supabase_projects() -> list[dict]:
-    rows = supabase_request("/rest/v1/projects?select=*&order=created_at.asc") or []
-    return [normalize_supabase_project(row) for row in rows]
-
-
-def fetch_supabase_models() -> list[dict]:
-    rows = supabase_request("/rest/v1/models?select=*&order=created_at.asc") or []
-    return [normalize_supabase_model(row) for row in rows]
-
-
-def fetch_supabase_site_settings() -> dict:
-    rows = supabase_request("/rest/v1/site_settings?select=key,value") or []
-    return normalize_site_settings({row.get("key"): row.get("value") for row in rows})
-
-
-def upsert_supabase_site_settings(settings: dict) -> None:
-    payload = [{"key": key, "value": value} for key, value in normalize_site_settings(settings).items()]
-    supabase_request(
-        "/rest/v1/site_settings?on_conflict=key",
-        method="POST",
-        payload=payload,
-        extra_headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
-    )
-
-
-def fetch_supabase_slider_items(include_inactive: bool = True) -> list[dict]:
-    path = "/rest/v1/slider_items?select=*&order=sort_order.asc,created_at.asc"
-    if not include_inactive:
-        path = "/rest/v1/slider_items?select=*&active=eq.true&order=sort_order.asc,created_at.asc"
-    rows = supabase_request(path) or []
-    return [normalize_slider_item(row) for row in rows]
-
-
-def create_supabase_slider_item(data: dict) -> dict:
-    item = normalize_slider_item(data)
-    payload = {key: item[key] for key in ("id", "title", "description", "image_url", "button_text", "button_url", "sort_order", "active")}
-    rows = supabase_request(
-        "/rest/v1/slider_items",
-        method="POST",
-        payload=payload,
-        extra_headers={"Prefer": "return=representation"},
-    )
-    return normalize_slider_item(rows[0]) if rows else item
-
-
-def update_supabase_slider_item(slider_id: str, data: dict) -> dict:
-    item = normalize_slider_item({"id": slider_id, **data})
-    payload = {key: item[key] for key in ("title", "description", "image_url", "button_text", "button_url", "sort_order", "active")}
-    rows = supabase_request(
-        f"/rest/v1/slider_items?id=eq.{quote(slider_id)}",
-        method="PATCH",
-        payload=payload,
-        extra_headers={"Prefer": "return=representation"},
-    )
-    return normalize_slider_item(rows[0]) if rows else item
-
-
-def delete_supabase_slider_item(slider_id: str) -> None:
-    supabase_request(f"/rest/v1/slider_items?id=eq.{quote(slider_id)}", method="DELETE")
-
-
 def get_projects(include_hidden: bool = True) -> list[dict]:
-    if is_supabase_enabled():
-        try:
-            return fetch_supabase_projects()
-        except SupabaseError as exc:
-            logger.warning("Falling back to local projects.json because Supabase read failed: %s", exc)
     return load_projects(include_hidden=include_hidden)
 
 
 def get_models(include_hidden: bool = True) -> list[dict]:
-    if is_supabase_enabled():
-        try:
-            return fetch_supabase_models()
-        except SupabaseError as exc:
-            logger.warning("Falling back to local models.json because Supabase read failed: %s", exc)
     return load_models(include_hidden=include_hidden)
 
 
 def get_site_settings() -> dict:
-    if is_supabase_enabled():
-        try:
-            return fetch_supabase_site_settings()
-        except SupabaseError as exc:
-            logger.warning("Falling back to local site_settings.json because Supabase read failed: %s", exc)
     return load_site_settings()
 
 
 def get_slider_items(include_inactive: bool = True) -> list[dict]:
-    if is_supabase_enabled():
-        try:
-            return fetch_supabase_slider_items(include_inactive=include_inactive)
-        except SupabaseError as exc:
-            logger.warning("Falling back to local slider_items.json because Supabase read failed: %s", exc)
     return load_slider_items(include_inactive=include_inactive)
-
-
-def supabase_public_url(object_path: str) -> str:
-    return f"{supabase_base_url()}/storage/v1/object/public/{quote(supabase_bucket())}/{quote(object_path, safe='/')}"
-
-
-def supabase_signed_upload_url(object_path: str) -> str:
-    response = supabase_request(
-        f"/storage/v1/object/upload/sign/{quote(supabase_bucket())}/{quote(object_path, safe='/')}",
-        method="POST",
-        payload={},
-    )
-    upload_url = str((response or {}).get("url") or "").strip()
-    if not upload_url:
-        raise SupabaseError("Supabase did not return a signed upload URL.")
-    if upload_url.startswith("/"):
-        return f"{supabase_base_url()}/storage/v1{upload_url}"
-    return upload_url
-
-
-def upload_to_supabase_storage(
-    file_storage,
-    folder: str,
-    allowed_extensions: set[str] | None = None,
-    max_bytes: int | None = None,
-) -> tuple[str, float | None]:
-    if not file_storage or not file_storage.filename:
-        return "", None
-
-    allowed_extensions = allowed_extensions or (MODEL_EXTENSIONS if folder == "models" else IMAGE_EXTENSIONS)
-    extension = Path(file_storage.filename).suffix.lower()
-    if extension not in allowed_extensions:
-        abort(400, f"Unsupported file type: {extension}")
-
-    filename = unique_asset_name(file_storage.filename, allowed_extensions)
-    object_path = f"{folder.strip('/')}/{filename}"
-    content_type = file_storage.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    data = file_storage.read()
-    file_storage.seek(0)
-    if not data:
-        abort(400, "Uploaded file is empty")
-    if max_bytes and len(data) > max_bytes:
-        max_megabytes = max_bytes // (1024 * 1024)
-        abort(413, f"File must not exceed {max_megabytes} MB")
-
-    supabase_request(
-        f"/storage/v1/object/{quote(supabase_bucket())}/{quote(object_path, safe='/')}",
-        method="PUT",
-        data=data,
-        content_type=content_type,
-        # Asset names are unique, so clients can safely retain them. This
-        # prevents repeat GLB downloads from consuming cached egress.
-        extra_headers={
-            "Cache-Control": "max-age=31536000, immutable",
-            "x-upsert": "false",
-        },
-    )
-    return supabase_public_url(object_path), round(len(data) / (1024 * 1024), 2)
 
 
 def save_generated_narration_audio(
@@ -1135,183 +882,17 @@ def save_generated_narration_audio(
     filename = (
         f"{slugify(model_id, 'model')}-gemini-{uuid.uuid4().hex[:10]}{extension}"
     )
-    if is_supabase_enabled():
-        object_path = f"models/narration/{filename}"
-        content_type = mimetypes.guess_type(filename)[0] or "audio/wav"
-        supabase_request(
-            f"/storage/v1/object/{quote(supabase_bucket())}/{quote(object_path, safe='/')}",
-            method="PUT",
-            data=audio_data,
-            content_type=content_type,
-            extra_headers={
-                "Cache-Control": "max-age=31536000, immutable",
-                "x-upsert": "false",
-            },
-        )
-        return supabase_public_url(object_path)
-
     if is_vercel_runtime():
-        raise GeminiTTSError("Supabase must be configured to save audio on Vercel")
+        raise GeminiTTSError("Narration persistence is disabled in production read-only mode")
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
     (AUDIO_DIR / filename).write_bytes(audio_data)
     return f"audio/{filename}"
 
 
-def direct_upload_target(filename: str, kind: str, file_size: int | None = None) -> tuple[str, str]:
-    upload_kinds = {
-        "model": ("models", MODEL_EXTENSIONS),
-        "model_narration_audio": ("models/narration", AUDIO_EXTENSIONS),
-        "thumbnail": ("thumbnails", IMAGE_EXTENSIONS),
-        "project_image": ("projects", IMAGE_EXTENSIONS),
-        "landing_cover": ("site/landing", IMAGE_EXTENSIONS),
-        "landing_mobile_cover_image": ("site/landing", IMAGE_EXTENSIONS),
-        "site_logo": ("site/branding", SITE_LOGO_EXTENSIONS),
-        "site_social_image": ("site/social", IMAGE_EXTENSIONS),
-        "favicon": ("site/branding", FAVICON_EXTENSIONS),
-        "intro_logo_1": ("site/intro", IMAGE_EXTENSIONS),
-        "intro_logo_2": ("site/intro", IMAGE_EXTENSIONS),
-        "intro_logo_3": ("site/intro", IMAGE_EXTENSIONS),
-        "slider_image": ("sliders", IMAGE_EXTENSIONS),
-    }
-    if kind not in upload_kinds:
-        abort(400, "Unsupported upload kind")
-
-    folder, allowed_extensions = upload_kinds[kind]
-    extension = Path(filename or "").suffix.lower()
-    if extension not in allowed_extensions:
-        abort(400, f"Unsupported file type: {extension or '(none)'}")
-    if kind == "model":
-        if not file_size:
-            abort(400, "file_size is required for model uploads")
-        if file_size > MAX_MODEL_FILE_SIZE_BYTES:
-            abort(
-                413,
-                f"ไฟล์มีขนาดใหญ่เกินกำหนด กรุณาลดขนาดไฟล์ .glb หรือใช้ไฟล์ไม่เกิน {MAX_MODEL_FILE_SIZE_MB} MB",
-            )
-    elif kind in {
-        "landing_cover",
-        "landing_mobile_cover_image",
-        "site_logo",
-        "site_social_image",
-        "favicon",
-        "intro_logo_1",
-        "intro_logo_2",
-        "intro_logo_3",
-        "slider_image",
-    }:
-        if not file_size:
-            abort(400, "file_size is required for managed site uploads")
-        if file_size > SITE_ASSET_MAX_BYTES:
-            abort(413, "File must not exceed 5 MB")
-    elif kind == "model_narration_audio":
-        if not file_size:
-            abort(400, "file_size is required for narration audio uploads")
-        if file_size > NARRATION_AUDIO_MAX_BYTES:
-            abort(413, "File must not exceed 20 MB")
-
-    object_path = f"{folder}/{uuid.uuid4().hex}{extension}"
-    return object_path, supabase_public_url(object_path)
-
-
-def create_project(data: dict) -> dict:
-    project_id = data.get("id") or uuid.uuid4().hex
-    payload = {
-        "id": project_id,
-        "slug": data.get("slug") or slugify(data.get("name", ""), project_id),
-        "name": data.get("name", "").strip(),
-        "description": data.get("description", "").strip(),
-        "image_url": data.get("image_url", "").strip(),
-    }
-    rows = supabase_request(
-        "/rest/v1/projects",
-        method="POST",
-        payload=payload,
-        extra_headers={"Prefer": "return=representation"},
-    )
-    return normalize_supabase_project(rows[0]) if rows else normalize_supabase_project(payload)
-
-
-def update_project(project_id: str, data: dict) -> dict:
-    payload = {
-        "name": data.get("name", "").strip(),
-        "description": data.get("description", "").strip(),
-        "image_url": data.get("image_url", "").strip(),
-    }
-    rows = supabase_request(
-        f"/rest/v1/projects?id=eq.{quote(project_id)}",
-        method="PATCH",
-        payload=payload,
-        extra_headers={"Prefer": "return=representation"},
-    )
-    return normalize_supabase_project(rows[0]) if rows else normalize_supabase_project({"id": project_id, **payload})
-
-
-def delete_project(project_id: str) -> None:
-    supabase_request(f"/rest/v1/projects?id=eq.{quote(project_id)}", method="DELETE")
-
-
-def create_model(data: dict) -> dict:
-    model_id = data.get("id") or uuid.uuid4().hex
-    payload = {
-        "id": model_id,
-        "project_id": data.get("project_id") or None,
-        "slug": data.get("slug") or slugify(data.get("name", ""), model_id),
-        "name": data.get("name", "").strip(),
-        "description": data.get("description", "").strip(),
-        "model_url": data.get("model_url", "").strip(),
-        "thumbnail_url": data.get("thumbnail_url", "").strip(),
-        "preview_images": normalize_preview_images(data.get("preview_images")),
-        "narration_audio": data.get("narration_audio", "").strip(),
-        "file_size_mb": data.get("file_size_mb"),
-        "rotate_x": float(data.get("rotate_x") or 0) if data.get("rotate_x") is not None else 0,
-        "rotate_y": float(data.get("rotate_y") or 0) if data.get("rotate_y") is not None else 0,
-        "rotate_z": float(data.get("rotate_z") or 0) if data.get("rotate_z") is not None else 0,
-        "scale": float(data.get("scale") or 0.2) if data.get("scale") is not None else 0.2,
-        "visible": bool(data.get("visible", True)) if data.get("visible") is not None else True,
-    }
-    rows = supabase_request(
-        "/rest/v1/models",
-        method="POST",
-        payload=payload,
-        extra_headers={"Prefer": "return=representation"},
-    )
-    return normalize_supabase_model(rows[0]) if rows else normalize_supabase_model(payload)
-
-
-def update_model(model_id: str, data: dict) -> dict:
-    payload = {
-        "project_id": data.get("project_id") or None,
-        "name": data.get("name", "").strip(),
-        "description": data.get("description", "").strip(),
-        "model_url": data.get("model_url", "").strip(),
-        "thumbnail_url": data.get("thumbnail_url", "").strip(),
-        "preview_images": normalize_preview_images(data.get("preview_images")),
-        "narration_audio": data.get("narration_audio", "").strip(),
-        "file_size_mb": data.get("file_size_mb"),
-        "rotate_x": float(data.get("rotate_x") or 0) if data.get("rotate_x") is not None else 0,
-        "rotate_y": float(data.get("rotate_y") or 0) if data.get("rotate_y") is not None else 0,
-        "rotate_z": float(data.get("rotate_z") or 0) if data.get("rotate_z") is not None else 0,
-        "scale": float(data.get("scale") or 0.2) if data.get("scale") is not None else 0.2,
-        "visible": bool(data.get("visible", True)) if data.get("visible") is not None else True,
-    }
-    rows = supabase_request(
-        f"/rest/v1/models?id=eq.{quote(model_id)}",
-        method="PATCH",
-        payload=payload,
-        extra_headers={"Prefer": "return=representation"},
-    )
-    return normalize_supabase_model(rows[0]) if rows else normalize_supabase_model({"id": model_id, **payload})
-
-
-def delete_model(model_id: str) -> None:
-    supabase_request(f"/rest/v1/models?id=eq.{quote(model_id)}", method="DELETE")
-
-
 def admin_write_blocked_on_vercel() -> bool:
-    if not is_vercel_runtime() or is_supabase_enabled():
+    if not is_vercel_runtime():
         return False
-    flash(VERCEL_EDIT_MESSAGE, "error")
-    return True
+    abort(403, VERCEL_EDIT_MESSAGE)
 
 
 def upload_attempted(*field_names: str) -> bool:
@@ -1323,9 +904,8 @@ def upload_attempted(*field_names: str) -> bool:
 
 
 def reject_vercel_upload_if_needed(*field_names: str) -> bool:
-    if is_vercel_runtime() and not is_supabase_enabled() and upload_attempted(*field_names):
-        flash(VERCEL_UPLOAD_MESSAGE, "error")
-        return True
+    if is_vercel_runtime() and upload_attempted(*field_names):
+        abort(403, VERCEL_UPLOAD_MESSAGE)
     return False
 
 
@@ -1768,14 +1348,6 @@ def setting_asset_from_request(
 ) -> str:
     submitted_url = request.form.get(key, "").strip()
     file_storage = request.files.get(file_field)
-    if is_supabase_enabled():
-        uploaded_url, _ = upload_to_supabase_storage(
-            file_storage,
-            folder,
-            allowed_extensions=allowed_extensions,
-            max_bytes=SITE_ASSET_MAX_BYTES,
-        )
-        return uploaded_url or submitted_url or settings.get(key, "")
     uploaded_path = save_site_upload(file_storage, directory, relative_folder, allowed_extensions)
     return uploaded_path or submitted_url or settings.get(key, "")
 
@@ -1784,17 +1356,8 @@ def slider_data_from_request(existing: dict | None = None) -> dict:
     existing = existing or {}
     image_url = request.form.get("image_url", "").strip()
     file_storage = request.files.get("image_file")
-    if is_supabase_enabled():
-        uploaded_url, _ = upload_to_supabase_storage(
-            file_storage,
-            "sliders",
-            allowed_extensions=IMAGE_EXTENSIONS,
-            max_bytes=SITE_ASSET_MAX_BYTES,
-        )
-        image_url = uploaded_url or image_url or existing.get("image_url", "")
-    else:
-        uploaded_path = save_site_upload(file_storage, SLIDER_UPLOAD_DIR, "uploads/sliders", IMAGE_EXTENSIONS)
-        image_url = uploaded_path or image_url or existing.get("image_url", "")
+    uploaded_path = save_site_upload(file_storage, SLIDER_UPLOAD_DIR, "uploads/sliders", IMAGE_EXTENSIONS)
+    image_url = uploaded_path or image_url or existing.get("image_url", "")
     try:
         sort_order = int(request.form.get("sort_order") or 0)
     except ValueError:
@@ -1922,7 +1485,6 @@ def home():
         is_custom_recommended=is_custom_recommended,
         total_project_count=len(projects),
         total_model_count=len(all_models),
-        uses_online_data=is_supabase_enabled(),
         sliders=sliders,
         structured_data=public_structured_data(settings),
         page_title=settings["site_name"],
@@ -2032,12 +1594,18 @@ def model_detail(model_id: str):
 def api_models():
     projects = get_projects(include_hidden=True)
     models = get_models(include_hidden=True)
-    known_paths = {strip_static_prefix(model.get("model")).lower() for model in models if model.get("model")}
-    if not is_supabase_enabled():
-        for filesystem_model in models_from_filesystem(projects):
-            if strip_static_prefix(filesystem_model.get("model")).lower() not in known_paths:
-                models.append(normalize_model(filesystem_model, projects))
     return jsonify([api_model_payload(model, projects) for model in models])
+
+
+@app.get("/api/projects")
+def api_projects():
+    models = get_models(include_hidden=True)
+    return jsonify(
+        [
+            project_with_urls(project, models)
+            for project in get_projects(include_hidden=True)
+        ]
+    )
 
 
 @app.get("/api/settings")
@@ -2167,15 +1735,7 @@ def admin_intro():
                 IMAGE_EXTENSIONS,
             )
 
-    if is_supabase_enabled():
-        try:
-            upsert_supabase_site_settings(settings)
-        except SupabaseError as exc:
-            logger.exception("Unable to save intro settings in Supabase")
-            flash(f"ไม่สามารถบันทึกการตั้งค่าอินโทรไปยัง Supabase ได้: {exc}", "error")
-            return redirect(url_for("admin_intro"))
-    else:
-        save_site_settings(settings)
+    save_site_settings(settings)
     flash("บันทึกการตั้งค่าอินโทรแล้ว", "success")
     return redirect(url_for("admin_intro"))
 
@@ -2191,17 +1751,9 @@ def admin_sliders():
             abort(400, "จำเป็นต้องกรอกชื่อสไลด์เดอร์ (Slider Title)")
         if not data["image_url"]:
             abort(400, "จำเป็นต้องระบุรูปภาพสไลด์เดอร์")
-        if is_supabase_enabled():
-            try:
-                create_supabase_slider_item(data)
-            except SupabaseError as exc:
-                logger.exception("Unable to create slider in Supabase")
-                flash(f"ไม่สามารถบันทึกสไลด์เดอร์ไปยัง Supabase ได้: {exc}", "error")
-                return redirect(url_for("admin_sliders"))
-        else:
-            items = load_slider_items(include_inactive=True)
-            items.append(data)
-            save_slider_items(items)
+        items = load_slider_items(include_inactive=True)
+        items.append(data)
+        save_slider_items(items)
         flash("เพิ่มสไลด์แล้ว", "success")
         return redirect(url_for("admin_sliders"))
     sliders = [slider_with_url(item) for item in get_slider_items(include_inactive=True)]
@@ -2221,15 +1773,7 @@ def edit_slider(slider_id: str):
         data = slider_data_from_request(slider)
         if not data["title"]:
             abort(400, "จำเป็นต้องกรอกชื่อสไลด์เดอร์ (Slider Title)")
-        if is_supabase_enabled():
-            try:
-                update_supabase_slider_item(slider_id, data)
-            except SupabaseError as exc:
-                logger.exception("Unable to update slider in Supabase")
-                flash(f"ไม่สามารถบันทึกสไลด์เดอร์ไปยัง Supabase ได้: {exc}", "error")
-                return redirect(url_for("edit_slider", slider_id=slider_id))
-        else:
-            save_slider_items([data if item["id"] == slider_id else item for item in sliders])
+        save_slider_items([data if item["id"] == slider_id else item for item in sliders])
         flash("บันทึกสไลด์แล้ว", "success")
         return redirect(url_for("admin_sliders"))
     return render_template("edit_slider.html", slider=slider_with_url(slider))
@@ -2240,20 +1784,10 @@ def edit_slider(slider_id: str):
 def delete_slider(slider_id: str):
     if admin_write_blocked_on_vercel():
         return redirect(url_for("admin_sliders"))
-    if is_supabase_enabled():
-        try:
-            delete_supabase_slider_item(slider_id)
-        except SupabaseError as exc:
-            logger.exception("Unable to delete slider in Supabase")
-            if request.method == "DELETE":
-                return jsonify({"error": str(exc)}), 502
-            flash(f"ไม่สามารถลบสไลด์เดอร์ออกจาก Supabase ได้: {exc}", "error")
-            return redirect(url_for("admin_sliders"))
-    else:
-        sliders = load_slider_items(include_inactive=True)
-        if not any(item["id"] == slider_id for item in sliders):
-            abort(404)
-        save_slider_items([item for item in sliders if item["id"] != slider_id])
+    sliders = load_slider_items(include_inactive=True)
+    if not any(item["id"] == slider_id for item in sliders):
+        abort(404)
+    save_slider_items([item for item in sliders if item["id"] != slider_id])
     if request.method == "DELETE":
         return "", 204
     flash("ลบสไลด์แล้ว", "success")
@@ -2283,15 +1817,7 @@ def admin_recommended_models():
 
         settings["recommended_model_ids"] = ",".join(sorted_ids)
 
-        if is_supabase_enabled():
-            try:
-                upsert_supabase_site_settings(settings)
-            except SupabaseError as exc:
-                logger.exception("Unable to update site settings in Supabase")
-                flash(f"ไม่สามารถบันทึกข้อมูลไปยัง Supabase ได้: {exc}", "error")
-                return redirect(url_for("admin_recommended_models"))
-        else:
-            save_site_settings(settings)
+        save_site_settings(settings)
 
         flash("บันทึกรายชื่อโมเดลแนะนำแล้ว", "success")
         return redirect(url_for("admin_recommended_models"))
@@ -2417,15 +1943,7 @@ def update_admin_settings():
         )
     else:
         abort(400, "Unsupported settings section")
-    if is_supabase_enabled():
-        try:
-            upsert_supabase_site_settings(settings)
-        except SupabaseError as exc:
-            logger.exception("Unable to save site settings in Supabase")
-            flash(f"ไม่สามารถบันทึกการตั้งค่าระบบไปยัง Supabase ได้: {exc}", "error")
-            return redirect(request.form.get("return_to") or url_for("admin"))
-    else:
-        save_site_settings(settings)
+    save_site_settings(settings)
     flash("บันทึกการตั้งค่าแล้ว", "success")
     return redirect(request.form.get("return_to") or url_for("admin"))
 
@@ -2433,35 +1951,7 @@ def update_admin_settings():
 @app.post("/admin/api/create-upload-url")
 @admin_required
 def create_admin_upload_url():
-    if not is_supabase_enabled():
-        abort(400, "Supabase is not configured.")
-    if admin_write_blocked_on_vercel():
-        abort(403, "Admin uploads are disabled.")
-
-    payload = request.get_json(silent=True) or {}
-    filename = str(payload.get("filename") or "").strip()
-    kind = str(payload.get("kind") or "").strip()
-    try:
-        file_size = int(payload.get("file_size") or 0)
-    except (TypeError, ValueError):
-        abort(400, "file_size must be an integer")
-    if not filename:
-        abort(400, "filename is required")
-
-    object_path, public_url = direct_upload_target(filename, kind, file_size=file_size)
-    try:
-        upload_url = supabase_signed_upload_url(object_path)
-    except SupabaseError as exc:
-        logger.exception("Unable to create Supabase signed upload URL")
-        abort(502, f"Unable to create upload URL: {exc}")
-
-    return jsonify(
-        {
-            "upload_url": upload_url,
-            "public_url": public_url,
-            "path": object_path,
-        }
-    )
+    abort(403, VERCEL_UPLOAD_MESSAGE)
 
 
 @app.route("/admin/login", methods=["GET", "POST"])
@@ -2512,22 +2002,6 @@ def add_project():
         abort(400, "จำเป็นต้องกรอกชื่อแหล่งเรียนรู้ (Project Name)")
 
     image_url = request.form.get("image_url", "").strip()
-    if is_supabase_enabled():
-        try:
-            uploaded_image_url, _ = upload_to_supabase_storage(request.files.get("cover_image"), "projects")
-            create_project(
-                {
-                    "name": name,
-                    "description": request.form.get("description", "").strip(),
-                    "image_url": uploaded_image_url or image_url,
-                }
-            )
-            flash(f'เพิ่มแหล่งเรียนรู้ "{name}" แล้ว', "success")
-        except SupabaseError as exc:
-            logger.exception("Unable to create project in Supabase")
-            flash(f"ไม่สามารถบันทึกแหล่งเรียนรู้ไปยัง Supabase ได้: {exc}", "error")
-        return redirect(url_for("admin"))
-
     cover_image = image_url or save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
     projects = load_projects(include_hidden=True)
     projects.append(
@@ -2559,25 +2033,6 @@ def edit_project(project_id: str):
         if reject_vercel_upload_if_needed("cover_image") or admin_write_blocked_on_vercel():
             return redirect(url_for("edit_project", project_id=project_id))
 
-        if is_supabase_enabled():
-            try:
-                uploaded_image_url, _ = upload_to_supabase_storage(request.files.get("cover_image"), "projects")
-                image_url = uploaded_image_url or request.form.get("image_url", "").strip() or project.get("image_url", "")
-                update_project(
-                    project_id,
-                    {
-                        "name": request.form.get("name", "").strip() or project["name"],
-                        "description": request.form.get("description", "").strip(),
-                        "image_url": image_url,
-                    },
-                )
-                flash("บันทึกข้อมูลแหล่งเรียนรู้แล้ว", "success")
-                return redirect(url_for("admin"))
-            except SupabaseError as exc:
-                logger.exception("Unable to update project in Supabase")
-                flash(f"ไม่สามารถบันทึกข้อมูลแหล่งเรียนรู้ไปยัง Supabase ได้: {exc}", "error")
-                return redirect(url_for("edit_project", project_id=project_id))
-
         old_cover = project.get("cover_image")
         image_url = request.form.get("image_url", "").strip()
         new_cover = image_url or save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
@@ -2605,15 +2060,6 @@ def edit_project(project_id: str):
 @admin_required
 def delete_project_route(project_id: str):
     if admin_write_blocked_on_vercel():
-        return redirect(url_for("admin"))
-
-    if is_supabase_enabled():
-        try:
-            delete_project(project_id)
-            flash("ลบแหล่งเรียนรู้แล้ว", "success")
-        except SupabaseError as exc:
-            logger.exception("Unable to delete project in Supabase")
-            flash(f"ไม่สามารถลบแหล่งเรียนรู้ออกจาก Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     projects = load_projects(include_hidden=True)
@@ -2653,48 +2099,6 @@ def add_model():
     thumbnail_url = request.form.get("thumbnail_url", "").strip()
     preview_images = parse_preview_images_field(request.form.get("preview_images"))
     narration_audio = parse_narration_audio_field(request.form.get("narration_audio"))
-
-    if is_supabase_enabled():
-        try:
-            uploaded_model_url, model_size_mb = upload_to_supabase_storage(
-                request.files.get("model_file"),
-                "models",
-                MODEL_EXTENSIONS,
-                MAX_MODEL_FILE_SIZE_BYTES,
-            )
-            uploaded_thumbnail_url, _ = upload_to_supabase_storage(request.files.get("image_file"), "thumbnails")
-            uploaded_narration_audio, _ = upload_to_supabase_storage(
-                request.files.get("narration_audio_file"),
-                "models/narration",
-                AUDIO_EXTENSIONS,
-                NARRATION_AUDIO_MAX_BYTES,
-            )
-            final_model_url = uploaded_model_url or model_url
-            final_thumbnail_url = uploaded_thumbnail_url or thumbnail_url
-            if not final_model_url:
-                abort(400, "จำเป็นต้องอัปโหลดไฟล์โมเดล .glb หรือระบุลิงก์ภายนอก")
-            create_model(
-                {
-                    "name": name,
-                    "description": request.form.get("description", "").strip(),
-                    "project_id": project_id,
-                    "model_url": final_model_url,
-                    "thumbnail_url": final_thumbnail_url,
-                    "preview_images": preview_images,
-                    "narration_audio": uploaded_narration_audio or narration_audio,
-                    "file_size_mb": model_size_mb,
-                    "rotate_x": parse_float("rotate_x", 0),
-                    "rotate_y": parse_float("rotate_y", 0),
-                    "rotate_z": parse_float("rotate_z", 0),
-                    "scale": parse_float("scale", 0.2),
-                    "visible": form_visible(),
-                }
-            )
-            flash(f'เพิ่มโมเดล "{name}" แล้ว', "success")
-        except SupabaseError as exc:
-            logger.exception("Unable to create model in Supabase")
-            flash(model_supabase_error_message(exc), "error")
-        return redirect(url_for("admin"))
 
     model_path = model_url or request.form.get("model_path", "").strip()
     uploaded_model = save_upload(request.files.get("model_file"), MODEL_DIR, "model", MODEL_EXTENSIONS)
@@ -2761,61 +2165,6 @@ def edit_model(model_id: str):
             abort(400, "จำเป็นต้องเลือกแหล่งเรียนรู้ (Project)")
         preview_images = parse_preview_images_field(request.form.get("preview_images"))
         remove_narration_audio = request.form.get("narration_audio_remove") in {"1", "true", "on", "yes"}
-
-        if is_supabase_enabled():
-            try:
-                uploaded_model_url, uploaded_size_mb = upload_to_supabase_storage(
-                    request.files.get("model_file"),
-                    "models",
-                    MODEL_EXTENSIONS,
-                    MAX_MODEL_FILE_SIZE_BYTES,
-                )
-                uploaded_thumbnail_url, _ = upload_to_supabase_storage(request.files.get("image_file"), "thumbnails")
-                uploaded_narration_audio, _ = upload_to_supabase_storage(
-                    request.files.get("narration_audio_file"),
-                    "models/narration",
-                    AUDIO_EXTENSIONS,
-                    NARRATION_AUDIO_MAX_BYTES,
-                )
-                final_model_url = uploaded_model_url or request.form.get("model_url", "").strip() or model.get("model_url", "")
-                final_thumbnail_url = (
-                    uploaded_thumbnail_url
-                    or request.form.get("thumbnail_url", "").strip()
-                    or model.get("thumbnail_url", "")
-                )
-                if not final_model_url:
-                    abort(400, "จำเป็นต้องอัปโหลดไฟล์โมเดล .glb หรือระบุลิงก์ภายนอก")
-                final_narration_audio = (
-                    ""
-                    if remove_narration_audio
-                    else uploaded_narration_audio
-                    or parse_narration_audio_field(request.form.get("narration_audio"))
-                    or model.get("narration_audio", "")
-                )
-                update_model(
-                    model_id,
-                    {
-                        "name": request.form.get("name", "").strip() or model["name"],
-                        "description": request.form.get("description", "").strip(),
-                        "project_id": project_id,
-                        "model_url": final_model_url,
-                        "thumbnail_url": final_thumbnail_url,
-                        "preview_images": preview_images,
-                        "narration_audio": final_narration_audio,
-                        "file_size_mb": uploaded_size_mb if uploaded_size_mb is not None else model.get("file_size_mb"),
-                        "rotate_x": parse_float("rotate_x", 0),
-                        "rotate_y": parse_float("rotate_y", 0),
-                        "rotate_z": parse_float("rotate_z", 0),
-                        "scale": parse_float("scale", 0.2),
-                        "visible": form_visible(),
-                    },
-                )
-                flash("บันทึกข้อมูลโมเดลแล้ว", "success")
-                return redirect(url_for("admin"))
-            except SupabaseError as exc:
-                logger.exception("Unable to update model in Supabase")
-                flash(f"ไม่สามารถบันทึกข้อมูลโมเดลไปยัง Supabase ได้: {exc}", "error")
-                return redirect(url_for("edit_model", model_id=model_id))
 
         old_model = model.get("model")
         old_image = model.get("image")
@@ -2907,33 +2256,18 @@ def generate_model_narration(model_id: str):
             extension,
         )
 
-        if is_supabase_enabled():
-            update_model(
-                model_id,
-                {
-                    "name": name,
-                    "description": description,
-                    "project_id": model.get("project_id", ""),
-                    "model_url": model.get("model_url", ""),
-                    "thumbnail_url": model.get("thumbnail_url", ""),
-                    "preview_images": model.get("preview_images", []),
-                    "narration_audio": narration_audio,
-                    "file_size_mb": model.get("file_size_mb"),
-                },
-            )
-        else:
-            models = load_models(include_hidden=True)
-            stored_model = next(
-                (item for item in models if item["id"] == model_id),
-                None,
-            )
-            if stored_model is None:
-                abort(404)
-            stored_model["narration_audio"] = narration_audio
-            save_models(models)
-            if old_narration_audio and old_narration_audio != narration_audio:
-                delete_static_file(old_narration_audio)
-    except (GeminiTTSError, SupabaseError, OSError) as exc:
+        models = load_models(include_hidden=True)
+        stored_model = next(
+            (item for item in models if item["id"] == model_id),
+            None,
+        )
+        if stored_model is None:
+            abort(404)
+        stored_model["narration_audio"] = narration_audio
+        save_models(models)
+        if old_narration_audio and old_narration_audio != narration_audio:
+            delete_static_file(old_narration_audio)
+    except (GeminiTTSError, OSError) as exc:
         logger.exception("Unable to generate Gemini narration for model %s", model_id)
         flash(f"สร้างเสียงคำบรรยายไม่สำเร็จ: {exc}", "error")
         return redirect(url_for("edit_model", model_id=model_id))
@@ -2950,15 +2284,6 @@ def generate_model_narration(model_id: str):
 @admin_required
 def delete_model_route(model_id: str):
     if admin_write_blocked_on_vercel():
-        return redirect(url_for("admin"))
-
-    if is_supabase_enabled():
-        try:
-            delete_model(model_id)
-            flash("ลบโมเดลแล้ว", "success")
-        except SupabaseError as exc:
-            logger.exception("Unable to delete model in Supabase")
-            flash(f"ไม่สามารถลบโมเดลออกจาก Supabase ได้: {exc}", "error")
         return redirect(url_for("admin"))
 
     models = load_models(include_hidden=True)

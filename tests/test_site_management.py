@@ -213,6 +213,22 @@ class SiteManagementTests(unittest.TestCase):
         self.assertNotIn("news-panel-collapsed", panel_script)
         self.assertIn(".landing-carousel.is-collapsed .landing-news-content", panel_styles)
         self.assertIn("transform: translateX(28px);", panel_styles)
+        self.assertIn("background: var(--green-dark);", panel_styles)
+        self.assertIn("grid-template-rows: minmax(150px, 1fr) auto;", panel_styles)
+
+    def test_home_summary_keeps_only_project_and_model_cards(self):
+        home_html = self.client.get("/home").get_data(as_text=True)
+        self.assertEqual(home_html.count('class="stat-card"'), 2)
+        self.assertNotIn("<strong>3D/AR</strong>", home_html)
+        self.assertNotIn("<strong>R2 + JSON</strong>", home_html)
+        stylesheet = (
+            Path(module.BASE_DIR) / "static" / "css" / "style.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            ".stats-section {\n  display: grid;\n"
+            "  grid-template-columns: repeat(2, minmax(0, 1fr));",
+            stylesheet,
+        )
 
     def test_landing_mobile_headline_dynamic(self):
         settings = module.load_site_settings()

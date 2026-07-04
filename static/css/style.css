@@ -671,7 +671,7 @@ h3 {
 
 .stats-section {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   padding: 12px 0 22px;
 }
@@ -1424,8 +1424,8 @@ model-viewer {
 }
 
 .landing-hero.has-slider {
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 520px);
-  gap: clamp(24px, 5vw, 72px);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  gap: clamp(20px, 4vw, 48px);
 }
 
 .brand-logo {
@@ -1545,6 +1545,29 @@ model-viewer {
   background: var(--green-dark);
 }
 
+.landing-carousel .site-slide {
+  grid-template-rows: minmax(150px, 1fr) auto;
+  min-height: 230px;
+  background: var(--green-dark);
+}
+
+.landing-carousel .site-slide > img,
+.landing-carousel .site-slide-overlay {
+  grid-area: 1 / 1;
+}
+
+.landing-carousel .site-slide > img {
+  min-height: 150px;
+}
+
+.landing-carousel .site-slide-content {
+  grid-area: 2 / 1;
+  align-self: stretch;
+  width: 100%;
+  padding: 15px 18px 18px;
+  background: var(--green-dark);
+}
+
 .landing-carousel .site-slide-content,
 .landing-carousel .site-slide-content h2,
 .landing-carousel .site-slide-content p {
@@ -1623,21 +1646,17 @@ model-viewer {
 }
 
 .landing-carousel .site-slider {
-  min-height: 260px;
-}
-
-.landing-carousel .site-slide,
-.landing-carousel .site-slide > img {
-  min-height: 260px;
-}
-
-.landing-carousel .site-slide-content {
-  width: 90%;
-  padding: 24px;
+  min-height: 230px;
 }
 
 .landing-carousel .site-slide-content h2 {
-  font-size: clamp(22px, 3vw, 32px);
+  margin-bottom: 6px;
+  font-size: clamp(18px, 2.4vw, 25px);
+}
+
+.landing-carousel .site-slide-content p {
+  margin-bottom: 10px;
+  font-size: 14px;
 }
 
 @media (max-width: 920px) {
@@ -1734,20 +1753,20 @@ model-viewer {
     position: absolute;
     right: 0;
     bottom: 0;
-    width: min(430px, calc(100vw - 24px));
+    width: min(380px, calc(100vw - 24px));
   }
 
   .landing-carousel:not(.is-collapsed) {
     position: fixed;
     right: 12px;
     bottom: 12px;
-    width: min(430px, calc(100vw - 24px));
-    max-height: min(70svh, 520px);
+    width: min(380px, calc(100vw - 24px));
+    max-height: min(62svh, 440px);
     margin: 0;
   }
 
   .landing-carousel:not(.is-collapsed) .landing-news-content {
-    max-height: min(70svh, 520px);
+    max-height: min(62svh, 440px);
     overflow: auto;
   }
 
@@ -1866,9 +1885,12 @@ model-viewer {
   }
 
   .landing-carousel .site-slider,
-  .landing-carousel .site-slide,
+  .landing-carousel .site-slide {
+    min-height: 230px;
+  }
+
   .landing-carousel .site-slide > img {
-    min-height: 280px;
+    min-height: 150px;
   }
 
   model-viewer {

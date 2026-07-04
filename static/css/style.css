@@ -1593,14 +1593,17 @@ model-viewer {
 
 .landing-carousel.is-collapsed .landing-news-toggle {
   top: 50%;
-  right: 0;
+  right: -1px;
   width: auto;
-  min-width: 76px;
-  min-height: 42px;
-  padding: 7px 10px;
+  min-width: 80px;
+  min-height: 44px;
+  padding: 8px 10px 8px 14px;
+  border-right: 0;
   font-size: 13px;
   line-height: 1.2;
-  border-radius: var(--radius) 0 0 var(--radius);
+  border-radius: 999px 0 0 999px;
+  background: var(--green-dark);
+  box-shadow: -5px 7px 18px rgba(8, 32, 20, 0.22);
   transform: translateY(-50%);
   animation: landing-news-nudge 2.8s ease-in-out infinite;
 }
@@ -1721,8 +1724,8 @@ model-viewer {
     top: auto;
     right: 0;
     bottom: max(18px, env(safe-area-inset-bottom));
-    width: 76px;
-    min-height: 42px;
+    width: 80px;
+    min-height: 44px;
     margin: 0;
     background: transparent;
   }

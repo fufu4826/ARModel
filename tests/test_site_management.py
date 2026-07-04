@@ -202,6 +202,17 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn('aria-controls="landing-news-panel"', landing_html)
         self.assertIn('aria-expanded="true"', landing_html)
         self.assertIn("landing-news-panel.js", landing_html)
+        panel_script = (
+            Path(module.BASE_DIR) / "static" / "js" / "landing-news-panel.js"
+        ).read_text(encoding="utf-8")
+        panel_styles = (
+            Path(module.BASE_DIR) / "static" / "css" / "style.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn('collapsed ? "< ข่าวสาร"', panel_script)
+        self.assertIn('event.key === "Escape"', panel_script)
+        self.assertNotIn("news-panel-collapsed", panel_script)
+        self.assertIn(".landing-carousel.is-collapsed .landing-news-content", panel_styles)
+        self.assertIn("transform: translateX(28px);", panel_styles)
 
     def test_landing_mobile_headline_dynamic(self):
         settings = module.load_site_settings()

@@ -1527,7 +1527,7 @@ model-viewer {
   border-radius: var(--radius);
   background: var(--green-dark);
   box-shadow: var(--shadow);
-  transition: transform 280ms ease, width 280ms ease;
+  transition: transform 280ms ease;
 }
 
 .landing-news-content {
@@ -1579,29 +1579,27 @@ model-viewer {
   outline-offset: 3px;
 }
 
-.landing-hero.has-slider.news-panel-collapsed {
-  grid-template-columns: minmax(0, 1fr) 92px;
-  gap: clamp(12px, 2vw, 24px);
-}
-
 .landing-carousel.is-collapsed {
-  min-height: 160px;
+  background: transparent;
   box-shadow: none;
 }
 
 .landing-carousel.is-collapsed .landing-news-content {
-  height: 100%;
   opacity: 0;
   visibility: hidden;
-  transform: translateX(36px);
+  transform: translateX(28px);
   pointer-events: none;
 }
 
 .landing-carousel.is-collapsed .landing-news-toggle {
   top: 50%;
   right: 0;
-  width: 88px;
-  padding-inline: 9px;
+  width: auto;
+  min-width: 76px;
+  min-height: 42px;
+  padding: 7px 10px;
+  font-size: 13px;
+  line-height: 1.2;
   border-radius: var(--radius) 0 0 var(--radius);
   transform: translateY(-50%);
   animation: landing-news-nudge 2.8s ease-in-out infinite;
@@ -1614,10 +1612,10 @@ model-viewer {
     transform: translate(0, -50%);
   }
   82% {
-    transform: translate(-7px, -50%);
+    transform: translate(-5px, -50%);
   }
   91% {
-    transform: translate(-3px, -50%);
+    transform: translate(-2px, -50%);
   }
 }
 
@@ -1718,17 +1716,22 @@ model-viewer {
     margin-top: 24px;
   }
 
-  .landing-hero.has-slider.news-panel-collapsed {
-    display: block;
-  }
-
   .landing-carousel.is-collapsed {
     position: fixed;
-    top: 54%;
+    top: auto;
     right: 0;
-    width: 92px;
-    min-height: 120px;
+    bottom: max(18px, env(safe-area-inset-bottom));
+    width: 76px;
+    min-height: 42px;
     margin: 0;
+    background: transparent;
+  }
+
+  .landing-carousel.is-collapsed .landing-news-content {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: min(430px, calc(100vw - 24px));
   }
 
   .landing-carousel:not(.is-collapsed) {

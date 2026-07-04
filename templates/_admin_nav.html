@@ -4,6 +4,11 @@
   </div>
 
   <div class="admin-nav-group">
+    <span class="admin-nav-heading">System overview</span>
+    <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint in ['admin_dashboard', 'admin_dashboard_summary'] else '' }}"><span class="admin-icon admin-icon--dashboard" aria-hidden="true"></span> Dashboard</a>
+  </div>
+
+  <div class="admin-nav-group">
     <span class="admin-nav-heading">โมเดล 3D</span>
     <a href="{{ url_for('admin') }}" class="{{ 'active' if request.endpoint == 'admin' and not request.path.endswith('#projects') and not request.path.endswith('#add-model-section') else '' }}"><span class="admin-icon admin-icon--models" aria-hidden="true"></span> รายการโมเดล</a>
     <a href="{{ url_for('admin') }}#add-model-section"><span class="admin-icon admin-icon--add" aria-hidden="true"></span> เพิ่มโมเดล</a>

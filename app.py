@@ -11,10 +11,13 @@ import secrets
 import uuid
 import wave
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
+from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
-from threading import Timer
+from threading import Lock, Timer
+from time import monotonic
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -229,6 +232,12 @@ SLIDER_ITEMS_FILE = DATA_DIR / "slider_items.json"
 SITE_UPLOAD_DIR = STATIC_DIR / "uploads" / "site"
 SLIDER_UPLOAD_DIR = STATIC_DIR / "uploads" / "sliders"
 _JSON_CACHE: dict[Path, tuple[float | None, object]] = {}
+R2_PUBLIC_HOST = "pub-b7cd49a1aa5b4bb1ba339dfd78d4ec75.r2.dev"
+DASHBOARD_ASSET_CACHE_TTL_SECONDS = 300
+DASHBOARD_ASSET_HEAD_TIMEOUT_SECONDS = 5
+DEFAULT_R2_STORAGE_SOFT_LIMIT_GB = 10.0
+_DASHBOARD_ASSET_CACHE: dict[str, tuple[float, dict]] = {}
+_DASHBOARD_ASSET_CACHE_LOCK = Lock()
 _DATA_READY = False
 
 app = Flask(
@@ -864,6 +873,317 @@ def get_site_settings() -> dict:
 
 def get_slider_items(include_inactive: bool = True) -> list[dict]:
     return load_slider_items(include_inactive=include_inactive)
+
+
+def _dashboard_walk_urls(value):
+    if isinstance(value, dict):
+        for child in value.values():
+            yield from _dashboard_walk_urls(child)
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            yield from _dashboard_walk_urls(child)
+    elif isinstance(value, str):
+        candidate = value.strip()
+        if candidate.startswith(("https://", "http://")):
+            yield candidate
+
+
+def _dashboard_add_asset(assets: dict[str, str], value, category: str) -> None:
+    values = value if isinstance(value, list) else [value]
+    for candidate in values:
+        if not isinstance(candidate, str):
+            continue
+        url = candidate.strip()
+        if url.startswith(("https://", "http://")):
+            assets.setdefault(url, category)
+
+
+def dashboard_assets_from_sources(
+    models: list[dict],
+    projects: list[dict],
+    settings: dict,
+    sliders: list[dict],
+) -> dict[str, str]:
+    assets: dict[str, str] = {}
+    for model in models:
+        _dashboard_add_asset(assets, model.get("model_url"), "glb_models")
+        _dashboard_add_asset(assets, model.get("thumbnail_url"), "thumbnails")
+        _dashboard_add_asset(assets, model.get("preview_images"), "thumbnails")
+        _dashboard_add_asset(assets, model.get("narration_audio"), "narration_audio")
+    for project in projects:
+        _dashboard_add_asset(assets, project.get("image_url"), "project_images")
+    for value in settings.values():
+        _dashboard_add_asset(assets, value, "site_settings_images")
+    for slider in sliders:
+        _dashboard_add_asset(assets, slider.get("image_url"), "slider_images")
+
+    for url in _dashboard_walk_urls((models, projects, settings, sliders)):
+        assets.setdefault(url, "other")
+    return assets
+
+
+def dashboard_asset_head(url: str) -> dict:
+    cached_at = 0.0
+    cached_result = None
+    with _DASHBOARD_ASSET_CACHE_LOCK:
+        cached = _DASHBOARD_ASSET_CACHE.get(url)
+        if cached:
+            cached_at, cached_result = cached
+    if cached_result is not None and monotonic() - cached_at < DASHBOARD_ASSET_CACHE_TTL_SECONDS:
+        return deepcopy(cached_result)
+
+    result = {
+        "reachable": False,
+        "size_bytes": None,
+        "status_code": None,
+        "error": "Unknown asset response",
+    }
+    if urlsplit(url).hostname != R2_PUBLIC_HOST:
+        result["error"] = "Asset is not hosted on the configured public R2 hostname"
+        return result
+
+    request_obj = Request(
+        url,
+        method="HEAD",
+        headers={"User-Agent": "ARModel-Admin-Dashboard/1.0"},
+    )
+    try:
+        with urlopen(request_obj, timeout=DASHBOARD_ASSET_HEAD_TIMEOUT_SECONDS) as response:
+            status_code = int(response.status)
+            raw_size = response.headers.get("Content-Length")
+            size_bytes = int(raw_size) if raw_size and raw_size.isdigit() else None
+            result = {
+                "reachable": status_code == 200,
+                "size_bytes": size_bytes,
+                "status_code": status_code,
+                "error": None if status_code == 200 else f"HTTP {status_code}",
+            }
+    except HTTPError as exc:
+        result["status_code"] = int(exc.code)
+        result["error"] = f"HTTP {exc.code}"
+    except (URLError, OSError, TimeoutError, ValueError) as exc:
+        result["error"] = type(exc).__name__
+
+    with _DASHBOARD_ASSET_CACHE_LOCK:
+        _DASHBOARD_ASSET_CACHE[url] = (monotonic(), deepcopy(result))
+    return result
+
+
+def dashboard_storage_soft_limit() -> tuple[float, str]:
+    raw_value = os.environ.get("R2_STORAGE_SOFT_LIMIT_GB", "").strip()
+    if raw_value:
+        try:
+            value = float(raw_value)
+            if math.isfinite(value) and value > 0:
+                return value, "environment"
+        except ValueError:
+            pass
+        logger.warning("Ignoring invalid R2_STORAGE_SOFT_LIMIT_GB value")
+    return DEFAULT_R2_STORAGE_SOFT_LIMIT_GB, "default"
+
+
+def dashboard_analytics_status() -> dict:
+    """Provider adapter boundary for future real analytics integrations."""
+    return {
+        "enabled": False,
+        "provider": None,
+        "message": "Analytics provider is not configured.",
+        "metrics": None,
+        "trend": [],
+        "top_countries": [],
+        "top_referrers": [],
+        "top_pages": [],
+    }
+
+
+def dashboard_source_data() -> tuple[dict, list[str]]:
+    specs = (
+        ("models", CATALOG_FILE, list),
+        ("projects", PROJECTS_FILE, list),
+        ("site_settings", SITE_SETTINGS_FILE, dict),
+        ("sliders", SLIDER_ITEMS_FILE, list),
+    )
+    sources = {}
+    errors = []
+    for name, path, expected_type in specs:
+        try:
+            with path.open("r", encoding="utf-8") as source_file:
+                value = json.load(source_file)
+            if not isinstance(value, expected_type):
+                raise ValueError(f"expected {expected_type.__name__}")
+            sources[name] = value
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            sources[name] = expected_type()
+            errors.append(f"{name}: {type(exc).__name__}")
+
+    project_ids = {
+        str(project.get("id"))
+        for project in sources["projects"]
+        if isinstance(project, dict) and project.get("id") is not None
+    }
+    if any(
+        not isinstance(model, dict) or str(model.get("project_id")) not in project_ids
+        for model in sources["models"]
+    ):
+        errors.append("models: invalid project relationship")
+    return sources, errors
+
+
+def build_admin_dashboard_summary() -> dict:
+    sources, data_errors = dashboard_source_data()
+    assets = dashboard_assets_from_sources(
+        sources["models"],
+        sources["projects"],
+        sources["site_settings"],
+        sources["sliders"],
+    )
+    r2_assets = {
+        url: category
+        for url, category in assets.items()
+        if urlsplit(url).hostname == R2_PUBLIC_HOST
+    }
+    supabase_count = sum(
+        1
+        for url in assets
+        if "supabase.co" in (urlsplit(url).hostname or "").lower()
+    )
+
+    checks: dict[str, dict] = {}
+    if r2_assets:
+        with ThreadPoolExecutor(max_workers=min(10, len(r2_assets))) as executor:
+            future_map = {
+                executor.submit(dashboard_asset_head, url): url for url in r2_assets
+            }
+            for future in as_completed(future_map):
+                url = future_map[future]
+                try:
+                    checks[url] = future.result()
+                except Exception as exc:  # Keep one failed check from breaking the summary.
+                    logger.warning("Dashboard asset check failed for %s: %s", url, exc)
+                    checks[url] = {
+                        "reachable": False,
+                        "size_bytes": None,
+                        "status_code": None,
+                        "error": type(exc).__name__,
+                    }
+
+    categories = (
+        "glb_models",
+        "thumbnails",
+        "narration_audio",
+        "project_images",
+        "site_settings_images",
+        "slider_images",
+        "other",
+    )
+    breakdown = []
+    for category in categories:
+        urls = [url for url, item_category in r2_assets.items() if item_category == category]
+        known_sizes = [
+            checks[url]["size_bytes"]
+            for url in urls
+            if checks.get(url, {}).get("size_bytes") is not None
+        ]
+        breakdown.append(
+            {
+                "category": category,
+                "asset_count": len(urls),
+                "known_size_count": len(known_sizes),
+                "unknown_size_count": len(urls) - len(known_sizes),
+                "size_bytes": sum(known_sizes),
+            }
+        )
+
+    known_size_bytes = sum(item["size_bytes"] for item in breakdown)
+    reachable_count = sum(1 for result in checks.values() if result["reachable"])
+    unknown_size_count = sum(item["unknown_size_count"] for item in breakdown)
+    soft_limit_gb, soft_limit_source = dashboard_storage_soft_limit()
+    soft_limit_bytes = int(soft_limit_gb * 1024**3)
+    remaining_bytes = max(0, soft_limit_bytes - known_size_bytes)
+    usage_percent = (
+        min(100.0, known_size_bytes / soft_limit_bytes * 100)
+        if soft_limit_bytes
+        else 0.0
+    )
+    reachability_score = (
+        round(reachable_count / len(r2_assets) * 100) if r2_assets else 100
+    )
+    integrity_score = 100 if not data_errors else 0
+
+    asset_counts = {item["category"]: item["asset_count"] for item in breakdown}
+    asset_counts.update(
+        {
+            "tracked_urls": len(assets),
+            "r2_urls": len(r2_assets),
+            "supabase_urls": supabase_count,
+        }
+    )
+    return {
+        "runtime": {
+            "source": "JSON",
+            "asset_storage": "Cloudflare R2",
+            "production": is_vercel_runtime(),
+            "admin_mode": "read-only" if is_vercel_runtime() else "local development",
+            "full_bucket_inventory": False,
+        },
+        "content": {
+            "models": len(sources["models"]),
+            "projects": len(sources["projects"]),
+            "site_settings": len(sources["site_settings"]),
+            "sliders": len(sources["sliders"]),
+        },
+        "assets": asset_counts,
+        "storage": {
+            "label": "Tracked public asset usage",
+            "known_size_bytes": known_size_bytes,
+            "unknown_size_count": unknown_size_count,
+            "reachable_count": reachable_count,
+            "failed_count": len(r2_assets) - reachable_count,
+            "checked_count": len(r2_assets),
+            "soft_limit_gb": soft_limit_gb,
+            "soft_limit_bytes": soft_limit_bytes,
+            "soft_limit_source": soft_limit_source,
+            "remaining_bytes": remaining_bytes,
+            "usage_percent": round(usage_percent, 2),
+            "is_complete_bucket_inventory": False,
+            "breakdown": breakdown,
+        },
+        "health": {
+            "json_data_integrity": {
+                "score": integrity_score,
+                "status": "healthy" if integrity_score == 100 else "error",
+                "details": data_errors,
+            },
+            "r2_asset_reachability": {
+                "score": reachability_score,
+                "status": "healthy" if reachability_score == 100 else "warning",
+                "details": {
+                    "reachable": reachable_count,
+                    "checked": len(r2_assets),
+                },
+            },
+            "supabase_url_cleanliness": {
+                "score": 100 if supabase_count == 0 else 0,
+                "status": "healthy" if supabase_count == 0 else "error",
+                "details": {"supabase_urls": supabase_count},
+            },
+            "admin_read_only_protection": {
+                "score": 100 if is_vercel_runtime() else 100,
+                "status": "protected" if is_vercel_runtime() else "local",
+                "details": {
+                    "production_read_only": is_vercel_runtime(),
+                    "production_rule_enabled": True,
+                },
+            },
+            "public_runtime_status": {
+                "score": integrity_score,
+                "status": "operational" if integrity_score == 100 else "degraded",
+                "details": {"source": "JSON"},
+            },
+        },
+        "analytics": dashboard_analytics_status(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def save_generated_narration_audio(
@@ -1668,6 +1988,28 @@ def admin():
     models = [model_with_project(model, projects) for model in raw_models]
     counts = project_model_counts(projects, models)
     return render_template("admin.html", projects=projects, models=models, model_counts=counts)
+
+
+@app.get("/admin/dashboard")
+@admin_required
+def admin_dashboard():
+    return render_template("admin_dashboard.html")
+
+
+@app.get("/admin/api/dashboard/summary")
+@admin_required
+def admin_dashboard_summary():
+    try:
+        return jsonify(build_admin_dashboard_summary())
+    except Exception:
+        logger.exception("Unable to build admin dashboard summary")
+        return jsonify(
+            {
+                "error": "Dashboard summary is temporarily unavailable.",
+                "analytics": dashboard_analytics_status(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        ), 503
 
 
 @app.route("/admin/landing")

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en" data-admin-read-only="{{ 'true' if admin_read_only else 'false' }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>System Dashboard - ARModel Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-dashboard.css') }}" />
+  {% include "_fonts.html" %}
+</head>
+<body>
+  <div class="admin-container">
+    {% include "_admin_nav.html" %}
+
+    <main class="admin-main-content">
+      <div class="admin-shell dashboard-shell">
+        <header class="admin-heading dashboard-heading">
+          <div>
+            <p class="admin-eyebrow">Read-only system overview</p>
+            <h1>Admin Dashboard</h1>
+            <p>JSON content, tracked Cloudflare R2 assets, storage estimates, and runtime health.</p>
+          </div>
+          <p class="dashboard-generated" id="dashboard-generated">Waiting for current data…</p>
+        </header>
+
+        <div class="dashboard-state dashboard-loading" id="dashboard-loading" role="status">
+          <span class="dashboard-spinner" aria-hidden="true"></span>
+          <div><strong>Loading dashboard</strong><span>Checking JSON data and tracked public assets.</span></div>
+        </div>
+        <div class="dashboard-state dashboard-error" id="dashboard-error" role="alert" hidden>
+          <div><strong>Dashboard data could not be loaded</strong><span id="dashboard-error-message">Try again.</span></div>
+          <button class="button" id="dashboard-retry" type="button">Retry</button>
+        </div>
+
+        <div id="dashboard-content" hidden>
+          <section aria-labelledby="overview-title">
+            <div class="dashboard-section-heading">
+              <div><p class="admin-eyebrow">Overview</p><h2 id="overview-title">Runtime summary</h2></div>
+            </div>
+            <div class="dashboard-card-grid" id="overview-cards"></div>
+            <div class="dashboard-runtime-strip" id="runtime-strip"></div>
+          </section>
+
+          <section aria-labelledby="storage-title">
+            <div class="dashboard-section-heading">
+              <div><p class="admin-eyebrow">Storage</p><h2 id="storage-title">Tracked public asset usage</h2></div>
+              <span class="dashboard-badge">Not full bucket inventory</span>
+            </div>
+            <div class="dashboard-storage-grid">
+              <article class="dashboard-panel">
+                <div class="dashboard-storage-summary">
+                  <div><span>Known tracked usage</span><strong id="storage-used">—</strong></div>
+                  <div><span>Remaining to soft limit</span><strong id="storage-remaining">—</strong></div>
+                </div>
+                <div class="dashboard-progress" role="progressbar" id="storage-progress" aria-label="Tracked storage against configured soft limit" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                  <span id="storage-progress-bar"></span>
+                </div>
+                <p class="dashboard-note" id="storage-note"></p>
+              </article>
+              <article class="dashboard-panel">
+                <h3>Storage by asset type</h3>
+                <div class="dashboard-chart" id="storage-chart" role="img" aria-label="Storage usage by asset type"></div>
+              </article>
+            </div>
+          </section>
+
+          <section aria-labelledby="health-title">
+            <div class="dashboard-section-heading">
+              <div><p class="admin-eyebrow">System health</p><h2 id="health-title">Read-only checks</h2></div>
+            </div>
+            <div class="dashboard-health-list" id="health-list"></div>
+          </section>
+
+          <section aria-labelledby="analytics-title">
+            <div class="dashboard-section-heading">
+              <div><p class="admin-eyebrow">Analytics</p><h2 id="analytics-title">Visitor analytics</h2></div>
+              <span class="dashboard-badge dashboard-badge--disabled">Disabled</span>
+            </div>
+            <div class="dashboard-disabled" id="analytics-disabled" role="status">
+              <strong>Analytics provider is not configured.</strong>
+              <span>Real visitor data will appear here after a provider adapter is configured.</span>
+            </div>
+            <div class="dashboard-card-grid dashboard-analytics-metrics" aria-label="Analytics metrics unavailable">
+              <article class="dashboard-metric"><span>Visitors today</span><strong>—</strong></article>
+              <article class="dashboard-metric"><span>Page views today</span><strong>—</strong></article>
+              <article class="dashboard-metric"><span>Visitors last 7 days</span><strong>—</strong></article>
+              <article class="dashboard-metric"><span>Visitors last 30 days</span><strong>—</strong></article>
+            </div>
+            <div class="dashboard-analytics-grid">
+              <article class="dashboard-panel dashboard-panel--wide">
+                <h3>Visitor trend</h3>
+                <div class="dashboard-chart-placeholder">
+                  <span>Daily / weekly / monthly chart unavailable</span>
+                </div>
+              </article>
+              <article class="dashboard-panel"><h3>Top countries</h3><div class="dashboard-empty">No analytics data</div></article>
+              <article class="dashboard-panel"><h3>Top referrers</h3><div class="dashboard-empty">No analytics data</div></article>
+              <article class="dashboard-panel"><h3>Top pages</h3><div class="dashboard-empty">No analytics data</div></article>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script>
+    window.ARModelDashboard = {
+      summaryUrl: {{ url_for('admin_dashboard_summary') | tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/admin-dashboard.js') }}" defer></script>
+</body>
+</html>

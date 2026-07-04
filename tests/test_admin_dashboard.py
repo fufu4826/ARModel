@@ -92,7 +92,7 @@ class AdminDashboardTests(unittest.TestCase):
         self.sign_in()
         page = self.client.get("/admin/dashboard")
         self.assertEqual(page.status_code, 200)
-        self.assertIn("Admin Dashboard", page.get_data(as_text=True))
+        self.assertIn("แดชบอร์ดผู้ดูแลระบบ", page.get_data(as_text=True))
         self.assertIn("admin-dashboard.js", page.get_data(as_text=True))
 
     def test_summary_reports_json_counts_supabase_and_disabled_analytics(self):
@@ -111,7 +111,7 @@ class AdminDashboardTests(unittest.TestCase):
         self.assertIsNone(payload["analytics"]["provider"])
         self.assertEqual(
             payload["analytics"]["message"],
-            "Analytics provider is not configured.",
+            "ยังไม่ได้ตั้งค่าระบบวิเคราะห์ผู้เข้าชม",
         )
 
     def test_storage_soft_limit_uses_default_and_environment_override(self):

@@ -987,7 +987,7 @@ def dashboard_analytics_status() -> dict:
     return {
         "enabled": False,
         "provider": None,
-        "message": "Analytics provider is not configured.",
+        "message": "ยังไม่ได้ตั้งค่าระบบวิเคราะห์ผู้เข้าชม",
         "metrics": None,
         "trend": [],
         "top_countries": [],
@@ -1134,7 +1134,7 @@ def build_admin_dashboard_summary() -> dict:
         },
         "assets": asset_counts,
         "storage": {
-            "label": "Tracked public asset usage",
+            "label": "พื้นที่ของไฟล์ public ที่ระบบติดตาม",
             "known_size_bytes": known_size_bytes,
             "unknown_size_count": unknown_size_count,
             "reachable_count": reachable_count,
@@ -2005,7 +2005,7 @@ def admin_dashboard_summary():
         logger.exception("Unable to build admin dashboard summary")
         return jsonify(
             {
-                "error": "Dashboard summary is temporarily unavailable.",
+                "error": "ไม่สามารถโหลดข้อมูลสรุปของแดชบอร์ดได้ในขณะนี้",
                 "analytics": dashboard_analytics_status(),
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             }

@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -181,6 +182,44 @@ class AdminDashboardTests(unittest.TestCase):
         upload.assert_called_once()
         self.assertEqual(upload.call_args.args[1], module.ANALYTICS_R2_OBJECT_KEY)
         self.assertEqual(upload.call_args.args[2], "application/json; charset=utf-8")
+        self.assertEqual(upload.call_args.kwargs["cache_control"], "no-store, max-age=0")
+
+    def test_production_analytics_appends_existing_r2_events(self):
+        r2_env = {
+            "VERCEL": "1",
+            "R2_ACCOUNT_ID": "account",
+            "R2_ACCESS_KEY_ID": "access",
+            "R2_SECRET_ACCESS_KEY": "secret",
+            "R2_BUCKET": "bucket",
+            "R2_PUBLIC_BASE_URL": "https://example-r2.test",
+        }
+        existing = [
+            {
+                "timestamp": "2026-07-10T00:00:00+00:00",
+                "visitor_id": "old",
+                "path": "/home",
+                "page": "Home",
+                "referrer": "Direct",
+                "country": "TH",
+            }
+        ]
+        new_event = {
+            "timestamp": "2026-07-11T00:00:00+00:00",
+            "visitor_id": "new",
+            "path": "/models",
+            "page": "Models",
+            "referrer": "Internal",
+            "country": "TH",
+        }
+        with (
+            patch.dict(module.os.environ, r2_env),
+            patch.object(module, "r2_get_bytes", return_value=json.dumps(existing).encode("utf-8")),
+            patch.object(module, "r2_upload_bytes") as upload,
+        ):
+            module.append_analytics_event(new_event)
+
+        uploaded = json.loads(upload.call_args.args[0].decode("utf-8"))
+        self.assertEqual([item["path"] for item in uploaded], ["/home", "/models"])
 
     def test_storage_soft_limit_uses_default_and_environment_override(self):
         with patch.dict(module.os.environ, {}, clear=False):

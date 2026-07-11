@@ -704,10 +704,8 @@ def read_analytics_events() -> list[dict]:
     if is_vercel_runtime():
         if not r2_upload_configured():
             return []
-        url = f"{r2_public_base_url()}/{quote(ANALYTICS_R2_OBJECT_KEY, safe='/')}"
         try:
-            with urlopen(url, timeout=10) as response:
-                value = json.loads(response.read().decode("utf-8"))
+            value = json.loads(r2_get_bytes(ANALYTICS_R2_OBJECT_KEY).decode("utf-8"))
         except HTTPError as exc:
             if exc.code != 404:
                 logger.warning("Unable to read analytics R2 object: HTTP %s", exc.code)
@@ -731,7 +729,12 @@ def append_analytics_event(event: dict) -> None:
             if not r2_upload_configured():
                 return
             payload = (json.dumps(events, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-            r2_upload_bytes(payload, ANALYTICS_R2_OBJECT_KEY, "application/json; charset=utf-8")
+            r2_upload_bytes(
+                payload,
+                ANALYTICS_R2_OBJECT_KEY,
+                "application/json; charset=utf-8",
+                cache_control="no-store, max-age=0",
+            )
             return
         write_json(ANALYTICS_FILE, events)
 
@@ -1682,30 +1685,34 @@ def r2_object_folder(relative_folder: str) -> str:
     return mapping.get(relative_folder.strip("/"), relative_folder.strip("/"))
 
 
-def r2_upload_bytes(data: bytes, object_key: str, content_type: str) -> str:
+def r2_signed_request(
+    method: str,
+    object_key: str,
+    payload_hash: str,
+    extra_headers: dict[str, str] | None = None,
+    data: bytes | None = None,
+    timeout: int = 120,
+):
     account_id = env_value("R2_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID")
     access_key = env_value("R2_ACCESS_KEY_ID")
     secret_key = env_value("R2_SECRET_ACCESS_KEY")
     bucket = env_value("R2_BUCKET")
-    public_base = r2_public_base_url()
-    if not all((account_id, access_key, secret_key, bucket, public_base)):
-        abort(500, "R2 upload environment variables are not configured")
+    if not all((account_id, access_key, secret_key, bucket)):
+        abort(500, "R2 environment variables are not configured")
 
-    method = "PUT"
     host = f"{account_id}.r2.cloudflarestorage.com"
     canonical_uri = f"/{quote(bucket, safe='')}/{quote(object_key, safe='/-_.~')}"
     endpoint = f"https://{host}{canonical_uri}"
     now = datetime.now(timezone.utc)
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
     date_stamp = now.strftime("%Y%m%d")
-    payload_hash = hashlib.sha256(data).hexdigest()
     headers = {
-        "cache-control": "public, max-age=31536000, immutable",
-        "content-type": content_type or "application/octet-stream",
         "host": host,
         "x-amz-content-sha256": payload_hash,
         "x-amz-date": amz_date,
     }
+    if extra_headers:
+        headers.update({key.lower(): value for key, value in extra_headers.items()})
     signed_headers = ";".join(sorted(headers))
     canonical_headers = "".join(
         f"{key}:{headers[key]}\n" for key in sorted(headers)
@@ -1754,17 +1761,57 @@ def r2_upload_bytes(data: bytes, object_key: str, content_type: str) -> str:
         f"SignedHeaders={signed_headers}, "
         f"Signature={signature}"
     )
-    upload_headers = {
-        "Authorization": auth_header,
-        "Cache-Control": headers["cache-control"],
-        "Content-Type": headers["content-type"],
-        "Host": host,
-        "x-amz-content-sha256": payload_hash,
-        "x-amz-date": amz_date,
-    }
-    request_obj = Request(endpoint, data=data, headers=upload_headers, method=method)
+    request_headers = {key: value for key, value in extra_headers.items()} if extra_headers else {}
+    request_headers.update(
+        {
+            "Authorization": auth_header,
+            "Host": host,
+            "x-amz-content-sha256": payload_hash,
+            "x-amz-date": amz_date,
+        }
+    )
+    request_obj = Request(endpoint, data=data, headers=request_headers, method=method)
+    return urlopen(request_obj, timeout=timeout)
+
+
+def r2_get_bytes(object_key: str) -> bytes:
+    payload_hash = hashlib.sha256(b"").hexdigest()
     try:
-        with urlopen(request_obj, timeout=120) as response:
+        with r2_signed_request("GET", object_key, payload_hash, timeout=45) as response:
+            if response.status != 200:
+                abort(502, f"R2 read failed: HTTP {response.status}")
+            return response.read()
+    except HTTPError:
+        raise
+    except (URLError, OSError, TimeoutError) as exc:
+        logger.warning("R2 read connection failed: %s", exc)
+        abort(502, "R2 read failed")
+
+
+def r2_upload_bytes(
+    data: bytes,
+    object_key: str,
+    content_type: str,
+    cache_control: str = "public, max-age=31536000, immutable",
+) -> str:
+    public_base = r2_public_base_url()
+    if not public_base:
+        abort(500, "R2_PUBLIC_BASE_URL is not configured")
+
+    payload_hash = hashlib.sha256(data).hexdigest()
+    upload_headers = {
+        "Cache-Control": cache_control,
+        "Content-Type": content_type or "application/octet-stream",
+    }
+    try:
+        with r2_signed_request(
+            "PUT",
+            object_key,
+            payload_hash,
+            extra_headers=upload_headers,
+            data=data,
+            timeout=120,
+        ) as response:
             if response.status not in {200, 201}:
                 abort(502, f"R2 upload failed: HTTP {response.status}")
     except HTTPError as exc:

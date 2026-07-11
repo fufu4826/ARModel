@@ -28,7 +28,9 @@
         {% endwith %}
 
         {% if uploads_disabled %}
-        <div class="notice">This site is running on Vercel. File uploads are disabled. Use external URLs for images and models. Admin editing is read-only on Vercel. Edit JSON locally, commit, and redeploy.</div>
+        <div class="notice">Production read-only: uploads and admin writes are disabled until GitHub and Cloudflare R2 settings are configured.</div>
+        {% elif is_vercel %}
+        <div class="notice">Production writable: ไฟล์ที่อัปโหลดจะเก็บบน Cloudflare R2 และข้อมูลจะถูกบันทึกกลับไปยัง GitHub เพื่อ deploy ใหม่</div>
         {% else %}
         <div class="notice">โหมดพัฒนาในเครื่อง: การแก้ไขจะบันทึกลงไฟล์ JSON/local static เท่านั้น</div>
         {% endif %}

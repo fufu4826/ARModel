@@ -1752,7 +1752,7 @@ class ZeroSupabaseRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(
             (len(models), len(projects), len(settings), len(sliders)),
-            (41, 10, 31, 1),
+            (41, 10, 31, 2),
         )
 
         api_models = self.client.get("/api/models")
@@ -1775,7 +1775,7 @@ class ZeroSupabaseRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(len(api_projects.get_json()), 10)
         self.assertTrue(set(settings).issubset(api_settings.get_json()))
-        self.assertEqual(len(api_sliders.get_json()), 1)
+        self.assertEqual(len(api_sliders.get_json()), 2)
 
     def test_public_runtime_works_without_legacy_environment(self):
         with patch.dict(module.os.environ, {}, clear=False):

@@ -1,4 +1,5 @@
 import base64
+import hmac
 import hashlib
 import io
 import json
@@ -19,12 +20,34 @@ from pathlib import Path
 from threading import Lock, Timer
 from time import monotonic
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from flask import abort, flash, Flask, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+
+
+def load_local_env() -> None:
+    env_file = Path(__file__).resolve().parent / ".env"
+    if not env_file.exists():
+        return
+    try:
+        lines = env_file.read_text(encoding="utf-8-sig").splitlines()
+    except OSError:
+        return
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+load_local_env()
 
 
 MODEL_EXTENSIONS = {".glb"}
@@ -239,6 +262,12 @@ DEFAULT_R2_STORAGE_SOFT_LIMIT_GB = 10.0
 _DASHBOARD_ASSET_CACHE: dict[str, tuple[float, dict]] = {}
 _DASHBOARD_ASSET_CACHE_LOCK = Lock()
 _DATA_READY = False
+PRODUCTION_DATA_FILES = {
+    "models.json",
+    "projects.json",
+    "site_settings.json",
+    "slider_items.json",
+}
 
 app = Flask(
     __name__,
@@ -253,6 +282,39 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 def is_vercel_runtime() -> bool:
     return bool(os.environ.get("VERCEL"))
+
+
+def env_value(*names: str) -> str:
+    for name in names:
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    return ""
+
+
+def github_content_configured() -> bool:
+    return bool(
+        env_value("GITHUB_CONTENTS_TOKEN", "GITHUB_TOKEN", "GH_TOKEN")
+        and env_value("GITHUB_REPOSITORY", "GITHUB_REPO")
+    )
+
+
+def r2_upload_configured() -> bool:
+    return bool(
+        env_value("R2_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID")
+        and env_value("R2_ACCESS_KEY_ID")
+        and env_value("R2_SECRET_ACCESS_KEY")
+        and env_value("R2_BUCKET")
+        and env_value("R2_PUBLIC_BASE_URL")
+    )
+
+
+def production_admin_writes_enabled() -> bool:
+    return (not is_vercel_runtime()) or github_content_configured()
+
+
+def production_uploads_enabled() -> bool:
+    return (not is_vercel_runtime()) or r2_upload_configured()
 
 
 def public_absolute_url(path_or_url: str | None) -> str:
@@ -283,8 +345,8 @@ def inject_runtime_flags():
     public_settings = site_settings_with_urls(settings)
     return {
         "is_vercel": is_vercel_runtime(),
-        "admin_read_only": is_vercel_runtime(),
-        "uploads_disabled": is_vercel_runtime(),
+        "admin_read_only": is_vercel_runtime() and not production_admin_writes_enabled(),
+        "uploads_disabled": is_vercel_runtime() and not production_uploads_enabled(),
         "default_meta_title": DEFAULT_META_TITLE,
         "default_meta_description": settings["meta_description"],
         "default_meta_keywords": DEFAULT_META_KEYWORDS,
@@ -458,10 +520,79 @@ def read_json(path: Path, default):
     return deepcopy(value)
 
 
+def production_data_relative_path(path: Path) -> str | None:
+    try:
+        relative_path = path.resolve().relative_to(DATA_DIR.resolve())
+    except ValueError:
+        return None
+    if relative_path.name not in PRODUCTION_DATA_FILES or len(relative_path.parts) != 1:
+        return None
+    return f"data/{relative_path.name}"
+
+
+def github_api_request(method: str, api_path: str, payload: dict | None = None) -> dict:
+    token = env_value("GITHUB_CONTENTS_TOKEN", "GITHUB_TOKEN", "GH_TOKEN")
+    if not token:
+        abort(500, "GITHUB_CONTENTS_TOKEN is not configured")
+    url = f"https://api.github.com{api_path}"
+    data = None
+    if payload is not None:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    request_obj = Request(
+        url,
+        data=data,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "User-Agent": "ARModel-Production-Admin/1.0",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        method=method,
+    )
+    try:
+        with urlopen(request_obj, timeout=45) as response:
+            body = response.read().decode("utf-8")
+    except HTTPError as exc:
+        detail = exc.read(500).decode("utf-8", errors="replace").strip()
+        logger.warning("GitHub content API failed: HTTP %s %s", exc.code, detail)
+        abort(502, f"GitHub content update failed: HTTP {exc.code}")
+    except (URLError, OSError, TimeoutError) as exc:
+        logger.warning("GitHub content API connection failed: %s", exc)
+        abort(502, "GitHub content update failed")
+    return json.loads(body) if body else {}
+
+
+def github_commit_json(relative_path: str, value) -> None:
+    repo = env_value("GITHUB_REPOSITORY", "GITHUB_REPO")
+    branch = env_value("GITHUB_BRANCH", "GIT_BRANCH") or "main"
+    if not repo:
+        abort(500, "GITHUB_REPOSITORY is not configured")
+    content_api_path = f"/repos/{repo}/contents/{quote(relative_path, safe='/')}"
+    current = github_api_request("GET", f"{content_api_path}?ref={quote(branch, safe='')}")
+    content = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    payload = {
+        "message": f"Update {relative_path} from production admin",
+        "content": base64.b64encode(content).decode("ascii"),
+        "branch": branch,
+        "sha": current.get("sha"),
+    }
+    committer_name = env_value("GITHUB_COMMITTER_NAME")
+    committer_email = env_value("GITHUB_COMMITTER_EMAIL")
+    if committer_name and committer_email:
+        payload["committer"] = {"name": committer_name, "email": committer_email}
+    github_api_request("PUT", content_api_path, payload)
+
+
 def write_json(path: Path, value) -> None:
     if is_vercel_runtime():
+        relative_path = production_data_relative_path(path)
+        if relative_path and github_content_configured():
+            github_commit_json(relative_path, value)
+            _JSON_CACHE.pop(path.resolve(), None)
+            return
         logger.warning("Blocked JSON write on Vercel runtime: %s", path)
-        abort(400, VERCEL_EDIT_MESSAGE)
+        abort(403, VERCEL_EDIT_MESSAGE)
 
     path = path.resolve()
     try:
@@ -1123,7 +1254,11 @@ def build_admin_dashboard_summary() -> dict:
             "source": "JSON",
             "asset_storage": "Cloudflare R2",
             "production": is_vercel_runtime(),
-            "admin_mode": "read-only" if is_vercel_runtime() else "local development",
+            "admin_mode": (
+                "writable"
+                if is_vercel_runtime() and production_admin_writes_enabled()
+                else ("read-only" if is_vercel_runtime() else "local development")
+            ),
             "full_bucket_inventory": False,
         },
         "content": {
@@ -1168,10 +1303,14 @@ def build_admin_dashboard_summary() -> dict:
                 "details": {"supabase_urls": supabase_count},
             },
             "admin_read_only_protection": {
-                "score": 100 if is_vercel_runtime() else 100,
-                "status": "protected" if is_vercel_runtime() else "local",
+                "score": 100,
+                "status": (
+                    "writable"
+                    if is_vercel_runtime() and production_admin_writes_enabled()
+                    else ("protected" if is_vercel_runtime() else "local")
+                ),
                 "details": {
-                    "production_read_only": is_vercel_runtime(),
+                    "production_read_only": is_vercel_runtime() and not production_admin_writes_enabled(),
                     "production_rule_enabled": True,
                 },
             },
@@ -1184,6 +1323,146 @@ def build_admin_dashboard_summary() -> dict:
         "analytics": dashboard_analytics_status(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def r2_public_base_url() -> str:
+    return env_value("R2_PUBLIC_BASE_URL").rstrip("/")
+
+
+def r2_object_folder(relative_folder: str) -> str:
+    mapping = {
+        "model": "models",
+        "pic": "images",
+        "audio": "audio",
+        "uploads/sliders": "sliders",
+        "uploads/site": "site",
+        "uploads/site/intro": "site/intro",
+        "uploads/site/social": "site/social",
+    }
+    return mapping.get(relative_folder.strip("/"), relative_folder.strip("/"))
+
+
+def r2_upload_bytes(data: bytes, object_key: str, content_type: str) -> str:
+    account_id = env_value("R2_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID")
+    access_key = env_value("R2_ACCESS_KEY_ID")
+    secret_key = env_value("R2_SECRET_ACCESS_KEY")
+    bucket = env_value("R2_BUCKET")
+    public_base = r2_public_base_url()
+    if not all((account_id, access_key, secret_key, bucket, public_base)):
+        abort(500, "R2 upload environment variables are not configured")
+
+    method = "PUT"
+    host = f"{account_id}.r2.cloudflarestorage.com"
+    canonical_uri = f"/{quote(bucket, safe='')}/{quote(object_key, safe='/-_.~')}"
+    endpoint = f"https://{host}{canonical_uri}"
+    now = datetime.now(timezone.utc)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    date_stamp = now.strftime("%Y%m%d")
+    payload_hash = hashlib.sha256(data).hexdigest()
+    headers = {
+        "cache-control": "public, max-age=31536000, immutable",
+        "content-type": content_type or "application/octet-stream",
+        "host": host,
+        "x-amz-content-sha256": payload_hash,
+        "x-amz-date": amz_date,
+    }
+    signed_headers = ";".join(sorted(headers))
+    canonical_headers = "".join(
+        f"{key}:{headers[key]}\n" for key in sorted(headers)
+    )
+    canonical_request = "\n".join(
+        [
+            method,
+            canonical_uri,
+            "",
+            canonical_headers,
+            signed_headers,
+            payload_hash,
+        ]
+    )
+    credential_scope = f"{date_stamp}/auto/s3/aws4_request"
+    string_to_sign = "\n".join(
+        [
+            "AWS4-HMAC-SHA256",
+            amz_date,
+            credential_scope,
+            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
+        ]
+    )
+
+    def sign(key: bytes, message: str) -> bytes:
+        return hmac.new(key, message.encode("utf-8"), hashlib.sha256).digest()
+
+    signing_key = sign(
+        sign(
+            sign(
+                sign(("AWS4" + secret_key).encode("utf-8"), date_stamp),
+                "auto",
+            ),
+            "s3",
+        ),
+        "aws4_request",
+    )
+    signature = hmac.new(
+        signing_key,
+        string_to_sign.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    auth_header = (
+        "AWS4-HMAC-SHA256 "
+        f"Credential={access_key}/{credential_scope}, "
+        f"SignedHeaders={signed_headers}, "
+        f"Signature={signature}"
+    )
+    upload_headers = {
+        "Authorization": auth_header,
+        "Cache-Control": headers["cache-control"],
+        "Content-Type": headers["content-type"],
+        "Host": host,
+        "x-amz-content-sha256": payload_hash,
+        "x-amz-date": amz_date,
+    }
+    request_obj = Request(endpoint, data=data, headers=upload_headers, method=method)
+    try:
+        with urlopen(request_obj, timeout=120) as response:
+            if response.status not in {200, 201}:
+                abort(502, f"R2 upload failed: HTTP {response.status}")
+    except HTTPError as exc:
+        detail = exc.read(500).decode("utf-8", errors="replace").strip()
+        logger.warning("R2 upload failed: HTTP %s %s", exc.code, detail)
+        abort(502, f"R2 upload failed: HTTP {exc.code}")
+    except (URLError, OSError, TimeoutError) as exc:
+        logger.warning("R2 upload connection failed: %s", exc)
+        abort(502, "R2 upload failed")
+    return f"{public_base}/{quote(object_key, safe='/-_.~')}"
+
+
+def save_r2_upload(
+    file_storage,
+    relative_folder: str,
+    allowed_extensions: set[str],
+    max_bytes: int,
+) -> str:
+    if not file_storage or not file_storage.filename:
+        return ""
+    extension = Path(file_storage.filename).suffix.lower()
+    if extension not in allowed_extensions:
+        abort(400, f"Unsupported file type: {extension}")
+    data = file_storage.read(max_bytes + 1)
+    file_storage.seek(0)
+    if not data:
+        abort(400, "Uploaded file is empty")
+    if len(data) > max_bytes:
+        max_megabytes = max_bytes // (1024 * 1024)
+        abort(413, f"File must not exceed {max_megabytes} MB")
+    asset_name = unique_asset_name(file_storage.filename, allowed_extensions)
+    object_key = f"{r2_object_folder(relative_folder)}/{asset_name}"
+    content_type = (
+        file_storage.mimetype
+        or mimetypes.guess_type(file_storage.filename)[0]
+        or "application/octet-stream"
+    )
+    return r2_upload_bytes(data, object_key, content_type)
 
 
 def save_generated_narration_audio(
@@ -1203,7 +1482,10 @@ def save_generated_narration_audio(
         f"{slugify(model_id, 'model')}-gemini-{uuid.uuid4().hex[:10]}{extension}"
     )
     if is_vercel_runtime():
-        raise GeminiTTSError("Narration persistence is disabled in production read-only mode")
+        if not r2_upload_configured():
+            raise GeminiTTSError("R2 upload environment variables are not configured")
+        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        return r2_upload_bytes(audio_data, f"audio/{filename}", content_type)
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
     (AUDIO_DIR / filename).write_bytes(audio_data)
     return f"audio/{filename}"
@@ -1211,6 +1493,8 @@ def save_generated_narration_audio(
 
 def admin_write_blocked_on_vercel() -> bool:
     if not is_vercel_runtime():
+        return False
+    if github_content_configured():
         return False
     abort(403, VERCEL_EDIT_MESSAGE)
 
@@ -1224,7 +1508,7 @@ def upload_attempted(*field_names: str) -> bool:
 
 
 def reject_vercel_upload_if_needed(*field_names: str) -> bool:
-    if is_vercel_runtime() and upload_attempted(*field_names):
+    if is_vercel_runtime() and upload_attempted(*field_names) and not r2_upload_configured():
         abort(403, VERCEL_UPLOAD_MESSAGE)
     return False
 
@@ -1254,6 +1538,13 @@ def strip_static_prefix(path_value: str | None) -> str:
 def is_external_url(path_value: str | None) -> bool:
     value = str(path_value or "").strip().lower()
     return value.startswith(("http://", "https://", "http//", "https//", "data:"))
+
+
+def url_and_path(value: str | None) -> tuple[str, str]:
+    candidate = str(value or "").strip()
+    if is_external_url(candidate):
+        return candidate, ""
+    return "", candidate
 
 
 def static_asset_url(path_value: str | None) -> str:
@@ -1569,6 +1860,13 @@ def delete_static_file(relative_path: str | None) -> None:
 def save_upload(file_storage, directory: Path, relative_folder: str, allowed_extensions: set[str]) -> str:
     if not file_storage or not file_storage.filename:
         return ""
+    if is_vercel_runtime():
+        max_bytes = (
+            MAX_MODEL_FILE_SIZE_BYTES
+            if MODEL_EXTENSIONS & allowed_extensions
+            else SITE_ASSET_MAX_BYTES
+        )
+        return save_r2_upload(file_storage, relative_folder, allowed_extensions, max_bytes)
     asset_name = unique_asset_name(file_storage.filename, allowed_extensions)
     try:
         directory.mkdir(parents=True, exist_ok=True)
@@ -1588,6 +1886,8 @@ def save_limited_upload(
 ) -> str:
     if not file_storage or not file_storage.filename:
         return ""
+    if is_vercel_runtime():
+        return save_r2_upload(file_storage, relative_folder, allowed_extensions, max_bytes)
     extension = Path(file_storage.filename).suffix.lower()
     if extension not in allowed_extensions:
         abort(400, f"Unsupported file type: {extension}")
@@ -1611,6 +1911,8 @@ def save_limited_upload(
 def save_site_upload(file_storage, directory: Path, relative_folder: str, allowed_extensions: set[str]) -> str:
     if not file_storage or not file_storage.filename:
         return ""
+    if is_vercel_runtime():
+        return save_r2_upload(file_storage, relative_folder, allowed_extensions, SITE_ASSET_MAX_BYTES)
     extension = Path(file_storage.filename).suffix.lower()
     if extension not in allowed_extensions:
         abort(400, f"Unsupported file type: {extension}")
@@ -2345,6 +2647,7 @@ def add_project():
 
     image_url = request.form.get("image_url", "").strip()
     cover_image = image_url or save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
+    stored_image_url, stored_image_path = url_and_path(cover_image)
     projects = load_projects(include_hidden=True)
     projects.append(
         {
@@ -2353,8 +2656,8 @@ def add_project():
             "description": request.form.get("description", "").strip(),
             "department": request.form.get("department", "").strip(),
             "cover_image": cover_image,
-            "image_url": image_url,
-            "image_path": "" if image_url else cover_image,
+            "image_url": stored_image_url,
+            "image_path": stored_image_path,
             "visible": form_visible(),
         }
     )
@@ -2378,14 +2681,16 @@ def edit_project(project_id: str):
         old_cover = project.get("cover_image")
         image_url = request.form.get("image_url", "").strip()
         new_cover = image_url or save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
+        final_cover = new_cover or old_cover
+        stored_image_url, stored_image_path = url_and_path(final_cover)
         project.update(
             {
                 "name": request.form.get("name", "").strip() or project["name"],
                 "description": request.form.get("description", "").strip(),
                 "department": request.form.get("department", "").strip(),
-                "cover_image": new_cover or old_cover,
-                "image_url": image_url,
-                "image_path": "" if image_url else (new_cover or project.get("image_path") or old_cover),
+                "cover_image": final_cover,
+                "image_url": stored_image_url,
+                "image_path": "" if stored_image_url else (stored_image_path or project.get("image_path", "")),
                 "visible": form_visible(),
             }
         )
@@ -2460,6 +2765,8 @@ def add_model():
         AUDIO_EXTENSIONS,
         NARRATION_AUDIO_MAX_BYTES,
     )
+    stored_model_url, stored_model_path = url_and_path(model_path)
+    stored_thumbnail_url, stored_thumbnail_path = url_and_path(image_path)
 
     models = load_models(include_hidden=True)
     models.append(
@@ -2470,11 +2777,11 @@ def add_model():
             "department": request.form.get("department", "").strip(),
             "project_id": project_id,
             "model": model_path,
-            "model_url": model_url,
-            "model_path": "" if model_url else model_path,
+            "model_url": stored_model_url,
+            "model_path": stored_model_path,
             "image": image_path,
-            "thumbnail_url": thumbnail_url,
-            "thumbnail_path": "" if thumbnail_url else image_path,
+            "thumbnail_url": stored_thumbnail_url,
+            "thumbnail_path": stored_thumbnail_path,
             "preview_images": preview_images,
             "narration_audio": uploaded_narration_audio or narration_audio,
             "rotate_x": parse_float("rotate_x", 0),
@@ -2531,6 +2838,10 @@ def edit_model(model_id: str):
             or parse_narration_audio_field(request.form.get("narration_audio"))
             or old_narration_audio
         )
+        final_model = new_model or manual_model_path or old_model
+        final_image = new_image or manual_image_path or old_image
+        stored_model_url, stored_model_path = url_and_path(final_model)
+        stored_thumbnail_url, stored_thumbnail_path = url_and_path(final_image)
 
         model.update(
             {
@@ -2538,12 +2849,12 @@ def edit_model(model_id: str):
                 "description": request.form.get("description", "").strip(),
                 "department": request.form.get("department", "").strip(),
                 "project_id": project_id,
-                "model": new_model or manual_model_path or old_model,
-                "model_url": model_url,
-                "model_path": "" if model_url else (new_model or manual_model_path or model.get("model_path") or old_model),
-                "image": new_image or manual_image_path or old_image,
-                "thumbnail_url": thumbnail_url,
-                "thumbnail_path": "" if thumbnail_url else (new_image or manual_image_path or model.get("thumbnail_path") or old_image),
+                "model": final_model,
+                "model_url": stored_model_url,
+                "model_path": "" if stored_model_url else (stored_model_path or model.get("model_path", "")),
+                "image": final_image,
+                "thumbnail_url": stored_thumbnail_url,
+                "thumbnail_path": "" if stored_thumbnail_url else (stored_thumbnail_path or model.get("thumbnail_path", "")),
                 "preview_images": preview_images,
                 "narration_audio": narration_audio,
                 "rotate_x": parse_float("rotate_x", 0),

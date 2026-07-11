@@ -18,7 +18,7 @@ EXPECTED_COUNTS = {
     "models.json": 41,
     "projects.json": 10,
     "site_settings.json": 31,
-    "slider_items.json": 1,
+    "slider_items.json": 2,
 }
 
 
@@ -235,8 +235,8 @@ def main() -> int:
 
     urls = standalone_urls((models, projects, settings, sliders))
     r2_urls = sorted(url for url in urls if url.startswith(R2_PREFIX))
-    if len(r2_urls) != 115:
-        fail(f"Referenced R2 URL count is {len(r2_urls)}, expected 115")
+    if len(r2_urls) != 116:
+        fail(f"Referenced R2 URL count is {len(r2_urls)}, expected 116")
 
     failures: list[tuple[str, str]] = []
     with ThreadPoolExecutor(max_workers=10) as executor:
@@ -249,7 +249,7 @@ def main() -> int:
         details = "\n".join(f"- {url}: {error}" for url, error in failures)
         fail(f"R2 network/CORS validation failed:\n{details}")
 
-    print("PASS counts models=41 projects=10 site_settings=31 slider_items=1")
+    print("PASS counts models=41 projects=10 site_settings=31 slider_items=2")
     print("PASS unique IDs/slugs and model project foreign keys")
     print("PASS required public fields and HTTPS URL values")
     print("PASS zero Supabase URLs")

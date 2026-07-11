@@ -10,5 +10,17 @@
     "active": true,
     "created_at": "2026-06-23T03:55:19.07129+00:00",
     "updated_at": "2026-06-23T14:57:38.462213+00:00"
+  },
+  {
+    "id": "6925042411bf4e2891aa26dcb6ef4a77",
+    "title": "ศูนย์ศึกษาการพัฒนาภูพาน",
+    "description": "",
+    "image_url": "https://pub-b7cd49a1aa5b4bb1ba339dfd78d4ec75.r2.dev/sliders/IMG_2512-f116f51f.jpg",
+    "button_text": "",
+    "button_url": "",
+    "sort_order": 0,
+    "active": true,
+    "created_at": "2026-07-11T14:20:57.002119+00:00",
+    "updated_at": "2026-07-11T14:20:57.002119+00:00"
   }
 ]

@@ -174,6 +174,42 @@ class SiteManagementTests(unittest.TestCase):
         )
         self.assertIn("การควบคุมโมเดล", model_html)
 
+    def test_home_stats_keep_dynamic_counts_and_remove_static_cards(self):
+        template = (Path(module.BASE_DIR) / "templates" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("{{ total_project_count }}", template)
+        self.assertIn("{{ total_model_count }}", template)
+        self.assertNotIn("<strong>10</strong>", template)
+        self.assertNotIn("<strong>41</strong>", template)
+        self.assertNotIn("3D/AR", template)
+        self.assertNotIn("R2 + JSON", template)
+
+        module.save_projects(
+            [
+                {"id": "project-a", "name": "Project A", "visible": True},
+                {"id": "project-b", "name": "Project B", "visible": True},
+                {"id": "project-hidden", "name": "Project Hidden", "visible": False},
+            ]
+        )
+        module.save_models(
+            [
+                {"id": "model-a", "name": "Model A", "project_id": "project-a", "visible": True},
+                {"id": "model-b", "name": "Model B", "project_id": "project-a", "visible": True},
+                {"id": "model-c", "name": "Model C", "project_id": "project-b", "visible": True},
+                {"id": "model-d", "name": "Model D", "project_id": "project-b", "visible": True},
+                {"id": "model-hidden", "name": "Model Hidden", "project_id": "project-b", "visible": False},
+            ]
+        )
+
+        home_html = self.client.get("/home").get_data(as_text=True)
+        stats_html = home_html.split('<section class="stats-section"', 1)[1].split("</section>", 1)[0]
+        self.assertEqual(stats_html.count('class="stat-card"'), 2)
+        self.assertIn("<strong>2</strong>", stats_html)
+        self.assertIn("<strong>4</strong>", stats_html)
+        self.assertIn("<span>แหล่งเรียนรู้</span>", stats_html)
+        self.assertIn("<span>โมเดล</span>", stats_html)
+        self.assertNotIn("3D/AR", stats_html)
+        self.assertNotIn("R2 + JSON", stats_html)
+
     def test_hidden_image_placeholders_do_not_take_space(self):
         stylesheet = (
             Path(module.BASE_DIR) / "static" / "css" / "style.css"
@@ -181,7 +217,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn(".image-placeholder[hidden]", stylesheet)
         self.assertIn("display: none;", stylesheet)
 
-    def test_home_slider_cards_are_height_locked_and_reveal_details_on_hover(self):
+    def test_home_slider_cards_show_unified_hover_panel(self):
         stylesheet = (
             Path(module.BASE_DIR) / "static" / "css" / "style.css"
         ).read_text(encoding="utf-8")
@@ -189,12 +225,68 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("height: 320px;", stylesheet)
         self.assertIn("height: 276px;", stylesheet)
         self.assertIn("position: absolute;", stylesheet)
-        self.assertIn("bottom: 12px;", stylesheet)
         self.assertIn("-webkit-line-clamp: 2;", stylesheet)
         self.assertIn("-webkit-line-clamp: 4;", stylesheet)
-        self.assertIn("-webkit-line-clamp: 6;", stylesheet)
-        self.assertIn("body:not(.landing-page) .site-slider-section .site-slide:hover .site-slide-content p", stylesheet)
-        self.assertIn("body:not(.landing-page) .site-slider-section .site-slide:focus-within .site-slide-content p", stylesheet)
+        self.assertIn("overflow: visible;", stylesheet)
+        self.assertIn(".site-slide-hover-panel", stylesheet)
+        self.assertIn(".site-slide-hover-media", stylesheet)
+        self.assertIn(".site-slide-hover-image", stylesheet)
+        self.assertIn(".site-slide-hover-content", stylesheet)
+        self.assertIn("--slide-hover-panel-left", stylesheet)
+        self.assertIn("width: min(460px, calc(100vw - 32px));", stylesheet)
+        self.assertIn("height: 312px;", stylesheet)
+        self.assertIn("place-items: center;", stylesheet)
+        self.assertIn("border-radius: calc(var(--radius) + 4px);", stylesheet)
+        self.assertIn("box-shadow: 0 24px 56px", stylesheet)
+        self.assertIn("overflow: hidden;", stylesheet)
+        self.assertIn("pointer-events: none;", stylesheet)
+        self.assertIn("transform: translate(-50%, -50%) scale(1);", stylesheet)
+        self.assertIn("@media (hover: hover) and (pointer: fine) and (min-width: 921px)", stylesheet)
+        self.assertIn("body:not(.landing-page) .site-slider-section .site-slide.is-hover-active .site-slide-hover-panel", stylesheet)
+        self.assertIn("body:not(.landing-page) .site-slider-section .site-slide.is-hover-active > img", stylesheet)
+        self.assertNotIn(".site-slide:hover .site-slide-hover-panel", stylesheet)
+        self.assertNotIn(".site-slide:focus-within .site-slide-hover-panel", stylesheet)
+        self.assertIn("opacity: 0;", stylesheet)
+        self.assertIn("max-height: 6.3em;", stylesheet)
+        self.assertIn("object-fit: contain;", stylesheet)
+        self.assertIn(".site-slide-modal", stylesheet)
+        self.assertIn(".site-slide-modal__image", stylesheet)
+        self.assertIn(".site-slide-modal[hidden]", stylesheet)
+        self.assertIn("pointer-events: none;", stylesheet)
+        self.assertIn(".site-slide-modal.site-slide-modal--open", stylesheet)
+        self.assertIn(".site-slide-modal__close svg", stylesheet)
+        self.assertIn(".site-slide-modal__close path", stylesheet)
+        self.assertIn("stroke-linecap: round;", stylesheet)
+        self.assertIn("body.slide-dialog-open", stylesheet)
+        self.assertIn("html.slide-dialog-open", stylesheet)
+        self.assertIn(".site-slide.site-slide--dialog-return-focus .site-slide-hover-panel", stylesheet)
+
+        script = (
+            Path(module.BASE_DIR) / "static" / "js" / "site-carousel.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("window.__siteCarouselInitialized", script)
+        self.assertIn("let activeHoverCard = null;", script)
+        self.assertIn("let hoverHideTimer = null;", script)
+        self.assertIn("function clearActiveHoverCard()", script)
+        self.assertIn("function setActiveHoverCard(card)", script)
+        self.assertIn("document.querySelectorAll(\".site-slide.is-hover-active, .site-slide.site-slide--dialog-return-focus\")", script)
+        self.assertIn("card.classList.add(\"is-hover-active\")", script)
+        self.assertIn("activeHoverCard = card", script)
+        self.assertIn("pointerenter", script)
+        self.assertIn("pointerleave", script)
+        self.assertIn("slideChange: clearActiveHoverCard", script)
+        self.assertIn("window.addEventListener(\"blur\", clearActiveHoverCard)", script)
+        self.assertIn("document.addEventListener(\"visibilitychange\"", script)
+        self.assertIn("function closeDialog", script)
+        self.assertIn("dialog.classList.remove(\"site-slide-modal--open\")", script)
+        self.assertIn("dialog.setAttribute(\"aria-hidden\", \"true\")", script)
+        self.assertIn("unlockPageScroll();", script)
+        self.assertIn("document.documentElement.classList.remove(\"slide-dialog-open\")", script)
+        self.assertIn("document.body.classList.remove(\"slide-dialog-open\")", script)
+        self.assertIn("image.removeAttribute(\"src\")", script)
+        self.assertIn("site-slide--dialog-return-focus", script)
+        self.assertIn("closeButtons.forEach((button) => button.addEventListener(\"click\", closeDialog))", script)
+        self.assertIn("event.key === \"Escape\" && !dialog.hidden) closeDialog()", script)
 
     def test_mobile_card_grids_use_two_columns(self):
         stylesheet = (
@@ -1474,7 +1566,25 @@ class SiteManagementTests(unittest.TestCase):
         for route in ("/", "/home"):
             with self.subTest(route=route):
                 response = self.client.get(route)
-                self.assertIn("Test slide", response.get_data(as_text=True))
+                html = response.get_data(as_text=True)
+                self.assertIn("Test slide", html)
+                self.assertIn("data-slide-dialog-trigger", html)
+                self.assertIn("data-slide-dialog", html)
+                self.assertIn("data-slide-dialog-title", html)
+                self.assertIn("data-slide-dialog-description", html)
+                self.assertIn('class="site-slide-modal"', html)
+                self.assertIn('aria-hidden="true"', html)
+                self.assertIn('class="site-slide-modal__close"', html)
+                self.assertIn('type="button"', html)
+                self.assertIn('aria-label="Close"', html)
+                self.assertIn("<svg viewBox=\"0 0 24 24\"", html)
+                self.assertIn('<path d="M6 6L18 18"></path>', html)
+                self.assertIn('<path d="M18 6L6 18"></path>', html)
+                self.assertNotIn("&times;", html)
+                self.assertNotIn(">×<", html)
+                self.assertIn("site-slide-hover-panel", html)
+                self.assertIn("site-slide-hover-media", html)
+                self.assertIn("site-slide-hover-content", html)
 
         payload = json.loads(self.client.get("/api/sliders").get_data(as_text=True))
         self.assertEqual(payload[0]["id"], "test-slide")

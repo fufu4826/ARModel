@@ -188,8 +188,11 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("body:not(.landing-page) .site-slider-section .site-slider", stylesheet)
         self.assertIn("height: 320px;", stylesheet)
         self.assertIn("height: 276px;", stylesheet)
+        self.assertIn("position: absolute;", stylesheet)
+        self.assertIn("bottom: 12px;", stylesheet)
         self.assertIn("-webkit-line-clamp: 2;", stylesheet)
         self.assertIn("-webkit-line-clamp: 4;", stylesheet)
+        self.assertIn("-webkit-line-clamp: 6;", stylesheet)
         self.assertIn("body:not(.landing-page) .site-slider-section .site-slide:hover .site-slide-content p", stylesheet)
         self.assertIn("body:not(.landing-page) .site-slider-section .site-slide:focus-within .site-slide-content p", stylesheet)
 

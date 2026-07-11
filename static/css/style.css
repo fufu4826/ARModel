@@ -1572,6 +1572,7 @@ body:not(.landing-page) .site-slider-section .site-slider {
 }
 
 body:not(.landing-page) .site-slider-section .site-slide {
+  position: relative;
   height: 276px;
   min-height: 276px;
   overflow: hidden;
@@ -1598,16 +1599,21 @@ body:not(.landing-page) .site-slider-section .site-slide-overlay {
 }
 
 body:not(.landing-page) .site-slider-section .site-slide-content {
-  width: calc(100% - 24px);
-  margin: 0 12px 12px;
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 2;
+  width: auto;
+  margin: 0;
   padding: 16px 18px;
   overflow: hidden;
-  max-height: 112px;
-  transition: max-height .25s ease, transform .25s ease;
+  max-height: 84px;
+  transition: max-height .25s ease, transform .25s ease, background .2s ease;
 }
 
 body:not(.landing-page) .site-slider-section .site-slide-content h2 {
-  margin-bottom: 6px;
+  margin: 0;
   font-size: clamp(18px, 1.9vw, 24px);
   line-height: 1.25;
   display: -webkit-box;
@@ -1617,7 +1623,7 @@ body:not(.landing-page) .site-slider-section .site-slide-content h2 {
 }
 
 body:not(.landing-page) .site-slider-section .site-slide-content p {
-  margin-bottom: 10px;
+  margin: 10px 0 0;
   font-size: clamp(13px, 1.15vw, 15px);
   line-height: 1.55;
   display: -webkit-box;
@@ -1636,6 +1642,12 @@ body:not(.landing-page) .site-slider-section .site-slide-content .button {
 body:not(.landing-page) .site-slider-section .site-slide:hover .site-slide-content,
 body:not(.landing-page) .site-slider-section .site-slide:focus-within .site-slide-content {
   max-height: calc(100% - 24px);
+  background: rgba(31, 107, 69, 0.97);
+}
+
+body:not(.landing-page) .site-slider-section .site-slide:hover .site-slide-content h2,
+body:not(.landing-page) .site-slider-section .site-slide:focus-within .site-slide-content h2 {
+  -webkit-line-clamp: 6;
 }
 
 body:not(.landing-page) .site-slider-section .site-slide:hover .site-slide-content p,
@@ -1864,10 +1876,13 @@ body:not(.landing-page) .site-slider-section .site-slide:focus-within .site-slid
   }
 
   body:not(.landing-page) .site-slider-section .site-slide-content {
-    width: calc(100% - 18px);
-    margin: 0 9px 9px;
+    right: 9px;
+    bottom: 9px;
+    left: 9px;
+    width: auto;
+    margin: 0;
     padding: 12px 13px;
-    max-height: 84px;
+    max-height: 64px;
   }
 
   body:not(.landing-page) .site-slider-section .site-slide-content h2 {

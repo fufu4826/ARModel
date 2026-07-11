@@ -181,6 +181,18 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn(".image-placeholder[hidden]", stylesheet)
         self.assertIn("display: none;", stylesheet)
 
+    def test_home_slider_cards_are_height_locked_and_reveal_details_on_hover(self):
+        stylesheet = (
+            Path(module.BASE_DIR) / "static" / "css" / "style.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn("body:not(.landing-page) .site-slider-section .site-slider", stylesheet)
+        self.assertIn("height: 320px;", stylesheet)
+        self.assertIn("height: 276px;", stylesheet)
+        self.assertIn("-webkit-line-clamp: 2;", stylesheet)
+        self.assertIn("-webkit-line-clamp: 4;", stylesheet)
+        self.assertIn("body:not(.landing-page) .site-slider-section .site-slide:hover .site-slide-content p", stylesheet)
+        self.assertIn("body:not(.landing-page) .site-slider-section .site-slide:focus-within .site-slide-content p", stylesheet)
+
     def test_mobile_card_grids_use_two_columns(self):
         stylesheet = (
             Path(module.BASE_DIR) / "static" / "css" / "style.css"

@@ -1565,13 +1565,15 @@ body:not(.landing-page) .site-slider-section {
   background: transparent;
 }
 
-body:not(.landing-page) .site-slider {
-  min-height: 310px;
+body:not(.landing-page) .site-slider-section .site-slider {
+  height: 320px;
+  min-height: 320px;
   padding: 10px 58px 34px;
 }
 
-body:not(.landing-page) .site-slide {
-  min-height: 280px;
+body:not(.landing-page) .site-slider-section .site-slide {
+  height: 276px;
+  min-height: 276px;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1580,36 +1582,71 @@ body:not(.landing-page) .site-slide {
   transition: transform .25s ease, box-shadow .25s ease;
 }
 
-body:not(.landing-page) .site-slide:hover {
+body:not(.landing-page) .site-slider-section .site-slide:hover,
+body:not(.landing-page) .site-slider-section .site-slide:focus-within {
   transform: scale(1.035);
   box-shadow: 0 18px 38px rgba(35, 55, 42, 0.16);
   z-index: 3;
 }
 
-body:not(.landing-page) .site-slide > img {
-  min-height: 280px;
+body:not(.landing-page) .site-slider-section .site-slide > img {
+  min-height: 276px;
 }
 
-body:not(.landing-page) .site-slide-overlay {
+body:not(.landing-page) .site-slider-section .site-slide-overlay {
   background: linear-gradient(180deg, rgba(13, 33, 23, 0.04), rgba(13, 33, 23, 0.16));
 }
 
-body:not(.landing-page) .site-slide-content {
+body:not(.landing-page) .site-slider-section .site-slide-content {
   width: calc(100% - 24px);
   margin: 0 12px 12px;
   padding: 16px 18px;
+  overflow: hidden;
+  max-height: 112px;
+  transition: max-height .25s ease, transform .25s ease;
 }
 
-body:not(.landing-page) .site-slide-content h2 {
+body:not(.landing-page) .site-slider-section .site-slide-content h2 {
   margin-bottom: 6px;
   font-size: clamp(18px, 1.9vw, 24px);
   line-height: 1.25;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-body:not(.landing-page) .site-slide-content p {
+body:not(.landing-page) .site-slider-section .site-slide-content p {
   margin-bottom: 10px;
   font-size: clamp(13px, 1.15vw, 15px);
   line-height: 1.55;
+  display: -webkit-box;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  transition: max-height .25s ease, opacity .2s ease;
+}
+
+body:not(.landing-page) .site-slider-section .site-slide-content .button {
+  display: none;
+}
+
+body:not(.landing-page) .site-slider-section .site-slide:hover .site-slide-content,
+body:not(.landing-page) .site-slider-section .site-slide:focus-within .site-slide-content {
+  max-height: calc(100% - 24px);
+}
+
+body:not(.landing-page) .site-slider-section .site-slide:hover .site-slide-content p,
+body:not(.landing-page) .site-slider-section .site-slide:focus-within .site-slide-content p {
+  max-height: 6.3em;
+  opacity: 1;
+}
+
+body:not(.landing-page) .site-slider-section .site-slide:hover .site-slide-content .button,
+body:not(.landing-page) .site-slider-section .site-slide:focus-within .site-slide-content .button {
+  display: inline-flex;
 }
 
 @media (max-width: 920px) {
@@ -1814,28 +1851,36 @@ body:not(.landing-page) .site-slide-content p {
     min-height: 280px;
   }
 
-  body:not(.landing-page) .site-slider {
-    min-height: 250px;
+  body:not(.landing-page) .site-slider-section .site-slider {
+    height: 276px;
+    min-height: 276px;
     padding: 8px 52px 32px;
   }
 
-  body:not(.landing-page) .site-slide,
-  body:not(.landing-page) .site-slide > img {
-    min-height: 230px;
+  body:not(.landing-page) .site-slider-section .site-slide,
+  body:not(.landing-page) .site-slider-section .site-slide > img {
+    height: 236px;
+    min-height: 236px;
   }
 
-  body:not(.landing-page) .site-slide-content {
+  body:not(.landing-page) .site-slider-section .site-slide-content {
     width: calc(100% - 18px);
     margin: 0 9px 9px;
     padding: 12px 13px;
+    max-height: 84px;
   }
 
-  body:not(.landing-page) .site-slide-content h2 {
+  body:not(.landing-page) .site-slider-section .site-slide-content h2 {
     font-size: clamp(14px, 3.1vw, 18px);
   }
 
-  body:not(.landing-page) .site-slide-content p {
+  body:not(.landing-page) .site-slider-section .site-slide-content p {
     font-size: clamp(11px, 2.45vw, 13px);
+  }
+
+  body:not(.landing-page) .site-slider-section .site-slide:hover .site-slide-content,
+  body:not(.landing-page) .site-slider-section .site-slide:focus-within .site-slide-content {
+    max-height: calc(100% - 18px);
   }
 
   model-viewer {

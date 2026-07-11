@@ -7,7 +7,7 @@
     new window.Swiper(element, {
       loop: slideCount > 1,
       speed: reduceMotion ? 0 : 600,
-      autoplay: slideCount > 1 && !reduceMotion ? { delay: 5000, disableOnInteraction: false } : false,
+      autoplay: slideCount > 1 && !reduceMotion ? { delay: 7000, disableOnInteraction: false } : false,
       keyboard: { enabled: true },
       pagination: { el: element.querySelector(".swiper-pagination"), clickable: true },
       navigation: {

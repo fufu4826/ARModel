@@ -28,6 +28,7 @@ class AdminDashboardTests(unittest.TestCase):
         module.SLIDER_ITEMS_FILE = data_dir / "slider_items.json"
         module.ANALYTICS_FILE = data_dir / "analytics_events.json"
         module._JSON_CACHE.clear()
+        module._PRODUCTION_JSON_CACHE.clear()
         module._DASHBOARD_ASSET_CACHE.clear()
 
         module.write_json(
@@ -70,6 +71,7 @@ class AdminDashboardTests(unittest.TestCase):
         for name, value in self.original_paths.items():
             setattr(module, name, value)
         module._JSON_CACHE.clear()
+        module._PRODUCTION_JSON_CACHE.clear()
         module._DASHBOARD_ASSET_CACHE.clear()
         self.temp_dir.cleanup()
 

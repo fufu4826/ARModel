@@ -1,5 +1,6 @@
 import io
 import json
+import base64
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -35,6 +36,7 @@ class SiteManagementTests(unittest.TestCase):
         module.AUDIO_DIR = data_dir / "static" / "audio"
         module.ANALYTICS_FILE = data_dir / "analytics_events.json"
         module._JSON_CACHE.clear()
+        module._PRODUCTION_JSON_CACHE.clear()
         module.write_json(module.CATALOG_FILE, module.DEFAULT_MODELS)
         module.write_json(module.PROJECTS_FILE, module.DEFAULT_PROJECTS)
         module.write_json(module.SITE_SETTINGS_FILE, module.DEFAULT_SITE_SETTINGS)
@@ -46,6 +48,7 @@ class SiteManagementTests(unittest.TestCase):
         for name, value in self.original_paths.items():
             setattr(module, name, value)
         module._JSON_CACHE.clear()
+        module._PRODUCTION_JSON_CACHE.clear()
         self.temp_dir.cleanup()
 
     def sign_in(self):
@@ -85,6 +88,44 @@ class SiteManagementTests(unittest.TestCase):
         self.assertFalse(settings["intro_enabled_bool"])
         self.assertEqual(settings["intro_logo_duration_ms_value"], 1400)
         self.assertEqual(settings["intro_display_mode"], "sequence")
+
+    def test_vercel_runtime_reads_slider_json_from_github(self):
+        remote_sliders = [
+            {
+                "id": "remote-slider",
+                "title": "Remote Updated Title",
+                "description": "Updated remotely",
+                "image_url": "https://example.com/remote.webp",
+                "active": True,
+            }
+        ]
+
+        def fake_github_request(method, api_path, payload=None):
+            self.assertEqual(method, "GET")
+            self.assertIn("data/slider_items.json", api_path)
+            encoded = base64.b64encode(
+                json.dumps(remote_sliders).encode("utf-8")
+            ).decode("ascii")
+            return {"content": encoded}
+
+        with (
+            patch.dict(
+                module.os.environ,
+                {
+                    "VERCEL": "1",
+                    "GITHUB_CONTENTS_TOKEN": "token",
+                    "GITHUB_REPOSITORY": "fufu4826/ARModel",
+                    "GITHUB_BRANCH": "main",
+                },
+            ),
+            patch.object(module, "github_api_request", side_effect=fake_github_request),
+            patch.object(module, "production_data_relative_path", return_value="data/slider_items.json"),
+        ):
+            response = self.client.get("/api/sliders")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload[0]["title"], "Remote Updated Title")
 
     def test_public_pages_do_not_show_usage_text(self):
         for route in ("/", "/home", "/models", "/models/lychee"):
@@ -181,7 +222,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("ภูพาน AR สกลนคร", landing_html)
         self.assertIn("เลื่อนเพื่อดูข้อมูล", landing_html)
         self.assertIn('href="/home"', landing_html)
-        self.assertIn('href="/models"', landing_html)
+        self.assertNotIn('href="/models"', landing_html)
 
     def test_landing_mobile_headline_dynamic(self):
         settings = module.load_site_settings()
@@ -1445,7 +1486,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("ศูนย์ศึกษาการพัฒนาภูพาน", landing_html)
         self.assertIn("เลื่อนเพื่อดูข้อมูล", landing_html)
         self.assertIn('href="/home"', landing_html)
-        self.assertIn('href="/models"', landing_html)
+        self.assertNotIn('href="/models"', landing_html)
 
         home_html = self.client.get("/home").get_data(as_text=True)
         self.assertIn("public-logo-strip", home_html)

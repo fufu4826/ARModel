@@ -256,6 +256,8 @@ ANALYTICS_FILE = DATA_DIR / "analytics_events.json"
 SITE_UPLOAD_DIR = STATIC_DIR / "uploads" / "site"
 SLIDER_UPLOAD_DIR = STATIC_DIR / "uploads" / "sliders"
 _JSON_CACHE: dict[Path, tuple[float | None, object]] = {}
+_PRODUCTION_JSON_CACHE: dict[str, tuple[float, object]] = {}
+PRODUCTION_JSON_CACHE_TTL_SECONDS = 30
 R2_PUBLIC_HOST = "pub-b7cd49a1aa5b4bb1ba339dfd78d4ec75.r2.dev"
 DASHBOARD_ASSET_CACHE_TTL_SECONDS = 300
 DASHBOARD_ASSET_HEAD_TIMEOUT_SECONDS = 5
@@ -499,6 +501,27 @@ def ensure_data_files() -> None:
 
 def read_json(path: Path, default):
     path = path.resolve()
+    if is_vercel_runtime() and github_content_configured():
+        relative_path = production_data_relative_path(path)
+        if relative_path:
+            cached = _PRODUCTION_JSON_CACHE.get(relative_path)
+            if cached and monotonic() - cached[0] < PRODUCTION_JSON_CACHE_TTL_SECONDS:
+                return deepcopy(cached[1])
+            try:
+                branch = env_value("GITHUB_BRANCH", "GIT_BRANCH") or "main"
+                current = github_api_request(
+                    "GET",
+                    f"/repos/{env_value('GITHUB_REPOSITORY', 'GITHUB_REPO')}/contents/{quote(relative_path, safe='/')}?ref={quote(branch, safe='')}",
+                )
+                raw_content = base64.b64decode(current.get("content", "")).decode("utf-8")
+                value = json.loads(raw_content)
+                if isinstance(value, type(default)):
+                    _PRODUCTION_JSON_CACHE[relative_path] = (monotonic(), deepcopy(value))
+                    return deepcopy(value)
+                logger.warning("Unexpected production JSON shape for %s", relative_path)
+            except Exception as exc:
+                logger.warning("Unable to read production JSON from GitHub for %s: %s", relative_path, exc)
+
     try:
         mtime = path.stat().st_mtime
     except OSError:
@@ -597,6 +620,7 @@ def write_json(path: Path, value) -> None:
         if relative_path and github_content_configured():
             github_commit_json(relative_path, value)
             _JSON_CACHE.pop(path.resolve(), None)
+            _PRODUCTION_JSON_CACHE.pop(relative_path, None)
             return
         logger.warning("Blocked JSON write on Vercel runtime: %s", path)
         abort(403, VERCEL_EDIT_MESSAGE)
@@ -1196,6 +1220,7 @@ def normalize_slider_item(item: dict) -> dict:
         sort_order = int(item.get("sort_order") or 0)
     except (TypeError, ValueError):
         sort_order = 0
+    created_at = str(item.get("created_at") or "").strip()
     return {
         "id": str(item.get("id") or uuid.uuid4().hex),
         "title": str(item.get("title") or "").strip(),
@@ -1205,7 +1230,8 @@ def normalize_slider_item(item: dict) -> dict:
         "button_url": str(item.get("button_url") or "").strip(),
         "sort_order": sort_order,
         "active": bool(item.get("active", True)),
-        "created_at": str(item.get("created_at") or "").strip(),
+        "created_at": created_at,
+        "updated_at": str(item.get("updated_at") or created_at).strip(),
     }
 
 
@@ -1221,6 +1247,12 @@ def save_slider_items(items: list[dict]) -> None:
     normalized = [normalize_slider_item(item) for item in items]
     normalized.sort(key=lambda item: (item["sort_order"], item["id"]))
     write_json(SLIDER_ITEMS_FILE, normalized)
+
+
+def slider_save_flash_message(action: str) -> str:
+    if is_vercel_runtime() and production_admin_writes_enabled():
+        return f"{action} saved. Production may take up to {PRODUCTION_JSON_CACHE_TTL_SECONDS} seconds to show the latest data."
+    return f"{action} saved."
 
 
 class GeminiTTSError(RuntimeError):
@@ -2363,6 +2395,7 @@ def setting_asset_from_request(
 
 def slider_data_from_request(existing: dict | None = None) -> dict:
     existing = existing or {}
+    now = datetime.now(timezone.utc).isoformat()
     image_url = request.form.get("image_url", "").strip()
     file_storage = request.files.get("image_file")
     uploaded_path = save_site_upload(file_storage, SLIDER_UPLOAD_DIR, "uploads/sliders", IMAGE_EXTENSIONS)
@@ -2384,7 +2417,8 @@ def slider_data_from_request(existing: dict | None = None) -> dict:
         "button_url": button_url,
         "sort_order": sort_order,
         "active": form_visible(),
-        "created_at": existing.get("created_at", ""),
+        "created_at": existing.get("created_at") or now,
+        "updated_at": now,
     }
 
 
@@ -2785,7 +2819,7 @@ def admin_sliders():
         items = load_slider_items(include_inactive=True)
         items.append(data)
         save_slider_items(items)
-        flash("เพิ่มสไลด์แล้ว", "success")
+        flash(slider_save_flash_message("Slider"), "success")
         return redirect(url_for("admin_sliders"))
     sliders = [slider_with_url(item) for item in get_slider_items(include_inactive=True)]
     return render_template("admin_sliders.html", sliders=sliders)
@@ -2805,7 +2839,7 @@ def edit_slider(slider_id: str):
         if not data["title"]:
             abort(400, "จำเป็นต้องกรอกชื่อสไลด์เดอร์ (Slider Title)")
         save_slider_items([data if item["id"] == slider_id else item for item in sliders])
-        flash("บันทึกสไลด์แล้ว", "success")
+        flash(slider_save_flash_message("Slider"), "success")
         return redirect(url_for("admin_sliders"))
     return render_template("edit_slider.html", slider=slider_with_url(slider))
 
@@ -2821,7 +2855,7 @@ def delete_slider(slider_id: str):
     save_slider_items([item for item in sliders if item["id"] != slider_id])
     if request.method == "DELETE":
         return "", 204
-    flash("ลบสไลด์แล้ว", "success")
+    flash(slider_save_flash_message("Slider"), "success")
     return redirect(url_for("admin_sliders"))
 
 

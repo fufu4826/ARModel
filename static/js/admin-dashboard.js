@@ -163,12 +163,135 @@
     });
   }
 
+  function formatTrendLabel(item, rangeKey) {
+    if (rangeKey === "hourly_24h") return item.label;
+    if (rangeKey === "monthly_12m") {
+      const date = new Date(`${item.label}-01T00:00:00`);
+      return date.toLocaleDateString("th-TH", { month: "short", year: "2-digit" });
+    }
+    const date = new Date(`${item.label}T00:00:00`);
+    return date.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+  }
+
+  function renderTrendGraph(container, analytics) {
+    const ranges = analytics.trend_ranges || {
+      daily_7d: (analytics.trend || []).slice(-7).map((item) => ({
+        label: item.date,
+        visitors: item.visitors,
+        pageviews: item.pageviews,
+      })),
+      default_range: "daily_7d",
+    };
+    const rangeOptions = [
+      ["hourly_24h", "24 ชม."],
+      ["daily_7d", "7 วัน"],
+      ["daily_30d", "30 วัน"],
+      ["monthly_12m", "12 เดือน"],
+    ].filter(([key]) => Array.isArray(ranges[key]));
+    let activeRange = ranges.default_range || "daily_7d";
+    if (!ranges[activeRange]) activeRange = rangeOptions[0]?.[0] || "daily_7d";
+
+    container.replaceChildren();
+    container.classList.add("dashboard-trend");
+    container.classList.remove("dashboard-chart-placeholder");
+
+    const controls = document.createElement("div");
+    controls.className = "dashboard-trend-controls";
+    const viewport = document.createElement("div");
+    viewport.className = "dashboard-trend-viewport";
+    const summary = document.createElement("div");
+    summary.className = "dashboard-trend-summary";
+
+    function draw(rangeKey) {
+      activeRange = rangeKey;
+      controls.querySelectorAll("button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.range === rangeKey);
+      });
+
+      const items = ranges[rangeKey] || [];
+      viewport.replaceChildren();
+      if (!items.length) {
+        const empty = document.createElement("div");
+        empty.className = "dashboard-empty";
+        empty.textContent = "ยังไม่มีข้อมูลสำหรับช่วงเวลานี้";
+        viewport.append(empty);
+        summary.textContent = "";
+        return;
+      }
+
+      const width = Math.max(680, items.length * 88);
+      const height = 230;
+      const pad = { top: 24, right: 34, bottom: 48, left: 46 };
+      const plotWidth = width - pad.left - pad.right;
+      const plotHeight = height - pad.top - pad.bottom;
+      const maxVisitors = Math.max(...items.map((item) => Number(item.visitors || 0)), 1);
+      const maxPageviews = Math.max(...items.map((item) => Number(item.pageviews || 0)), 1);
+      const maxValue = Math.max(maxVisitors, maxPageviews, 1);
+      const xFor = (index) => pad.left + (items.length === 1 ? plotWidth : (index / (items.length - 1)) * plotWidth);
+      const yFor = (value) => pad.top + plotHeight - (Number(value || 0) / maxValue) * plotHeight;
+      const points = items.map((item, index) => `${xFor(index)},${yFor(item.visitors)}`).join(" ");
+      const areaPoints = `${pad.left},${pad.top + plotHeight} ${points} ${pad.left + plotWidth},${pad.top + plotHeight}`;
+      const gridLines = [0, .25, .5, .75, 1].map((ratio) => {
+        const y = pad.top + plotHeight - ratio * plotHeight;
+        const value = Math.round(maxValue * ratio);
+        return `<line x1="${pad.left}" y1="${y}" x2="${pad.left + plotWidth}" y2="${y}" class="dashboard-trend-grid"></line><text x="${pad.left - 10}" y="${y + 4}" class="dashboard-trend-axis" text-anchor="end">${value}</text>`;
+      }).join("");
+      const labels = items.map((item, index) => {
+        const x = xFor(index);
+        return `<text x="${x}" y="${height - 17}" class="dashboard-trend-label" text-anchor="middle">${formatTrendLabel(item, rangeKey)}</text>`;
+      }).join("");
+      const bars = items.map((item, index) => {
+        const x = xFor(index) - 11;
+        const y = yFor(item.pageviews);
+        const barHeight = pad.top + plotHeight - y;
+        return `<rect x="${x}" y="${y}" width="22" height="${barHeight}" rx="5" class="dashboard-trend-bar"><title>${formatTrendLabel(item, rangeKey)} · pageviews ${formatInteger(item.pageviews)}</title></rect>`;
+      }).join("");
+      const dots = items.map((item, index) => {
+        const label = formatTrendLabel(item, rangeKey);
+        return `<circle cx="${xFor(index)}" cy="${yFor(item.visitors)}" r="4.5" class="dashboard-trend-dot"><title>${label} · visitors ${formatInteger(item.visitors)}</title></circle>`;
+      }).join("");
+
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.setAttribute("width", String(width));
+      svg.setAttribute("height", String(height));
+      svg.setAttribute("role", "img");
+      svg.setAttribute("aria-label", "กราฟแนวโน้มผู้เข้าชม");
+      svg.innerHTML = `
+        ${gridLines}
+        ${bars}
+        <polygon points="${areaPoints}" class="dashboard-trend-area"></polygon>
+        <polyline points="${points}" class="dashboard-trend-line"></polyline>
+        ${dots}
+        ${labels}
+      `;
+      viewport.append(svg);
+      viewport.scrollLeft = viewport.scrollWidth;
+
+      const totalVisitors = items.reduce((sum, item) => sum + Number(item.visitors || 0), 0);
+      const totalPageviews = items.reduce((sum, item) => sum + Number(item.pageviews || 0), 0);
+      summary.textContent = `ช่วงนี้รวมผู้เข้าชม ${formatInteger(totalVisitors)} · เปิดหน้า ${formatInteger(totalPageviews)} ครั้ง`;
+    }
+
+    rangeOptions.forEach(([key, label]) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.range = key;
+      button.textContent = label;
+      button.addEventListener("click", () => draw(key));
+      controls.append(button);
+    });
+
+    container.append(controls, viewport, summary);
+    draw(activeRange);
+  }
+
   function renderAnalytics(analytics) {
     const data = analytics || {};
     const disabled = document.getElementById("analytics-disabled");
     const metrics = document.querySelector(".dashboard-analytics-metrics");
     const badge = document.querySelector("[aria-labelledby='analytics-title'] .dashboard-badge");
-    const trend = document.querySelector(".dashboard-panel--wide .dashboard-chart-placeholder");
+    const trend = document.querySelector(".dashboard-panel--wide .dashboard-chart-placeholder, .dashboard-panel--wide .dashboard-trend");
     const panels = document.querySelectorAll(".dashboard-analytics-grid .dashboard-panel:not(.dashboard-panel--wide) .dashboard-chart, .dashboard-analytics-grid .dashboard-panel:not(.dashboard-panel--wide) .dashboard-empty");
 
     if (disabled) {
@@ -201,12 +324,8 @@
     }
 
     if (trend) {
-      const lastSevenDays = (data.trend || []).slice(-7).map((item) => ({
-        label: new Date(`${item.date}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short" }),
-        value: item.visitors,
-      }));
       trend.classList.toggle("dashboard-chart-placeholder--active", Boolean(data.enabled));
-      renderMiniChart(trend, lastSevenDays, "ยังไม่มีกราฟรายวัน / รายสัปดาห์ / รายเดือน");
+      renderTrendGraph(trend, data);
     }
 
     if (panels.length >= 3) {

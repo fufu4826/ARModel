@@ -311,6 +311,93 @@
   place-items: stretch;
 }
 
+.dashboard-trend {
+  display: grid;
+  gap: 12px;
+  min-height: 250px;
+  padding: 16px;
+  border: 1px solid var(--admin-line);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fbfdfb, #f3f7f1);
+}
+
+.dashboard-trend-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dashboard-trend-controls button {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid var(--admin-line);
+  border-radius: 999px;
+  background: var(--admin-surface);
+  color: var(--admin-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-trend-controls button.active {
+  border-color: var(--admin-green);
+  background: var(--admin-green);
+  color: #fff;
+}
+
+.dashboard-trend-viewport {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  scrollbar-color: var(--admin-green) #e5ebe5;
+  scrollbar-width: thin;
+}
+
+.dashboard-trend-viewport svg {
+  display: block;
+  max-width: none;
+}
+
+.dashboard-trend-grid {
+  stroke: #dde6dc;
+  stroke-width: 1;
+}
+
+.dashboard-trend-axis,
+.dashboard-trend-label {
+  fill: var(--admin-muted);
+  font-size: 11px;
+}
+
+.dashboard-trend-bar {
+  fill: rgba(206, 148, 24, .24);
+}
+
+.dashboard-trend-area {
+  fill: rgba(0, 80, 54, .1);
+}
+
+.dashboard-trend-line {
+  fill: none;
+  stroke: var(--admin-green);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.dashboard-trend-dot {
+  fill: var(--admin-green);
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.dashboard-trend-summary {
+  color: var(--admin-muted);
+  font-size: 12px;
+  text-align: right;
+}
+
 .dashboard-analytics-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

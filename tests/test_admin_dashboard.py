@@ -114,6 +114,14 @@ class AdminDashboardTests(unittest.TestCase):
         self.assertEqual(payload["analytics"]["provider"], "local-json")
         self.assertEqual(payload["analytics"]["metrics"]["total_events"], 0)
         self.assertEqual(len(payload["analytics"]["trend"]), 30)
+        self.assertEqual(
+            payload["analytics"]["trend_ranges"]["default_range"],
+            "daily_7d",
+        )
+        self.assertEqual(len(payload["analytics"]["trend_ranges"]["hourly_24h"]), 24)
+        self.assertEqual(len(payload["analytics"]["trend_ranges"]["daily_7d"]), 7)
+        self.assertEqual(len(payload["analytics"]["trend_ranges"]["daily_30d"]), 30)
+        self.assertEqual(len(payload["analytics"]["trend_ranges"]["monthly_12m"]), 12)
 
     def test_local_analytics_records_public_page_views(self):
         self.client.get("/", headers={"Referer": "https://google.com/search?q=phuphan"})
@@ -129,6 +137,8 @@ class AdminDashboardTests(unittest.TestCase):
         self.assertEqual(analytics["metrics"]["visitors_today"], 1)
         self.assertEqual(analytics["metrics"]["visitors_7d"], 1)
         self.assertEqual(analytics["metrics"]["visitors_30d"], 1)
+        self.assertEqual(analytics["trend_ranges"]["daily_7d"][-1]["pageviews"], 2)
+        self.assertEqual(analytics["trend_ranges"]["daily_7d"][-1]["visitors"], 1)
         self.assertIn({"label": "Landing", "value": 1}, analytics["top_pages"])
         self.assertIn({"label": "google.com", "value": 1}, analytics["top_referrers"])
 

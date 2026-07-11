@@ -791,6 +791,102 @@ def _analytics_top_counts(events: list[dict], key: str, limit: int = 5) -> list[
     ]
 
 
+def _analytics_unique_visitors(items: list[dict]) -> int:
+    return len({str(item.get("visitor_id") or "") for item in items if item.get("visitor_id")})
+
+
+def _analytics_month_start(value: datetime) -> datetime:
+    return value.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def _analytics_shift_months(value: datetime, months: int) -> datetime:
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    return value.replace(year=year, month=month)
+
+
+def _analytics_bucket_payload(
+    label: str,
+    start: datetime,
+    end: datetime,
+    events: list[dict],
+) -> dict:
+    bucket_events = [
+        event for event in events if start <= event["_occurred_at"] < end
+    ]
+    return {
+        "label": label,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "visitors": _analytics_unique_visitors(bucket_events),
+        "pageviews": len(bucket_events),
+    }
+
+
+def _analytics_trend_ranges(now: datetime, events: list[dict]) -> dict:
+    current_hour = now.replace(minute=0, second=0, microsecond=0)
+    current_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    current_month = _analytics_month_start(now)
+
+    hourly = []
+    for offset in range(23, -1, -1):
+        start = current_hour - timedelta(hours=offset)
+        hourly.append(
+            _analytics_bucket_payload(
+                start.strftime("%H:00"),
+                start,
+                start + timedelta(hours=1),
+                events,
+            )
+        )
+
+    daily_7d = []
+    for offset in range(6, -1, -1):
+        start = current_day - timedelta(days=offset)
+        daily_7d.append(
+            _analytics_bucket_payload(
+                start.date().isoformat(),
+                start,
+                start + timedelta(days=1),
+                events,
+            )
+        )
+
+    daily_30d = []
+    for offset in range(29, -1, -1):
+        start = current_day - timedelta(days=offset)
+        daily_30d.append(
+            _analytics_bucket_payload(
+                start.date().isoformat(),
+                start,
+                start + timedelta(days=1),
+                events,
+            )
+        )
+
+    monthly_12 = []
+    for offset in range(11, -1, -1):
+        start = _analytics_shift_months(current_month, -offset)
+        end = _analytics_shift_months(start, 1)
+        monthly_12.append(
+            _analytics_bucket_payload(
+                start.strftime("%Y-%m"),
+                start,
+                end,
+                events,
+            )
+        )
+
+    return {
+        "hourly_24h": hourly,
+        "daily_7d": daily_7d,
+        "daily_30d": daily_30d,
+        "monthly_12m": monthly_12,
+        "default_range": "daily_7d",
+    }
+
+
 def dashboard_analytics_status() -> dict:
     now = datetime.now(timezone.utc)
     today = now.date()
@@ -813,9 +909,6 @@ def dashboard_analytics_status() -> dict:
         event for event in events_30d if (now - event["_occurred_at"]).days < 7
     ]
 
-    def unique_visitors(items: list[dict]) -> int:
-        return len({str(item.get("visitor_id") or "") for item in items if item.get("visitor_id")})
-
     daily_counts = []
     for offset in range(29, -1, -1):
         day = today - timedelta(days=offset)
@@ -823,7 +916,7 @@ def dashboard_analytics_status() -> dict:
         daily_counts.append(
             {
                 "date": day.isoformat(),
-                "visitors": unique_visitors(day_events),
+                "visitors": _analytics_unique_visitors(day_events),
                 "pageviews": len(day_events),
             }
         )
@@ -838,13 +931,14 @@ def dashboard_analytics_status() -> dict:
             else "Analytics is ready. Visit public pages to collect data."
         ),
         "metrics": {
-            "visitors_today": unique_visitors(today_events),
+            "visitors_today": _analytics_unique_visitors(today_events),
             "pageviews_today": len(today_events),
-            "visitors_7d": unique_visitors(events_7d),
-            "visitors_30d": unique_visitors(events_30d),
+            "visitors_7d": _analytics_unique_visitors(events_7d),
+            "visitors_30d": _analytics_unique_visitors(events_30d),
             "total_events": len(events),
         },
         "trend": daily_counts,
+        "trend_ranges": _analytics_trend_ranges(now, events),
         "top_countries": _analytics_top_counts(events_30d, "country"),
         "top_referrers": _analytics_top_counts(events_30d, "referrer"),
         "top_pages": _analytics_top_counts(events_30d, "page"),

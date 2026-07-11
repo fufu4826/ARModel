@@ -295,6 +295,22 @@
   opacity: .7;
 }
 
+.dashboard-analytics-metrics--active {
+  opacity: 1;
+}
+
+.dashboard-disabled--active {
+  border-style: solid;
+  background: #f4faf4;
+}
+
+.dashboard-chart-placeholder--active {
+  align-content: center;
+  justify-content: stretch;
+  padding: 18px;
+  place-items: stretch;
+}
+
 .dashboard-analytics-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -24,6 +24,7 @@ class SiteManagementTests(unittest.TestCase):
             "SITE_UPLOAD_DIR": module.SITE_UPLOAD_DIR,
             "SLIDER_UPLOAD_DIR": module.SLIDER_UPLOAD_DIR,
             "AUDIO_DIR": module.AUDIO_DIR,
+            "ANALYTICS_FILE": module.ANALYTICS_FILE,
         }
         module.CATALOG_FILE = data_dir / "models.json"
         module.PROJECTS_FILE = data_dir / "projects.json"
@@ -32,6 +33,7 @@ class SiteManagementTests(unittest.TestCase):
         module.SITE_UPLOAD_DIR = data_dir / "static" / "uploads" / "site"
         module.SLIDER_UPLOAD_DIR = data_dir / "static" / "uploads" / "sliders"
         module.AUDIO_DIR = data_dir / "static" / "audio"
+        module.ANALYTICS_FILE = data_dir / "analytics_events.json"
         module._JSON_CACHE.clear()
         module.write_json(module.CATALOG_FILE, module.DEFAULT_MODELS)
         module.write_json(module.PROJECTS_FILE, module.DEFAULT_PROJECTS)

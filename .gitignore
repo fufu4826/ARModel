@@ -11,3 +11,4 @@ dist/
 *.spec
 .vercel
 static/uploads/
+data/analytics_events.json

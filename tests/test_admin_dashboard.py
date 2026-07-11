@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 import app as module
 
@@ -18,11 +19,13 @@ class AdminDashboardTests(unittest.TestCase):
             "PROJECTS_FILE": module.PROJECTS_FILE,
             "SITE_SETTINGS_FILE": module.SITE_SETTINGS_FILE,
             "SLIDER_ITEMS_FILE": module.SLIDER_ITEMS_FILE,
+            "ANALYTICS_FILE": module.ANALYTICS_FILE,
         }
         module.CATALOG_FILE = data_dir / "models.json"
         module.PROJECTS_FILE = data_dir / "projects.json"
         module.SITE_SETTINGS_FILE = data_dir / "site_settings.json"
         module.SLIDER_ITEMS_FILE = data_dir / "slider_items.json"
+        module.ANALYTICS_FILE = data_dir / "analytics_events.json"
         module._JSON_CACHE.clear()
         module._DASHBOARD_ASSET_CACHE.clear()
 
@@ -95,7 +98,7 @@ class AdminDashboardTests(unittest.TestCase):
         self.assertIn("แดชบอร์ดผู้ดูแลระบบ", page.get_data(as_text=True))
         self.assertIn("admin-dashboard.js", page.get_data(as_text=True))
 
-    def test_summary_reports_json_counts_supabase_and_disabled_analytics(self):
+    def test_summary_reports_json_counts_supabase_and_ready_analytics(self):
         self.sign_in()
         with patch.object(module, "dashboard_asset_head", side_effect=self.successful_head):
             response = self.client.get("/admin/api/dashboard/summary")
@@ -108,11 +111,66 @@ class AdminDashboardTests(unittest.TestCase):
         self.assertEqual(payload["assets"]["supabase_urls"], 1)
         self.assertEqual(payload["runtime"]["source"], "JSON")
         self.assertFalse(payload["analytics"]["enabled"])
-        self.assertIsNone(payload["analytics"]["provider"])
-        self.assertEqual(
-            payload["analytics"]["message"],
-            "ยังไม่ได้ตั้งค่าระบบวิเคราะห์ผู้เข้าชม",
-        )
+        self.assertEqual(payload["analytics"]["provider"], "local-json")
+        self.assertEqual(payload["analytics"]["metrics"]["total_events"], 0)
+        self.assertEqual(len(payload["analytics"]["trend"]), 30)
+
+    def test_local_analytics_records_public_page_views(self):
+        self.client.get("/", headers={"Referer": "https://google.com/search?q=phuphan"})
+        self.client.get("/models")
+        self.sign_in()
+        with patch.object(module, "dashboard_asset_head", side_effect=self.successful_head):
+            payload = self.client.get("/admin/api/dashboard/summary").get_json()
+
+        analytics = payload["analytics"]
+        self.assertTrue(analytics["enabled"])
+        self.assertEqual(analytics["provider"], "local-json")
+        self.assertEqual(analytics["metrics"]["pageviews_today"], 2)
+        self.assertEqual(analytics["metrics"]["visitors_today"], 1)
+        self.assertEqual(analytics["metrics"]["visitors_7d"], 1)
+        self.assertEqual(analytics["metrics"]["visitors_30d"], 1)
+        self.assertIn({"label": "Landing", "value": 1}, analytics["top_pages"])
+        self.assertIn({"label": "google.com", "value": 1}, analytics["top_referrers"])
+
+    def test_production_analytics_uses_r2_when_configured(self):
+        r2_env = {
+            "VERCEL": "1",
+            "R2_ACCOUNT_ID": "account",
+            "R2_ACCESS_KEY_ID": "access",
+            "R2_SECRET_ACCESS_KEY": "secret",
+            "R2_BUCKET": "bucket",
+            "R2_PUBLIC_BASE_URL": "https://example-r2.test",
+        }
+        not_found = HTTPError("https://example-r2.test/analytics/analytics_events.json", 404, "Not Found", {}, None)
+        self.sign_in()
+        with (
+            patch.dict(module.os.environ, r2_env),
+            patch.object(module, "dashboard_asset_head", side_effect=self.successful_head),
+            patch.object(module, "urlopen", side_effect=not_found),
+        ):
+            payload = self.client.get("/admin/api/dashboard/summary").get_json()
+
+        self.assertFalse(payload["analytics"]["enabled"])
+        self.assertEqual(payload["analytics"]["provider"], "cloudflare-r2-json")
+
+        event = {
+            "timestamp": "2026-07-11T00:00:00+00:00",
+            "visitor_id": "visitor",
+            "path": "/",
+            "page": "Landing",
+            "referrer": "Direct",
+            "country": "TH",
+        }
+        with (
+            patch.dict(module.os.environ, r2_env),
+            patch.object(module, "urlopen", side_effect=not_found),
+            patch.object(module, "r2_upload_bytes") as upload,
+        ):
+            module.append_analytics_event(event)
+
+        upload.assert_called_once()
+        self.assertEqual(upload.call_args.args[1], module.ANALYTICS_R2_OBJECT_KEY)
+        self.assertEqual(upload.call_args.args[2], "application/json; charset=utf-8")
 
     def test_storage_soft_limit_uses_default_and_environment_override(self):
         with patch.dict(module.os.environ, {}, clear=False):

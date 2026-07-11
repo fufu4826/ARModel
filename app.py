@@ -14,7 +14,7 @@ import wave
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 from threading import Lock, Timer
@@ -252,6 +252,7 @@ PROJECTS_FILE = DATA_DIR / "projects.json"
 CONFIG_FILE = DATA_DIR / "config.json"
 SITE_SETTINGS_FILE = DATA_DIR / "site_settings.json"
 SLIDER_ITEMS_FILE = DATA_DIR / "slider_items.json"
+ANALYTICS_FILE = DATA_DIR / "analytics_events.json"
 SITE_UPLOAD_DIR = STATIC_DIR / "uploads" / "site"
 SLIDER_UPLOAD_DIR = STATIC_DIR / "uploads" / "sliders"
 _JSON_CACHE: dict[Path, tuple[float | None, object]] = {}
@@ -261,6 +262,12 @@ DASHBOARD_ASSET_HEAD_TIMEOUT_SECONDS = 5
 DEFAULT_R2_STORAGE_SOFT_LIMIT_GB = 10.0
 _DASHBOARD_ASSET_CACHE: dict[str, tuple[float, dict]] = {}
 _DASHBOARD_ASSET_CACHE_LOCK = Lock()
+_ANALYTICS_LOCK = Lock()
+ANALYTICS_MAX_EVENTS = 10000
+ANALYTICS_R2_OBJECT_KEY = os.environ.get(
+    "ANALYTICS_R2_OBJECT_KEY",
+    "analytics/analytics_events.json",
+).strip("/")
 _DATA_READY = False
 PRODUCTION_DATA_FILES = {
     "models.json",
@@ -603,6 +610,245 @@ def write_json(path: Path, value) -> None:
     except OSError as exc:
         logger.exception("Unable to write JSON file %s", path)
         abort(500, f"Unable to save data: {exc}")
+
+
+def analytics_tracking_enabled() -> bool:
+    if os.environ.get("ARMODEL_ANALYTICS_ENABLED", "1").strip().lower() in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }:
+        return False
+    return (not is_vercel_runtime()) or r2_upload_configured()
+
+
+def analytics_provider_name() -> str | None:
+    if not analytics_tracking_enabled():
+        return None
+    return "cloudflare-r2-json" if is_vercel_runtime() else "local-json"
+
+
+def analytics_should_track(response) -> bool:
+    if not analytics_tracking_enabled() or response.status_code >= 400:
+        return False
+    if request.method != "GET":
+        return False
+    endpoint = request.endpoint or ""
+    if endpoint == "static" or endpoint.startswith("admin") or endpoint.startswith("api_"):
+        return False
+    if request.path.startswith(("/admin", "/api", "/static")):
+        return False
+    content_type = response.headers.get("Content-Type", "")
+    return "text/html" in content_type
+
+
+def analytics_visitor_id() -> tuple[str, bool]:
+    value = request.cookies.get("armodel_visitor_id", "").strip()
+    if re.fullmatch(r"[A-Za-z0-9_-]{16,80}", value):
+        return value, False
+    seed = "|".join(
+        [
+            request.headers.get("User-Agent", ""),
+            request.headers.get("Accept-Language", ""),
+            request.remote_addr or "",
+            secrets.token_urlsafe(16),
+        ]
+    )
+    return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:32], True
+
+
+def analytics_country_label() -> str:
+    value = (
+        request.headers.get("CF-IPCountry")
+        or request.headers.get("X-Vercel-IP-Country")
+        or request.headers.get("X-Country-Code")
+        or ""
+    ).strip().upper()
+    if len(value) == 2 and value != "XX":
+        return value
+    if request.remote_addr in {"127.0.0.1", "::1"}:
+        return "LOCAL"
+    return "Unknown"
+
+
+def analytics_referrer_label() -> str:
+    raw_referrer = request.headers.get("Referer", "").strip()
+    if not raw_referrer:
+        return "Direct"
+    host = (urlsplit(raw_referrer).hostname or "").lower()
+    if not host:
+        return "Direct"
+    current_host = (request.host or "").split(":", 1)[0].lower()
+    public_host = (urlsplit(PUBLIC_SITE_URL).hostname or "").lower()
+    if host in {current_host, public_host}:
+        return "Internal"
+    return host.removeprefix("www.")
+
+
+def analytics_page_label(path: str) -> str:
+    if path == "/":
+        return "Landing"
+    if path == "/home":
+        return "Home"
+    if path == "/models":
+        return "Models"
+    if path.startswith("/models/"):
+        return f"Model: {path.rsplit('/', 1)[-1]}"
+    if path.startswith("/projects/"):
+        return f"Project: {path.rsplit('/', 1)[-1]}"
+    return path
+
+
+def read_analytics_events() -> list[dict]:
+    if is_vercel_runtime():
+        if not r2_upload_configured():
+            return []
+        url = f"{r2_public_base_url()}/{quote(ANALYTICS_R2_OBJECT_KEY, safe='/')}"
+        try:
+            with urlopen(url, timeout=10) as response:
+                value = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            if exc.code != 404:
+                logger.warning("Unable to read analytics R2 object: HTTP %s", exc.code)
+            return []
+        except (OSError, TimeoutError, URLError, json.JSONDecodeError) as exc:
+            logger.warning("Unable to read analytics R2 object: %s", exc)
+            return []
+        return [event for event in value if isinstance(event, dict)] if isinstance(value, list) else []
+
+    events = read_json(ANALYTICS_FILE, [])
+    return [event for event in events if isinstance(event, dict)]
+
+
+def append_analytics_event(event: dict) -> None:
+    with _ANALYTICS_LOCK:
+        events = read_analytics_events()
+        events.append(event)
+        if len(events) > ANALYTICS_MAX_EVENTS:
+            events = events[-ANALYTICS_MAX_EVENTS:]
+        if is_vercel_runtime():
+            if not r2_upload_configured():
+                return
+            payload = (json.dumps(events, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+            r2_upload_bytes(payload, ANALYTICS_R2_OBJECT_KEY, "application/json; charset=utf-8")
+            return
+        write_json(ANALYTICS_FILE, events)
+
+
+@app.after_request
+def record_local_analytics(response):
+    if not analytics_should_track(response):
+        return response
+    visitor_id, needs_cookie = analytics_visitor_id()
+    event = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "visitor_id": visitor_id,
+        "path": request.path,
+        "page": analytics_page_label(request.path),
+        "referrer": analytics_referrer_label(),
+        "country": analytics_country_label(),
+        "user_agent_hash": hashlib.sha256(
+            request.headers.get("User-Agent", "").encode("utf-8")
+        ).hexdigest()[:16],
+    }
+    try:
+        append_analytics_event(event)
+        if needs_cookie:
+            response.set_cookie(
+                "armodel_visitor_id",
+                visitor_id,
+                max_age=60 * 60 * 24 * 365,
+                httponly=True,
+                samesite="Lax",
+            )
+    except Exception as exc:
+        logger.warning("Unable to record local analytics event: %s", exc)
+    return response
+
+
+def _analytics_event_datetime(event: dict) -> datetime | None:
+    raw_value = str(event.get("timestamp") or "")
+    if not raw_value:
+        return None
+    try:
+        value = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _analytics_top_counts(events: list[dict], key: str, limit: int = 5) -> list[dict]:
+    counts: dict[str, int] = {}
+    for event in events:
+        label = str(event.get(key) or "Unknown").strip() or "Unknown"
+        counts[label] = counts.get(label, 0) + 1
+    return [
+        {"label": label, "value": value}
+        for label, value in sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
+    ]
+
+
+def dashboard_analytics_status() -> dict:
+    now = datetime.now(timezone.utc)
+    today = now.date()
+    events = []
+    for event in read_analytics_events():
+        occurred_at = _analytics_event_datetime(event)
+        if occurred_at is None:
+            continue
+        normalized = dict(event)
+        normalized["_occurred_at"] = occurred_at
+        events.append(normalized)
+
+    events_30d = [
+        event for event in events if (now - event["_occurred_at"]).days < 30
+    ]
+    today_events = [
+        event for event in events_30d if event["_occurred_at"].date() == today
+    ]
+    events_7d = [
+        event for event in events_30d if (now - event["_occurred_at"]).days < 7
+    ]
+
+    def unique_visitors(items: list[dict]) -> int:
+        return len({str(item.get("visitor_id") or "") for item in items if item.get("visitor_id")})
+
+    daily_counts = []
+    for offset in range(29, -1, -1):
+        day = today - timedelta(days=offset)
+        day_events = [event for event in events_30d if event["_occurred_at"].date() == day]
+        daily_counts.append(
+            {
+                "date": day.isoformat(),
+                "visitors": unique_visitors(day_events),
+                "pageviews": len(day_events),
+            }
+        )
+
+    enabled = bool(events)
+    return {
+        "enabled": enabled,
+        "provider": analytics_provider_name(),
+        "message": (
+            "Analytics is collecting visitor data."
+            if enabled
+            else "Analytics is ready. Visit public pages to collect data."
+        ),
+        "metrics": {
+            "visitors_today": unique_visitors(today_events),
+            "pageviews_today": len(today_events),
+            "visitors_7d": unique_visitors(events_7d),
+            "visitors_30d": unique_visitors(events_30d),
+            "total_events": len(events),
+        },
+        "trend": daily_counts,
+        "top_countries": _analytics_top_counts(events_30d, "country"),
+        "top_referrers": _analytics_top_counts(events_30d, "referrer"),
+        "top_pages": _analytics_top_counts(events_30d, "page"),
+    }
 
 
 def save_projects(projects: list[dict]) -> None:
@@ -1113,7 +1359,7 @@ def dashboard_storage_soft_limit() -> tuple[float, str]:
     return DEFAULT_R2_STORAGE_SOFT_LIMIT_GB, "default"
 
 
-def dashboard_analytics_status() -> dict:
+def dashboard_analytics_status_disabled_placeholder() -> dict:
     """Provider adapter boundary for future real analytics integrations."""
     return {
         "enabled": False,

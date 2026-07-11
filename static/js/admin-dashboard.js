@@ -131,12 +131,96 @@
     });
   }
 
+  function renderMiniChart(container, items, emptyText = "ยังไม่มีข้อมูล") {
+    if (container.classList.contains("dashboard-empty")) {
+      container.classList.remove("dashboard-empty");
+      container.classList.add("dashboard-chart");
+    }
+    container.replaceChildren();
+    if (!items || !items.length) {
+      const empty = document.createElement("div");
+      empty.className = "dashboard-empty";
+      empty.textContent = emptyText;
+      container.append(empty);
+      return;
+    }
+    const maxValue = Math.max(...items.map((item) => Number(item.value || item.visitors || 0)), 1);
+    items.forEach((item) => {
+      const valueNumber = Number(item.value || item.visitors || 0);
+      const row = document.createElement("div");
+      row.className = "dashboard-chart-row";
+      const name = document.createElement("span");
+      name.textContent = item.label || item.date || "Unknown";
+      const track = document.createElement("div");
+      track.className = "dashboard-chart-track";
+      const bar = document.createElement("span");
+      bar.style.width = `${Math.max(4, valueNumber / maxValue * 100)}%`;
+      track.append(bar);
+      const value = document.createElement("span");
+      value.textContent = formatInteger(valueNumber);
+      row.append(name, track, value);
+      container.append(row);
+    });
+  }
+
+  function renderAnalytics(analytics) {
+    const data = analytics || {};
+    const disabled = document.getElementById("analytics-disabled");
+    const metrics = document.querySelector(".dashboard-analytics-metrics");
+    const badge = document.querySelector("[aria-labelledby='analytics-title'] .dashboard-badge");
+    const trend = document.querySelector(".dashboard-panel--wide .dashboard-chart-placeholder");
+    const panels = document.querySelectorAll(".dashboard-analytics-grid .dashboard-panel:not(.dashboard-panel--wide) .dashboard-chart, .dashboard-analytics-grid .dashboard-panel:not(.dashboard-panel--wide) .dashboard-empty");
+
+    if (disabled) {
+      const title = disabled.querySelector("strong");
+      const description = disabled.querySelector("span");
+      if (title) title.textContent = data.message || "Analytics is ready.";
+      if (description) {
+        description.textContent = data.enabled
+          ? `Provider: ${data.provider || "local"} · Events: ${formatInteger(data.metrics?.total_events || 0)}`
+          : "Visit public pages to start collecting data.";
+      }
+      disabled.classList.toggle("dashboard-disabled--active", Boolean(data.enabled));
+    }
+
+    if (badge) {
+      badge.textContent = data.enabled ? (data.provider || "active") : "ready";
+      badge.classList.toggle("dashboard-badge--disabled", !data.enabled);
+    }
+
+    if (metrics) {
+      metrics.classList.toggle("dashboard-analytics-metrics--active", Boolean(data.enabled));
+      metrics.replaceChildren();
+      const values = data.metrics || {};
+      [
+        ["ผู้เข้าชมวันนี้", values.visitors_today],
+        ["จำนวนการเปิดหน้าเว็บวันนี้", values.pageviews_today],
+        ["ผู้เข้าชม 7 วันที่ผ่านมา", values.visitors_7d],
+        ["ผู้เข้าชม 30 วันที่ผ่านมา", values.visitors_30d],
+      ].forEach(([title, value]) => addMetric(metrics, title, formatInteger(value)));
+    }
+
+    if (trend) {
+      const lastSevenDays = (data.trend || []).slice(-7).map((item) => ({
+        label: new Date(`${item.date}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short" }),
+        value: item.visitors,
+      }));
+      trend.classList.toggle("dashboard-chart-placeholder--active", Boolean(data.enabled));
+      renderMiniChart(trend, lastSevenDays, "ยังไม่มีกราฟรายวัน / รายสัปดาห์ / รายเดือน");
+    }
+
+    if (panels.length >= 3) {
+      renderMiniChart(panels[0], data.top_countries, "ยังไม่มีข้อมูลประเทศ");
+      renderMiniChart(panels[1], data.top_referrers, "ยังไม่มีข้อมูลแหล่งที่มา");
+      renderMiniChart(panels[2], data.top_pages, "ยังไม่มีข้อมูลหน้าเว็บ");
+    }
+  }
+
   function render(data) {
     renderOverview(data);
     renderStorage(data.storage);
     renderHealth(data.health);
-    document.getElementById("analytics-disabled").querySelector("strong").textContent =
-      data.analytics.message || "ยังไม่ได้ตั้งค่าระบบวิเคราะห์ผู้เข้าชม";
+    renderAnalytics(data.analytics);
     document.getElementById("dashboard-generated").textContent =
       `สร้างข้อมูลเมื่อ ${new Date(data.generated_at).toLocaleString("th-TH")}`;
   }

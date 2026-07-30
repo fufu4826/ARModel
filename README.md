@@ -84,6 +84,10 @@ Open a model page on a supported mobile device and tap the AR button in the view
 
 `.glb` files can be large. Keep production model assets in Cloudflare R2 and store their public URLs in `data/models.json`.
 
+## Narration Draft Cleanup
+
+The admin narration workflow stores unconfirmed Gemini output under the R2 prefix `audio/pending/`. Configure a Cloudflare R2 Lifecycle Rule to delete objects with this prefix after one day. Confirmed narration files are stored separately under `audio/narrations/` and are not covered by this cleanup rule.
+
 ## Admin
 
 On local development, visit `/admin/login` and create an admin password if one is not already configured. Production admin pages are viewers only; all content mutation, upload, generation, and delete endpoints are blocked. Configure `ADMIN_PASSWORD_HASH` or `ADMIN_PASSWORD` on Vercel if read-only admin access is required.

@@ -139,10 +139,8 @@
 
             <div class="field full" style="border-top: 1px solid var(--admin-line); padding-top: 12px; margin-top: 8px;">
               <label>สร้างเสียงบรรยายอัตโนมัติด้วย AI</label>
-              <button class="button secondary" type="submit" form="gemini-narration-form" formnovalidate style="margin-top: 4px;" {{ "disabled" if uploads_disabled else "" }}>
-                <span class="admin-icon admin-icon--gemini" aria-hidden="true"></span> สร้างเสียงคำบรรยายด้วย Gemini
-              </button>
-              <p class="meta" style="margin-top: 4px;">ใช้ชื่อและคำอธิบายโมเดลที่บันทึกไว้ล่าสุดสร้างไฟล์เสียงอัตโนมัติ (กรุณากดปุ่มบันทึกก่อนกดปุ่มนี้หากมีการแก้ไขข้อความข้างต้น)</p>
+              <a class="button secondary" href="{{ url_for('admin_narrations', focus=model.id) }}" style="margin-top: 4px;"><span class="admin-icon admin-icon--gemini" aria-hidden="true"></span> ไปที่จัดการเสียงบรรยาย</a>
+              <p class="meta" style="margin-top: 4px;">ใช้หน้าจัดการเสียงบรรยายเพื่อสร้าง ฟังเปรียบเทียบ และยืนยันเสียงใหม่อย่างปลอดภัย</p>
             </div>
 
             {% if model.narration_audio_url %}
@@ -224,7 +222,6 @@
           </div>
         </form>
 
-        <form id="gemini-narration-form" action="{{ url_for('generate_model_narration', model_id=model.id) }}" method="post"></form>
       </div>
     </main>
   </div>

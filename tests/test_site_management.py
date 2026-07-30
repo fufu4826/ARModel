@@ -818,7 +818,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("speech.speaking", narration_script)
 
     def test_gemini_narration_generation_requires_admin_and_api_key(self):
-        route = "/admin/models/lychee/generate-narration"
+        route = "/admin/narrations/lychee/draft"
         response = self.client.post(route)
         self.assertEqual(response.status_code, 302)
         self.assertIn("/admin/login", response.headers["Location"])
@@ -828,7 +828,7 @@ class SiteManagementTests(unittest.TestCase):
             response = self.client.post(route, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         self.assertIn(
-            "ยังไม่ได้ตั้งค่า GEMINI_API_KEY",
+            "สร้างเสียงรอตรวจสอบไม่สำเร็จ",
             response.get_data(as_text=True),
         )
 
@@ -857,14 +857,14 @@ class SiteManagementTests(unittest.TestCase):
             ),
         ):
             response = self.client.post(
-                "/admin/models/lychee/generate-narration",
+                "/admin/narrations/lychee/draft",
                 follow_redirects=True,
             )
 
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
-        self.assertIn("สร้างไฟล์เสียงคำบรรยายเรียบร้อยแล้ว", html)
-        self.assertIn("สร้างเสียงคำบรรยายด้วย Gemini", html)
+        self.assertIn("รอตรวจสอบ", html)
+        self.assertIn("ยืนยันใช้เสียงนี้", html)
         self.assertNotIn("test-secret-not-for-rendering", html)
         generate_audio.assert_called_once()
         prompt_text = generate_audio.call_args.args[0]
@@ -875,18 +875,48 @@ class SiteManagementTests(unittest.TestCase):
             item for item in module.load_models(include_hidden=True)
             if item["id"] == "lychee"
         )
-        self.assertTrue(model["narration_audio"].startswith("audio/lychee-gemini-"))
-        self.assertTrue(model["narration_audio"].endswith(".wav"))
-        self.assertTrue(
-            (module.AUDIO_DIR / Path(model["narration_audio"]).name).is_file()
-        )
-        with patch.object(
-            module,
-            "resolve_narration_audio_url",
-            return_value="/static/audio/generated.wav",
-        ):
-            detail_html = self.client.get("/models/lychee").get_data(as_text=True)
-        self.assertIn("data-narration-audio", detail_html)
+        self.assertEqual(model["narration_audio"], source_model["narration_audio"])
+
+    def test_admin_narrations_lists_models_and_keeps_drafts_unpublished(self):
+        self.assertEqual(self.client.get("/admin/narrations").status_code, 302)
+        self.sign_in()
+        models = module.load_models(include_hidden=True)
+        models[0]["narration_audio"] = "https://example.com/current.wav"
+        models[1]["visible"] = False
+        module.save_models(models)
+        page = self.client.get("/admin/narrations").get_data(as_text=True)
+        self.assertIn("จัดการเสียงบรรยาย", page)
+        self.assertIn("data-narration-search", page)
+        self.assertIn("data-narration-project", page)
+        self.assertIn("data-narration-audio-status", page)
+        self.assertIn("data-narration-visibility", page)
+        self.assertIn("css/admin-narrations.css", page)
+        self.assertIn("data-narration-reset", page)
+        self.assertIn("data-narration-empty", page)
+        self.assertIn('src="/static/js/admin-narrations.js?v=2"', page)
+        self.assertIn("ฟังเสียงปัจจุบัน", page)
+        self.assertIn("data-audio-toggle", page)
+        self.assertIn("ซ่อนอยู่", page)
+
+        before = module.load_models(include_hidden=True)
+        with patch.dict(module.os.environ, {"NARRATION_PREVIEW_MOCK": "1"}, clear=False):
+            response = self.client.post(f"/admin/narrations/{models[0]['id']}/draft")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("draft=", response.headers["Location"])
+        self.assertEqual(module.load_models(include_hidden=True), before)
+        token = response.headers["Location"].split("draft=", 1)[1].split("&", 1)[0]
+        draft_page = self.client.get(response.headers["Location"]).get_data(as_text=True)
+        self.assertIn("รอตรวจสอบ", draft_page)
+        self.assertIn("เสียงใหม่รอตรวจสอบ", draft_page)
+        self.assertIn("ยืนยันใช้เสียงนี้", draft_page)
+        self.assertIn('aria-labelledby="dialog-title-', draft_page)
+        self.assertEqual(self.client.post(f"/admin/narrations/drafts/{token}x/confirm").status_code, 302)
+        with patch.object(module, "save_generated_narration_audio", return_value="audio/confirmed.wav"):
+            confirmed = self.client.post(f"/admin/narrations/drafts/{token}/confirm")
+        self.assertEqual(confirmed.status_code, 302)
+        selected = next(item for item in module.load_models(True) if item["id"] == models[0]["id"])
+        self.assertEqual(selected["narration_audio"], "audio/confirmed.wav")
+        self.assertEqual(self.client.post(f"/admin/narrations/drafts/{token}/confirm").status_code, 302)
 
     def test_gemini_dependency_and_audio_format_helpers(self):
         requirements = (

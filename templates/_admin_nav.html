@@ -13,6 +13,7 @@
     <a href="{{ url_for('admin') }}" class="{{ 'active' if request.endpoint == 'admin' and not request.path.endswith('#projects') and not request.path.endswith('#add-model-section') else '' }}"><span class="admin-icon admin-icon--models" aria-hidden="true"></span> รายการโมเดล</a>
     <a href="{{ url_for('admin') }}#add-model-section"><span class="admin-icon admin-icon--add" aria-hidden="true"></span> เพิ่มโมเดล</a>
     <a href="{{ url_for('admin_recommended_models') }}" class="{{ 'active' if request.endpoint == 'admin_recommended_models' else '' }}"><span class="admin-icon admin-icon--recommended" aria-hidden="true"></span> โมเดลแนะนำ</a>
+    <a href="{{ url_for('admin_narrations') }}" class="{{ 'active' if request.endpoint in ['admin_narrations', 'generate_narration_draft', 'confirm_narration_draft', 'cancel_narration_draft'] else '' }}"><span class="admin-icon admin-icon--gemini" aria-hidden="true"></span> จัดการเสียงบรรยาย</a>
   </div>
 
   <div class="admin-nav-group">

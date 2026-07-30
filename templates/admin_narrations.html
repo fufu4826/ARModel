@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>จัดการเสียงบรรยาย | ARModel Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-narrations.css') }}">
+  {% include "_fonts.html" %}
+</head>
+<body>
+  <div class="admin-container">
+    {% include "_admin_nav.html" %}
+    <main class="admin-main-content">
+      <div class="admin-shell narration-manager" data-narration-manager>
+        <header class="admin-heading narration-page-header">
+          <div><p class="admin-eyebrow">โมเดล 3D / เสียงบรรยาย</p><h1><span class="admin-icon admin-icon--gemini" aria-hidden="true"></span> จัดการเสียงบรรยาย</h1><p>สร้างเสียงด้วย Gemini ตรวจสอบ และยืนยันก่อนแทนที่เสียงปัจจุบัน</p></div>
+          <p class="narration-review-note">เสียงที่สร้างใหม่จะยังไม่เผยแพร่จนกว่าจะยืนยัน</p>
+        </header>
+        {% include "_admin_messages.html" %}
+        <section class="narration-summary" aria-label="สรุปเสียงบรรยาย">
+          <article><span>โมเดลทั้งหมด</span><strong>{{ narration_counts.total }}</strong></article>
+          <article><span>มีเสียงบรรยาย</span><strong>{{ narration_counts.with_audio }}</strong></article>
+          <article><span>ไม่มีเสียงบรรยาย</span><strong>{{ narration_counts.without_audio }}</strong></article>
+        </section>
+        <section class="narration-filters" aria-label="กรองรายการโมเดล">
+          <label>ค้นหา<input type="search" placeholder="ค้นหาชื่อโมเดล" data-narration-search></label>
+          <label>โครงการ<select data-narration-project><option value="">ทุกโครงการ</option>{% for project in projects %}<option value="{{ project.id }}">{{ project.name }}</option>{% endfor %}</select></label>
+          <label>สถานะเสียง<select data-narration-audio-status><option value="all">ทั้งหมด</option><option value="with">มีเสียงบรรยาย</option><option value="without">ไม่มีเสียงบรรยาย</option></select></label>
+          <label>การเผยแพร่<select data-narration-visibility><option value="all">ทั้งหมด</option><option value="visible">แสดงอยู่</option><option value="hidden">ซ่อนอยู่</option></select></label>
+          <button type="button" class="button secondary narration-reset" data-narration-reset>ล้างตัวกรอง</button>
+        </section>
+        <p class="narration-result-count" data-narration-result-count aria-live="polite"></p>
+        <section class="narration-list" aria-label="รายการโมเดล">
+          {% for model in models %}
+          <article class="narration-item{% if model.id == focus_model_id %} is-focused{% endif %}" id="narration-{{ model.id }}" data-narration-item data-name="{{ model.name|lower }}" data-project="{{ model.project_id }}" data-audio="{{ 'with' if model.narration_audio_url else 'without' }}" data-visibility="{{ 'visible' if model.visible else 'hidden' }}">
+            <img src="{{ model.thumbnail_resolved_url }}" alt="" loading="lazy">
+            <div class="narration-item__details"><h2>{{ model.name }}</h2><p>{{ model.project_name }}</p><span class="status {{ '' if model.visible else 'off' }}">{{ 'แสดงอยู่' if model.visible else 'ซ่อนอยู่' }}</span>
+              {% if model.narration_audio_url %}<span class="admin-audio-badge">มีเสียงบรรยาย</span>{% else %}<span class="admin-audio-badge is-muted">ไม่มีเสียงบรรยาย</span>{% endif %}
+            </div>
+            <div class="narration-item__actions">
+              {% if model.narration_audio_url %}<button type="button" class="button secondary" data-audio-toggle data-audio-src="{{ model.narration_audio_url }}">ฟังเสียงปัจจุบัน</button>{% endif %}
+              <button type="button" class="button" data-generate-dialog="dialog-{{ model.id }}">{{ 'สร้างเสียงใหม่' if model.narration_audio_url else 'สร้างเสียงบรรยาย' }}</button>
+            </div>
+            {% if draft and draft.model_id == model.id %}
+            <section class="narration-draft" aria-label="เสียงรอตรวจสอบ"><div class="narration-draft__heading"><strong>รอตรวจสอบ</strong><span>เสียงใหม่รอตรวจสอบ กรุณาฟังเสียงก่อนยืนยัน</span></div><button type="button" class="button secondary" data-audio-toggle data-audio-src="{{ url_for('admin_narration_draft_audio', token=draft.token) }}">ฟังเสียงที่สร้างใหม่</button><form method="post" action="{{ url_for('confirm_narration_draft', token=draft.token) }}" data-admin-busy-title="กำลังยืนยันเสียงบรรยาย..."><button class="button" type="submit">ยืนยันใช้เสียงนี้</button></form><form method="post" action="{{ url_for('cancel_narration_draft', token=draft.token) }}"><button class="button danger" type="submit">ยกเลิก</button></form></section>
+            {% endif %}
+          </article>
+          <dialog class="narration-dialog" id="dialog-{{ model.id }}" aria-labelledby="dialog-title-{{ model.id }}"><form method="dialog"><button class="narration-dialog__close" aria-label="ปิด">×</button></form><h2 id="dialog-title-{{ model.id }}">สร้างเสียงบรรยาย</h2><p><strong>{{ model.name }}</strong></p><label>ข้อความที่จะส่งไป Gemini<textarea readonly rows="7">{{ model.name }}. {{ model.description }}</textarea></label><p class="meta">เสียงปัจจุบันใช้การตั้งค่า Gemini: เสียง Iapetus, ภาษาไทย, น้ำเสียงเป็นมิตร</p><form method="post" action="{{ url_for('generate_narration_draft', model_id=model.id) }}" data-admin-busy-title="กำลังสร้างเสียงบรรยาย..." data-admin-busy-message="Gemini กำลังสร้างไฟล์เสียง กรุณารอสักครู่"><button class="button" type="submit">สร้างเสียงรอตรวจสอบ</button></form></dialog>
+          {% endfor %}
+        </section>
+        <section class="narration-empty" data-narration-empty hidden aria-live="polite"><strong>ไม่พบโมเดลตามตัวกรอง</strong><p>ลองล้างตัวกรองหรือค้นหาด้วยคำอื่น</p><button type="button" class="button secondary" data-narration-reset>ล้างตัวกรอง</button></section>
+      </div>
+    </main>
+  </div>
+  <script src="{{ url_for('static', filename='js/admin-narrations.js', v=2) }}" defer></script>
+</body>
+</html>

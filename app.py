@@ -9,6 +9,7 @@ import mimetypes
 import os
 import re
 import secrets
+import tempfile
 import uuid
 import wave
 import webbrowser
@@ -23,7 +24,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
-from flask import abort, flash, Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import abort, flash, Flask, jsonify, redirect, render_template, request, session, url_for, send_file
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -57,6 +59,10 @@ SITE_LOGO_EXTENSIONS = IMAGE_EXTENSIONS | {".svg"}
 FAVICON_EXTENSIONS = {".png", ".ico", ".svg"}
 SITE_ASSET_MAX_BYTES = 5 * 1024 * 1024
 NARRATION_AUDIO_MAX_BYTES = 20 * 1024 * 1024
+NARRATION_DRAFT_MAX_AGE_SECONDS = 30 * 60
+NARRATION_PENDING_PREFIX = "audio/pending/"
+NARRATION_PERMANENT_PREFIX = "audio/narrations/"
+LOCAL_NARRATION_DRAFT_DIR = Path(tempfile.gettempdir()) / "armodel-narration-drafts"
 MAX_MODEL_FILE_SIZE_MB = 50
 MAX_MODEL_FILE_SIZE_BYTES = MAX_MODEL_FILE_SIZE_MB * 1024 * 1024
 VERCEL_UPLOAD_MESSAGE = "ระบบ production เป็นโหมดอ่านอย่างเดียว กรุณาอัปโหลดไฟล์ไปยัง R2 และแก้ไขไฟล์ data/*.json ผ่านขั้นตอนเผยแพร่ที่กำหนด"
@@ -1941,6 +1947,104 @@ def save_generated_narration_audio(
     return f"audio/{filename}"
 
 
+class NarrationDraftError(RuntimeError):
+    pass
+
+
+def narration_draft_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(app.secret_key, salt="armodel-narration-draft-v1")
+
+
+def narration_draft_token(payload: dict) -> str:
+    return narration_draft_serializer().dumps(payload)
+
+
+def load_narration_draft_token(token: str) -> dict:
+    try:
+        payload = narration_draft_serializer().loads(
+            token, max_age=NARRATION_DRAFT_MAX_AGE_SECONDS
+        )
+    except SignatureExpired as exc:
+        raise NarrationDraftError("เสียงรอตรวจสอบหมดอายุแล้ว กรุณาสร้างใหม่") from exc
+    except BadSignature as exc:
+        raise NarrationDraftError("ข้อมูลเสียงรอตรวจสอบไม่ถูกต้อง") from exc
+    if not isinstance(payload, dict):
+        raise NarrationDraftError("ข้อมูลเสียงรอตรวจสอบไม่ถูกต้อง")
+    key = str(payload.get("pending_key") or "")
+    model_id = str(payload.get("model_id") or "")
+    if not model_id or not (
+        key.startswith(NARRATION_PENDING_PREFIX) or key.startswith("local-pending/")
+    ):
+        raise NarrationDraftError("ข้อมูลเสียงรอตรวจสอบไม่ถูกต้อง")
+    return payload
+
+
+def local_narration_draft_path(key: str) -> Path:
+    if not key.startswith("local-pending/"):
+        raise NarrationDraftError("ตำแหน่งไฟล์รอตรวจสอบไม่ถูกต้อง")
+    relative = Path(key.removeprefix("local-pending/"))
+    target = (LOCAL_NARRATION_DRAFT_DIR / relative).resolve()
+    root = LOCAL_NARRATION_DRAFT_DIR.resolve()
+    if root not in target.parents:
+        raise NarrationDraftError("ตำแหน่งไฟล์รอตรวจสอบไม่ถูกต้อง")
+    return target
+
+
+def r2_delete_object(object_key: str) -> None:
+    payload_hash = hashlib.sha256(b"").hexdigest()
+    try:
+        with r2_signed_request("DELETE", object_key, payload_hash, timeout=45) as response:
+            if response.status not in {200, 204}:
+                raise NarrationDraftError(f"ลบไฟล์เสียงไม่สำเร็จ (HTTP {response.status})")
+    except HTTPError as exc:
+        if exc.code != 404:
+            raise NarrationDraftError(f"ลบไฟล์เสียงไม่สำเร็จ (HTTP {exc.code})") from exc
+
+
+def save_pending_narration_audio(model_id: str, audio_data: bytes, extension: str) -> str:
+    extension = extension.lower()
+    if extension not in AUDIO_EXTENSIONS or not audio_data or len(audio_data) > NARRATION_AUDIO_MAX_BYTES:
+        raise NarrationDraftError("ไฟล์เสียงรอตรวจสอบไม่ถูกต้อง")
+    filename = f"{uuid.uuid4().hex}{extension}"
+    if is_vercel_runtime():
+        if not r2_upload_configured():
+            raise NarrationDraftError("ยังไม่ได้ตั้งค่า R2 สำหรับจัดเก็บเสียง")
+        key = f"{NARRATION_PENDING_PREFIX}{slugify(model_id, 'model')}/{filename}"
+        r2_upload_bytes(audio_data, key, mimetypes.guess_type(filename)[0] or "audio/wav")
+        return key
+    key = f"local-pending/{slugify(model_id, 'model')}/{filename}"
+    target = local_narration_draft_path(key)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(audio_data)
+    return key
+
+
+def read_pending_narration_audio(key: str) -> bytes:
+    if key.startswith(NARRATION_PENDING_PREFIX):
+        return r2_get_bytes(key)
+    target = local_narration_draft_path(key)
+    if not target.is_file():
+        raise NarrationDraftError("ไม่พบไฟล์เสียงรอตรวจสอบ")
+    return target.read_bytes()
+
+
+def delete_pending_narration_audio(key: str) -> None:
+    if key.startswith(NARRATION_PENDING_PREFIX):
+        r2_delete_object(key)
+        return
+    target = local_narration_draft_path(key)
+    if target.exists():
+        target.unlink()
+
+
+def owned_r2_narration_key(audio_url: str) -> str:
+    base = r2_public_base_url().rstrip("/")
+    if not base or not audio_url.startswith(f"{base}/"):
+        return ""
+    key = audio_url.removeprefix(f"{base}/")
+    return key if key.startswith(NARRATION_PERMANENT_PREFIX) else ""
+
+
 def admin_write_blocked_on_vercel() -> bool:
     if not is_vercel_runtime():
         return False
@@ -2774,6 +2878,138 @@ def admin_landing():
     return render_template("admin_landing.html", settings=site_settings_with_urls(get_site_settings()))
 
 
+@app.get("/admin/narrations")
+@admin_required
+def admin_narrations():
+    projects = get_projects(include_hidden=True)
+    models = [model_with_project(model, projects) for model in get_models(include_hidden=True)]
+    draft = None
+    token = request.args.get("draft", "").strip()
+    if token:
+        try:
+            payload = load_narration_draft_token(token)
+            draft_model = next((item for item in models if item["id"] == payload["model_id"]), None)
+            if draft_model and str(draft_model.get("narration_audio") or "") == str(payload.get("expected_audio") or ""):
+                draft = {"token": token, "model_id": payload["model_id"], "text": payload.get("text", "")}
+            else:
+                flash("เสียงรอตรวจสอบไม่ตรงกับข้อมูลโมเดลปัจจุบัน", "error")
+        except NarrationDraftError as exc:
+            flash(str(exc), "error")
+    return render_template(
+        "admin_narrations.html",
+        models=models,
+        projects=projects,
+        draft=draft,
+        narration_counts={
+            "total": len(models),
+            "with_audio": sum(bool(item.get("narration_audio_url")) for item in models),
+            "without_audio": sum(not item.get("narration_audio_url") for item in models),
+        },
+        focus_model_id=request.args.get("focus", "").strip(),
+    )
+
+
+@app.post("/admin/narrations/<model_id>/draft")
+@admin_required
+def generate_narration_draft(model_id: str):
+    if admin_write_blocked_on_vercel():
+        return redirect(url_for("admin_narrations", focus=model_id))
+    model = next((item for item in get_models(include_hidden=True) if item["id"] == model_id), None)
+    if model is None:
+        abort(404)
+    narration_text = ". ".join(part for part in (str(model.get("name") or "").strip(), str(model.get("description") or "").strip()) if part)
+    if not narration_text:
+        flash("โมเดลนี้ยังไม่มีข้อความสำหรับสร้างเสียงบรรยาย", "error")
+        return redirect(url_for("admin_narrations", focus=model_id))
+    try:
+        if os.environ.get("NARRATION_PREVIEW_MOCK", "").strip() == "1":
+            audio_data, extension = pcm_to_wav(b"\x00\x00" * 1200), ".wav"
+        else:
+            audio_data, extension = generate_gemini_tts_audio(narration_text)
+        pending_key = save_pending_narration_audio(model_id, audio_data, extension)
+        token = narration_draft_token({
+            "model_id": model_id,
+            "pending_key": pending_key,
+            "expected_audio": str(model.get("narration_audio") or ""),
+            "text": narration_text,
+            "extension": extension,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except (GeminiTTSError, NarrationDraftError, OSError) as exc:
+        logger.exception("Unable to create narration draft for %s", model_id)
+        flash(f"สร้างเสียงรอตรวจสอบไม่สำเร็จ: {exc}", "error")
+        return redirect(url_for("admin_narrations", focus=model_id))
+    return redirect(url_for("admin_narrations", draft=token, focus=model_id))
+
+
+@app.get("/admin/narrations/drafts/<token>/audio")
+@admin_required
+def admin_narration_draft_audio(token: str):
+    try:
+        payload = load_narration_draft_token(token)
+        data = read_pending_narration_audio(payload["pending_key"])
+    except NarrationDraftError as exc:
+        abort(404, str(exc))
+    extension = str(payload.get("extension") or ".wav")
+    return send_file(io.BytesIO(data), mimetype=mimetypes.guess_type(f"draft{extension}")[0] or "audio/wav", conditional=True)
+
+
+@app.post("/admin/narrations/drafts/<token>/confirm")
+@admin_required
+def confirm_narration_draft(token: str):
+    if admin_write_blocked_on_vercel():
+        return redirect(url_for("admin_narrations"))
+    try:
+        payload = load_narration_draft_token(token)
+        models = load_models(include_hidden=True)
+        model = next((item for item in models if item["id"] == payload["model_id"]), None)
+        if model is None:
+            abort(404)
+        if str(model.get("narration_audio") or "") != str(payload.get("expected_audio") or ""):
+            raise NarrationDraftError("เสียงปัจจุบันถูกเปลี่ยนแล้ว กรุณาสร้างเสียงใหม่อีกครั้ง")
+        audio_data = read_pending_narration_audio(payload["pending_key"])
+        extension = str(payload.get("extension") or ".wav")
+        filename = f"{uuid.uuid4().hex}{extension}"
+        if is_vercel_runtime():
+            permanent_key = f"{NARRATION_PERMANENT_PREFIX}{slugify(model['id'], 'model')}/{filename}"
+            narration_audio = r2_upload_bytes(audio_data, permanent_key, mimetypes.guess_type(filename)[0] or "audio/wav")
+        else:
+            narration_audio = save_generated_narration_audio(model["id"], audio_data, extension)
+        old_audio = str(model.get("narration_audio") or "")
+        model["narration_audio"] = narration_audio
+        try:
+            save_models(models)
+        except Exception:
+            model["narration_audio"] = old_audio
+            raise
+        delete_pending_narration_audio(payload["pending_key"])
+        old_key = owned_r2_narration_key(old_audio)
+        if old_key:
+            r2_delete_object(old_key)
+    except NarrationDraftError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("admin_narrations"))
+    except Exception:
+        logger.exception("Unable to confirm narration draft")
+        flash("ยืนยันเสียงบรรยายไม่สำเร็จ ข้อมูลเดิมยังไม่ถูกแทนที่", "error")
+        return redirect(url_for("admin_narrations"))
+    flash("ยืนยันและบันทึกเสียงบรรยายแล้ว", "success")
+    return redirect(url_for("admin_narrations", focus=payload["model_id"]))
+
+
+@app.post("/admin/narrations/drafts/<token>/cancel")
+@admin_required
+def cancel_narration_draft(token: str):
+    try:
+        payload = load_narration_draft_token(token)
+        delete_pending_narration_audio(payload["pending_key"])
+    except NarrationDraftError as exc:
+        flash(str(exc), "error")
+    else:
+        flash("ยกเลิกเสียงรอตรวจสอบแล้ว", "success")
+    return redirect(url_for("admin_narrations"))
+
+
 @app.route("/admin/landing/preview")
 @admin_required
 def admin_landing_preview():
@@ -3334,6 +3570,11 @@ def edit_model(model_id: str):
 @app.post("/admin/models/<model_id>/generate-narration")
 @admin_required
 def generate_model_narration(model_id: str):
+    # Kept as a safe compatibility endpoint for old bookmarks and forms.
+    if is_vercel_runtime():
+        admin_write_blocked_on_vercel()
+    return redirect(url_for("admin_narrations", focus=model_id))
+
     model = next(
         (item for item in get_models(include_hidden=True) if item["id"] == model_id),
         None,

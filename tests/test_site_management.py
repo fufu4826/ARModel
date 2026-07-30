@@ -227,12 +227,18 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("position: absolute;", stylesheet)
         self.assertIn("-webkit-line-clamp: 2;", stylesheet)
         self.assertIn("-webkit-line-clamp: 4;", stylesheet)
+        self.assertIn(".site-slide-preview__title", stylesheet)
+        self.assertIn(".site-slide-preview__description", stylesheet)
+        self.assertIn("overflow-wrap: anywhere;", stylesheet)
+        self.assertIn("-webkit-line-clamp: 3;", stylesheet)
+        self.assertIn("height: clamp(280px, 46svh, 460px);", stylesheet)
         self.assertIn("overflow: visible;", stylesheet)
         self.assertIn(".site-slide-hover-panel", stylesheet)
         self.assertIn(".site-slide-hover-media", stylesheet)
         self.assertIn(".site-slide-hover-image", stylesheet)
         self.assertIn(".site-slide-hover-content", stylesheet)
         self.assertIn("--slide-hover-panel-left", stylesheet)
+        self.assertIn("--slide-hover-panel-top", stylesheet)
         self.assertIn("width: min(460px, calc(100vw - 32px));", stylesheet)
         self.assertIn("height: 312px;", stylesheet)
         self.assertIn("place-items: center;", stylesheet)
@@ -251,6 +257,9 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("object-fit: contain;", stylesheet)
         self.assertIn(".site-slide-modal", stylesheet)
         self.assertIn(".site-slide-modal__image", stylesheet)
+        self.assertIn(".site-slide-modal__scroll-area", stylesheet)
+        self.assertIn("overflow-y: auto;", stylesheet)
+        self.assertIn("max-height: min(86dvh, 760px);", stylesheet)
         self.assertIn(".site-slide-modal[hidden]", stylesheet)
         self.assertIn("pointer-events: none;", stylesheet)
         self.assertIn(".site-slide-modal.site-slide-modal--open", stylesheet)
@@ -269,6 +278,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("let hoverHideTimer = null;", script)
         self.assertIn("function clearActiveHoverCard()", script)
         self.assertIn("function setActiveHoverCard(card)", script)
+        self.assertIn("panelMiddleWithinSlide", script)
         self.assertIn("document.querySelectorAll(\".site-slide.is-hover-active, .site-slide.site-slide--dialog-return-focus\")", script)
         self.assertIn("card.classList.add(\"is-hover-active\")", script)
         self.assertIn("activeHoverCard = card", script)
@@ -1549,25 +1559,41 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(module.get_slider_items(False)[0]["id"], "fallback-slide")
 
     def test_active_slider_renders_on_landing_and_home(self):
+        long_title = ("Long title " * 80).strip()
+        long_description = (
+            "First paragraph with enough detail to exercise the preview.\n\n"
+            + ("second-paragraph " * 300)
+            + "\n\n"
+            + ("unbroken-text-" * 300)
+        )
         module.save_slider_items(
             [
                 {
                     "id": "test-slide",
-                    "title": "Test slide",
-                    "description": "Slide description",
+                    "title": long_title,
+                    "description": long_description,
                     "image_url": "pic/og-cover.jpg",
                     "button_text": "Open",
                     "button_url": "/models",
                     "sort_order": 1,
                     "active": True,
-                }
+                },
+                {
+                    "id": "empty-description-slide",
+                    "title": "Short title",
+                    "description": "",
+                    "image_url": "pic/og-cover.jpg",
+                    "sort_order": 2,
+                    "active": True,
+                },
             ]
         )
         for route in ("/", "/home"):
             with self.subTest(route=route):
                 response = self.client.get(route)
                 html = response.get_data(as_text=True)
-                self.assertIn("Test slide", html)
+                self.assertIn(long_title, html)
+                self.assertIn(long_description, html)
                 self.assertIn("data-slide-dialog-trigger", html)
                 self.assertIn("data-slide-dialog", html)
                 self.assertIn("data-slide-dialog-title", html)
@@ -1585,9 +1611,13 @@ class SiteManagementTests(unittest.TestCase):
                 self.assertIn("site-slide-hover-panel", html)
                 self.assertIn("site-slide-hover-media", html)
                 self.assertIn("site-slide-hover-content", html)
+                self.assertIn("site-slide-preview", html)
+                self.assertIn("site-slide-preview__title", html)
+                self.assertIn("site-slide-preview__description", html)
+                self.assertIn("site-slide-modal__scroll-area", html)
 
         payload = json.loads(self.client.get("/api/sliders").get_data(as_text=True))
-        self.assertEqual(payload[0]["id"], "test-slide")
+        self.assertEqual([item["id"] for item in payload], ["test-slide", "empty-description-slide"])
 
     def test_public_logos_display(self):
         # 1. Test with intro logos configured
@@ -1943,7 +1973,11 @@ class ZeroSupabaseRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(len(api_projects.get_json()), 10)
         self.assertTrue(set(settings).issubset(api_settings.get_json()))
-        self.assertEqual(len(api_sliders.get_json()), 2)
+        active_slider_ids = [item["id"] for item in sliders if item.get("active")]
+        self.assertEqual(
+            [item["id"] for item in api_sliders.get_json()],
+            active_slider_ids,
+        )
 
     def test_public_runtime_works_without_legacy_environment(self):
         with patch.dict(module.os.environ, {}, clear=False):

@@ -14,10 +14,12 @@
     document.querySelectorAll(".site-slide.is-hover-active, .site-slide.site-slide--dialog-return-focus").forEach((card) => {
       card.classList.remove("is-hover-active", "site-slide--dialog-return-focus");
       card.style.removeProperty("--slide-hover-panel-left");
+      card.style.removeProperty("--slide-hover-panel-top");
     });
     if (activeHoverCard) {
       activeHoverCard.classList.remove("is-hover-active", "site-slide--dialog-return-focus");
       activeHoverCard.style.removeProperty("--slide-hover-panel-left");
+      activeHoverCard.style.removeProperty("--slide-hover-panel-top");
       activeHoverCard = null;
     }
   }
@@ -46,17 +48,26 @@
     const panel = slide.querySelector(".site-slide-hover-panel");
     if (!panel || !window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 921px)").matches) {
       slide.style.removeProperty("--slide-hover-panel-left");
+      slide.style.removeProperty("--slide-hover-panel-top");
       return;
     }
     const slideRect = slide.getBoundingClientRect();
     const panelWidth = Math.min(460, Math.max(0, window.innerWidth - 32));
+    const panelHeight = Math.min(panel.getBoundingClientRect().height, Math.max(0, window.innerHeight - 32));
     const desiredPanelLeft = slideRect.left + (slideRect.width / 2) - (panelWidth / 2);
     const clampedPanelLeft = Math.min(
       Math.max(desiredPanelLeft, 16),
       Math.max(16, window.innerWidth - panelWidth - 16)
     );
     const panelCenterWithinSlide = clampedPanelLeft - slideRect.left + (panelWidth / 2);
+    const desiredPanelTop = slideRect.top + (slideRect.height / 2);
+    const clampedPanelTop = Math.min(
+      Math.max(desiredPanelTop, 16 + (panelHeight / 2)),
+      Math.max(16 + (panelHeight / 2), window.innerHeight - 16 - (panelHeight / 2))
+    );
+    const panelMiddleWithinSlide = clampedPanelTop - slideRect.top;
     slide.style.setProperty("--slide-hover-panel-left", `${Math.round(panelCenterWithinSlide)}px`);
+    slide.style.setProperty("--slide-hover-panel-top", `${Math.round(panelMiddleWithinSlide)}px`);
   }
 
   document.querySelectorAll("body:not(.landing-page) .site-slider-section .site-slide").forEach((slide) => {

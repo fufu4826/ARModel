@@ -8,9 +8,9 @@
         <img src="{{ slide.resolved_image_url }}" alt="{{ slide.title }}" loading="{{ 'eager' if loop.first else 'lazy' }}" />
         {% endif %}
         <div class="site-slide-overlay"></div>
-        <div class="site-slide-content">
-          <h2>{{ slide.title }}</h2>
-          {% if slide.description %}<p>{{ slide.description }}</p>{% endif %}
+        <div class="site-slide-content site-slide-preview">
+          <h2 class="site-slide-preview__title">{{ slide.title }}</h2>
+          {% if slide.description %}<p class="site-slide-preview__description">{{ slide.description }}</p>{% endif %}
           {% if slide.button_text and slide.button_url %}
           <a class="button" href="{{ slide.button_url }}">{{ slide.button_text }}</a>
           {% endif %}
@@ -45,11 +45,13 @@
           <path d="M18 6L6 18"></path>
         </svg>
       </button>
-      <img class="site-slide-modal__image" data-slide-dialog-image alt="" hidden />
-      <div class="site-slide-modal__body">
-        <h2 id="slideDialogTitle" data-slide-dialog-title></h2>
-        <p data-slide-dialog-description hidden></p>
-        <a class="button" data-slide-dialog-link hidden></a>
+      <div class="site-slide-modal__scroll-area">
+        <img class="site-slide-modal__image" data-slide-dialog-image alt="" hidden />
+        <div class="site-slide-modal__body">
+          <h2 id="slideDialogTitle" data-slide-dialog-title></h2>
+          <p data-slide-dialog-description hidden></p>
+          <a class="button" data-slide-dialog-link hidden></a>
+        </div>
       </div>
     </article>
   </div>

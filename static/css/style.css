@@ -1447,27 +1447,28 @@ model-viewer {
 
 .site-slider {
   width: 100%;
-  min-height: 360px;
+  height: clamp(300px, 48svh, 520px);
+  min-height: 0;
 }
 
 .site-slide {
   position: relative;
-  display: grid;
-  min-height: 360px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   isolation: isolate;
   cursor: pointer;
 }
 
 .site-slide > img,
-.site-slide-overlay,
-.site-slide-content {
-  grid-area: 1 / 1;
+.site-slide-overlay {
+  position: absolute;
+  inset: 0;
 }
 
 .site-slide > img {
   width: 100%;
   height: 100%;
-  min-height: 360px;
   object-fit: cover;
 }
 
@@ -1477,27 +1478,45 @@ model-viewer {
 }
 
 .site-slide-content {
+  position: absolute;
+  right: clamp(18px, 3vw, 32px);
+  bottom: clamp(18px, 3vw, 32px);
+  left: clamp(18px, 3vw, 32px);
   z-index: 2;
   align-self: end;
-  width: min(620px, 80%);
-  margin: 0 0 clamp(18px, 3vw, 32px) clamp(18px, 3vw, 32px);
+  width: min(620px, calc(100% - clamp(36px, 6vw, 64px)));
+  max-height: calc(100% - clamp(36px, 6vw, 64px));
+  margin: 0;
   padding: clamp(24px, 5vw, 56px);
+  overflow: hidden;
   border-radius: var(--radius);
   background: rgba(31, 107, 69, 0.92);
   color: #fff;
   box-shadow: 0 16px 36px rgba(23, 77, 52, 0.24);
 }
 
-.site-slide-content h2 {
+.site-slide-preview__title {
+  display: -webkit-box;
   margin: 0 0 10px;
+  overflow: hidden;
   color: #fff;
   font-size: clamp(26px, 4vw, 46px);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
-.site-slide-content p {
+.site-slide-preview__description {
+  display: -webkit-box;
   margin: 0 0 18px;
+  overflow: hidden;
   color: rgba(255, 255, 255, 0.9);
   line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .site-slide-hover-panel {
@@ -1577,7 +1596,8 @@ body.slide-dialog-open {
   z-index: 1;
   width: min(920px, 100%);
   max-height: min(86vh, 760px);
-  overflow: auto;
+  max-height: min(86dvh, 760px);
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: var(--radius);
   background: var(--surface);
@@ -1633,8 +1653,16 @@ body.slide-dialog-open {
   display: block;
   width: 100%;
   max-height: 52vh;
+  max-height: 52dvh;
   object-fit: contain;
   background: #f8fbf7;
+}
+
+.site-slide-modal__scroll-area {
+  max-height: inherit;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .site-slide-modal__body {
@@ -1666,17 +1694,21 @@ body.slide-dialog-open {
 }
 
 .landing-carousel .site-slider {
-  min-height: 260px;
+  height: clamp(280px, 46svh, 460px);
+  min-height: 0;
 }
 
 .landing-carousel .site-slide,
 .landing-carousel .site-slide > img {
-  min-height: 260px;
+  height: 100%;
+  min-height: 0;
 }
 
 .landing-carousel .site-slide-content {
-  width: 90%;
-  margin: 0 0 18px 18px;
+  right: 18px;
+  bottom: 18px;
+  left: 18px;
+  width: min(620px, calc(100% - 36px));
   padding: 24px;
 }
 
@@ -1780,11 +1812,12 @@ body:not(.landing-page) .site-slider-section .site-slide-content .button {
 
   body:not(.landing-page) .site-slider-section .site-slide-hover-panel {
     position: absolute;
-    top: 50%;
+    top: var(--slide-hover-panel-top, 50%);
     left: var(--slide-hover-panel-left, 50%);
     z-index: 5;
     display: grid;
     width: min(460px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
     overflow: hidden;
     border-radius: calc(var(--radius) + 4px);
     outline: 1px solid rgba(222, 232, 223, 0.96);
@@ -2047,14 +2080,16 @@ body:not(.landing-page) .site-slider-section .site-slide-content .button {
   }
 
   .site-slider,
-  .site-slide,
-  .site-slide > img {
-    min-height: 300px;
+  .site-slide {
+    height: clamp(280px, 46svh, 400px);
+    min-height: 0;
   }
 
   .site-slide-content {
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
     width: calc(100% - 32px);
-    margin: 0 16px 16px;
     padding: 22px;
   }
 
@@ -2086,9 +2121,9 @@ body:not(.landing-page) .site-slider-section .site-slide-content .button {
   }
 
   .landing-carousel .site-slider,
-  .landing-carousel .site-slide,
-  .landing-carousel .site-slide > img {
-    min-height: 280px;
+  .landing-carousel .site-slide {
+    height: clamp(280px, 46svh, 400px);
+    min-height: 0;
   }
 
   body:not(.landing-page) .site-slider-section .site-slider {

@@ -1451,6 +1451,77 @@ model-viewer {
   min-height: 0;
 }
 
+.model-audio-status,
+.model-detail-narration-availability {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.model-detail-narration {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.model-detail-narration__button {
+  width: fit-content;
+  animation: model-detail-narration-attention 5.6s ease-in-out infinite;
+  border-color: var(--green);
+  color: var(--green);
+  background: #ffffff;
+  will-change: transform;
+}
+
+.model-detail-narration__button[aria-pressed="true"] {
+  animation-play-state: paused;
+  color: #ffffff;
+  background: var(--green);
+}
+
+@keyframes model-detail-narration-attention {
+  0%,
+  100% {
+    transform: translateX(0);
+    color: var(--green);
+    background: #ffffff;
+    border-color: var(--green);
+  }
+
+  20% {
+    transform: translateX(-3px);
+  }
+
+  40% {
+    transform: translateX(3px);
+  }
+
+  55% {
+    transform: translateX(-2px);
+    color: #ffffff;
+    background: var(--green);
+    border-color: var(--green);
+  }
+
+  75% {
+    transform: translateX(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-detail-narration__button {
+    animation: none;
+  }
+}
+
 .site-slide {
   position: relative;
   height: 100%;
@@ -1691,6 +1762,33 @@ body.slide-dialog-open {
   position: relative;
   z-index: 3;
   width: 100%;
+}
+
+.landing-slider-toggle {
+  display: flex;
+  justify-content: flex-end;
+  width: calc(100% + clamp(18px, 4vw, 40px));
+  margin-right: calc(-1 * clamp(18px, 4vw, 40px));
+  padding: 18px 0 18px 18px;
+}
+
+.landing-slider-region[hidden] {
+  display: none;
+}
+
+.landing-slider-toggle__button:focus-visible {
+  outline: 3px solid rgba(244, 210, 124, 0.95);
+  outline-offset: 4px;
+}
+
+@media (max-width: 768px) {
+  .landing-slider-toggle {
+    display: none;
+  }
+
+  .landing-slider-region[hidden] {
+    display: block;
+  }
 }
 
 .landing-carousel .site-slider {

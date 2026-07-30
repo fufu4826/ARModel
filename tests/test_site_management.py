@@ -792,11 +792,16 @@ class SiteManagementTests(unittest.TestCase):
         self.assertTrue(lychee_payload["preview_images"][0].endswith("/static/pic/Lychee.jpg"))
 
     def test_model_detail_includes_narration_controls(self):
+        models = module.load_models(include_hidden=True)
+        lychee = next(item for item in models if item["id"] == "lychee")
+        lychee["narration_audio"] = "https://example.com/lychee.mp3"
+        module.save_models(models)
+
         model_html = self.client.get("/models/lychee").get_data(as_text=True)
         self.assertIn("data-model-narration", model_html)
         self.assertIn("data-narration-toggle", model_html)
         self.assertIn("data-narration-status", model_html)
-        self.assertIn("ฟังคำบรรยาย", model_html)
+        self.assertIn("ฟังเสียงบรรยาย", model_html)
         self.assertNotIn("data-narration-toggle disabled", model_html)
         self.assertIn('src="/static/js/model-narration.js?v=3"', model_html)
         self.assertEqual(self.client.get("/models").status_code, 200)
@@ -1616,8 +1621,49 @@ class SiteManagementTests(unittest.TestCase):
                 self.assertIn("site-slide-preview__description", html)
                 self.assertIn("site-slide-modal__scroll-area", html)
 
+                if route == "/":
+                    self.assertIn('data-landing-slider-toggle', html)
+                    self.assertIn('aria-expanded="false"', html)
+                    self.assertIn('aria-controls="landing-slider-region"', html)
+                    self.assertIn('id="landing-slider-region"', html)
+                    self.assertIn('data-landing-slider-region hidden', html)
+                    self.assertIn("ข่าวสาร", html)
+                else:
+                    self.assertNotIn("data-landing-slider-toggle", html)
+                    self.assertNotIn("data-landing-slider-region", html)
+
         payload = json.loads(self.client.get("/api/sliders").get_data(as_text=True))
         self.assertEqual([item["id"] for item in payload], ["test-slide", "empty-description-slide"])
+
+    def test_landing_omits_slider_toggle_when_no_active_sliders_exist(self):
+        landing_html = self.client.get("/").get_data(as_text=True)
+        home_html = self.client.get("/home").get_data(as_text=True)
+
+        self.assertNotIn("data-landing-slider-toggle", landing_html)
+        self.assertNotIn("data-landing-slider-region", landing_html)
+        self.assertNotIn("data-site-slider", landing_html)
+        self.assertNotIn("data-site-slider", home_html)
+
+    def test_landing_slider_toggle_script_handles_hidden_carousels_safely(self):
+        script = (
+            Path(module.BASE_DIR) / "static" / "js" / "site-carousel.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("const carouselInstances = new WeakMap();", script)
+        self.assertIn("function pauseCarouselAutoplay", script)
+        self.assertIn("function resumeCarouselAutoplay", script)
+        self.assertIn("function refreshCarousel", script)
+        self.assertIn('document.querySelectorAll("[data-landing-slider-toggle]")', script)
+        self.assertIn('region.hidden = false;', script)
+        self.assertIn('region.hidden = true;', script)
+        self.assertIn('toggle.setAttribute("aria-expanded", "true")', script)
+        self.assertIn('toggle.setAttribute("aria-expanded", "false")', script)
+        self.assertIn('toggle.textContent = "ปิดสไลด์"', script)
+        self.assertIn('toggle.textContent = "ข่าวสาร"', script)
+        self.assertIn('window.requestAnimationFrame(() => {', script)
+        self.assertIn('element.closest("[data-landing-slider-region][hidden]")', script)
+        self.assertIn('const landingSliderMobileQuery = window.matchMedia("(max-width: 768px)");', script)
+        self.assertIn("function synchronizeMobileVisibility()", script)
+        self.assertIn("landingSliderMobileQuery.addEventListener(\"change\", synchronizeMobileVisibility);", script)
 
     def test_public_logos_display(self):
         # 1. Test with intro logos configured
@@ -1856,7 +1902,7 @@ class SiteManagementTests(unittest.TestCase):
         models = module.load_models(include_hidden=True)
         for m in models:
             if m["id"] == "lychee":
-                m["narration_audio"] = "audio/lychee.mp3"
+                m["narration_audio"] = "https://example.com/lychee.mp3"
             elif m["id"] == "lukplakob":
                 m["narration_audio"] = ""
         module.save_models(models)
@@ -1867,8 +1913,8 @@ class SiteManagementTests(unittest.TestCase):
         html = response.get_data(as_text=True)
         self.assertIn("มีเสียงบรรยาย", html)
 
-        # 2. No visible "ไม่มีเสียง" exists on public pages
-        self.assertNotIn("ไม่มีเสียง", html)
+        # 2. Listing cards retain the Home-page badge-only presentation.
+        self.assertNotIn("ไม่มีเสียงบรรยาย", html)
 
         # 3. Homepage recommended cards also show badge when applicable
         self.sign_in()
@@ -1886,7 +1932,80 @@ class SiteManagementTests(unittest.TestCase):
         detail_res = self.client.get("/models/lychee")
         self.assertEqual(detail_res.status_code, 200)
         detail_html = detail_res.get_data(as_text=True)
-        self.assertIn("ฟังคำบรรยาย", detail_html)
+        self.assertIn("ฟังเสียงบรรยาย", detail_html)
+
+    def test_model_detail_shows_narration_status_and_audio_action(self):
+        module.save_models(
+            [
+                {
+                    "id": "project-narrated",
+                    "name": "Narrated project model",
+                    "project_id": "garden",
+                    "model_url": "https://example.com/narrated.glb",
+                    "thumbnail_url": "https://example.com/narrated.jpg",
+                    "narration_audio": "https://example.com/narrated.wav",
+                    "visible": True,
+                },
+                {
+                    "id": "project-silent",
+                    "name": "Silent project model",
+                    "project_id": "garden",
+                    "model_url": "https://example.com/silent.glb",
+                    "thumbnail_url": "https://example.com/silent.jpg",
+                    "narration_audio": "",
+                    "visible": True,
+                },
+                {
+                    "id": "project-missing-audio",
+                    "name": "Missing audio field model",
+                    "project_id": "garden",
+                    "model_url": "https://example.com/missing.glb",
+                    "thumbnail_url": "https://example.com/missing.jpg",
+                    "visible": True,
+                },
+                {
+                    "id": "project-hidden-audio",
+                    "name": "Hidden narrated project model",
+                    "project_id": "garden",
+                    "model_url": "https://example.com/hidden.glb",
+                    "thumbnail_url": "https://example.com/hidden.jpg",
+                    "narration_audio": "https://example.com/hidden.ogg",
+                    "visible": False,
+                },
+            ]
+        )
+
+        response = self.client.get("/models/project-narrated")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("Narrated project model", html)
+        self.assertIn("มีเสียงบรรยาย", html)
+        self.assertIn("ฟังเสียงบรรยาย", html)
+        self.assertIn('data-narration-label="ฟังเสียงบรรยาย"', html)
+        self.assertIn('src="https://example.com/narrated.wav"', html)
+        self.assertEqual(html.count("data-narration-audio"), 1)
+        self.assertEqual(html.count("model-detail-narration__button"), 1)
+
+        project_html = self.client.get("/projects/garden").get_data(as_text=True)
+        self.assertNotIn("data-model-narration", project_html)
+        self.assertIn("มีเสียงบรรยาย", project_html)
+        self.assertIn("ไม่มีเสียงบรรยาย", project_html)
+        self.assertIn("model-audio-status--unavailable", project_html)
+
+        silent_html = self.client.get("/models/project-silent").get_data(as_text=True)
+        missing_html = self.client.get("/models/project-missing-audio").get_data(as_text=True)
+        self.assertIn("ไม่มีเสียงบรรยาย", silent_html)
+        self.assertIn("ไม่มีเสียงบรรยาย", missing_html)
+        self.assertNotIn("ฟังเสียงบรรยาย", silent_html)
+        self.assertNotIn("ฟังเสียงบรรยาย", missing_html)
+
+        stylesheet = (Path(module.BASE_DIR) / "static" / "css" / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".model-detail-narration__button", stylesheet)
+        self.assertIn("model-detail-narration-attention", stylesheet)
+        self.assertIn("animation: model-detail-narration-attention 5.6s", stylesheet)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", stylesheet)
+        self.assertIn(".model-detail-narration__button {\n    animation: none;", stylesheet)
+        self.assertNotIn(".model-narration__button {\n  animation: model-detail-narration-attention", stylesheet)
 
     def test_model_rotation_controls_and_presets(self):
         self.sign_in()

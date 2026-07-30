@@ -3,8 +3,38 @@
   window.__siteCarouselInitialized = true;
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const landingSliderMobileQuery = window.matchMedia("(max-width: 768px)");
+  const carouselInstances = new WeakMap();
   let activeHoverCard = null;
   let hoverHideTimer = null;
+
+  function pauseCarouselAutoplay(carousel) {
+    if (carousel && carousel.autoplay && typeof carousel.autoplay.stop === "function") {
+      carousel.autoplay.stop();
+    }
+  }
+
+  function resumeCarouselAutoplay(carousel) {
+    if (!reduceMotion && carousel && carousel.autoplay && typeof carousel.autoplay.start === "function") {
+      carousel.autoplay.start();
+    }
+  }
+
+  function refreshCarousel(carousel) {
+    if (!carousel || carousel.destroyed) return;
+    carousel.updateSize();
+    carousel.updateSlides();
+    carousel.updateProgress();
+    carousel.updateSlidesClasses();
+    if (carousel.navigation && typeof carousel.navigation.update === "function") {
+      carousel.navigation.update();
+    }
+    if (carousel.pagination) {
+      if (typeof carousel.pagination.render === "function") carousel.pagination.render();
+      if (typeof carousel.pagination.update === "function") carousel.pagination.update();
+    }
+    carousel.update();
+  }
 
   function clearActiveHoverCard() {
     if (hoverHideTimer) {
@@ -97,7 +127,9 @@
     document.querySelectorAll("[data-site-slider]").forEach((element) => {
       const slideCount = element.querySelectorAll(".swiper-slide").length;
       const isLandingCarousel = Boolean(element.closest(".landing-carousel"));
-      new window.Swiper(element, {
+      let carousel;
+      try {
+        carousel = new window.Swiper(element, {
         loop: slideCount > 1,
         speed: reduceMotion ? 0 : 600,
         autoplay: slideCount > 1 && !reduceMotion ? { delay: 7000, disableOnInteraction: false } : false,
@@ -120,9 +152,58 @@
           touchStart: clearActiveHoverCard,
           sliderMove: clearActiveHoverCard,
         },
-      });
+        });
+      } catch (error) {
+        return;
+      }
+      carouselInstances.set(element, carousel);
+      if (element.closest("[data-landing-slider-region][hidden]") && !landingSliderMobileQuery.matches) {
+        pauseCarouselAutoplay(carousel);
+      }
     });
   }
+
+  document.querySelectorAll("[data-landing-slider-toggle]").forEach((toggle) => {
+    const regionId = toggle.getAttribute("aria-controls");
+    const region = regionId ? document.getElementById(regionId) : null;
+    const slider = region ? region.querySelector("[data-site-slider]") : null;
+    if (!region || !slider) return;
+
+    function setCollapsed(collapsed, focusToggle = true) {
+      if (collapsed) {
+        pauseCarouselAutoplay(carouselInstances.get(slider));
+        region.hidden = true;
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.textContent = "ข่าวสาร";
+        if (focusToggle) toggle.focus({ preventScroll: true });
+        return;
+      }
+
+      region.hidden = false;
+      toggle.setAttribute("aria-expanded", "true");
+      toggle.textContent = "ปิดสไลด์";
+      window.requestAnimationFrame(() => {
+        const carousel = carouselInstances.get(slider);
+        refreshCarousel(carousel);
+        resumeCarouselAutoplay(carousel);
+      });
+    }
+
+    toggle.addEventListener("click", () => {
+      setCollapsed(!region.hidden);
+    });
+
+    function synchronizeMobileVisibility() {
+      if (landingSliderMobileQuery.matches) {
+        setCollapsed(false, false);
+      } else if (region.hidden === false && toggle.getAttribute("aria-expanded") === "true") {
+        setCollapsed(true, false);
+      }
+    }
+
+    synchronizeMobileVisibility();
+    landingSliderMobileQuery.addEventListener("change", synchronizeMobileVisibility);
+  });
 
   window.addEventListener("blur", clearActiveHoverCard);
   document.addEventListener("visibilitychange", () => {

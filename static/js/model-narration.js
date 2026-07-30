@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const resetButton = (control, message = "") => {
-    control.button.textContent = "ฟังคำบรรยาย";
+    control.button.textContent = control.element.dataset.narrationLabel || "ฟังคำบรรยาย";
     control.button.setAttribute("aria-pressed", "false");
     setStatus(control, message);
   };

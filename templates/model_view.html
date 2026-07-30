@@ -102,15 +102,21 @@
         <h1 id="modelTitle">{{ model.name }}</h1>
         <p class="lead" id="modelDescription">{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้ภูมิปัญญา ผลิตภัณฑ์ และงานพัฒนาพื้นที่" }}</p>
       </div>
-      <div class="model-narration" data-model-narration data-title-source="modelTitle" data-description-source="modelDescription">
-        <button class="button secondary small model-narration__button" type="button" data-narration-toggle>
-          ฟังคำบรรยาย
+      {% if narration_audio_url %}
+      <span class="model-audio-badge" aria-label="มีเสียงบรรยาย">
+        <span class="model-audio-badge__icon" aria-hidden="true"></span>
+        มีเสียงบรรยาย
+      </span>
+      <div class="model-narration model-detail-narration" data-model-narration data-narration-label="ฟังเสียงบรรยาย" data-title-source="modelTitle" data-description-source="modelDescription">
+        <button class="button secondary small model-narration__button model-detail-narration__button" type="button" data-narration-toggle>
+          ฟังเสียงบรรยาย
         </button>
-        {% if narration_audio_url %}
         <audio data-narration-audio preload="none" src="{{ narration_audio_url }}"></audio>
-        {% endif %}
         <p class="model-narration__status" data-narration-status role="status" aria-live="polite" hidden></p>
       </div>
+      {% else %}
+      <span class="model-detail-narration-availability">ไม่มีเสียงบรรยาย</span>
+      {% endif %}
 
       <section class="model-gallery" aria-labelledby="model-gallery-title">
         <h2 id="model-gallery-title">รูปภาพตัวอย่าง</h2>

@@ -1,4 +1,16 @@
 {% if sliders %}
+{% if landing_slider_collapsible %}
+<div class="landing-slider-toggle">
+  <button
+    class="button landing-slider-toggle__button"
+    type="button"
+    aria-expanded="false"
+    aria-controls="landing-slider-region"
+    data-landing-slider-toggle
+  >ข่าวสาร</button>
+</div>
+<div class="landing-slider-region" id="landing-slider-region" data-landing-slider-region hidden>
+{% endif %}
 <section class="site-slider-section" aria-label="สไลด์ประชาสัมพันธ์">
   <div class="swiper site-slider" data-site-slider>
     <div class="swiper-wrapper">
@@ -56,4 +68,7 @@
     </article>
   </div>
 </section>
+{% if landing_slider_collapsible %}
+</div>
+{% endif %}
 {% endif %}

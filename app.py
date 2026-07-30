@@ -2503,6 +2503,7 @@ def index():
         "landing.html",
         landing_image_url=public_settings["landing_cover_url"],
         sliders=sliders,
+        landing_slider_collapsible=True,
         intro_logos=[
             public_settings[f"intro_logo_{index}_url"]
             for index in range(1, 4)
@@ -2560,6 +2561,7 @@ def home():
         total_project_count=len(projects),
         total_model_count=len(all_models),
         sliders=sliders,
+        landing_slider_collapsible=False,
         structured_data=public_structured_data(settings),
         page_title=settings["site_name"],
         page_description=settings["meta_description"],

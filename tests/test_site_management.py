@@ -894,6 +894,8 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("data-narration-reset", page)
         self.assertIn("data-narration-empty", page)
         self.assertIn('src="/static/js/admin-narrations.js?v=2"', page)
+        narration_styles = (Path(module.BASE_DIR) / "static" / "css" / "admin-narrations.css").read_text(encoding="utf-8")
+        self.assertIn("[data-narration-item][hidden]", narration_styles)
         self.assertIn("ฟังเสียงปัจจุบัน", page)
         self.assertIn("data-audio-toggle", page)
         self.assertIn("ซ่อนอยู่", page)

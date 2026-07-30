@@ -9,6 +9,7 @@
 .narration-result-count { color: var(--admin-muted); margin: 14px 0; }
 .narration-list { display: grid; gap: 12px; }
 .narration-item { display: grid; gap: 14px; align-items: center; padding: 12px; scroll-margin-top: 18px; }
+[data-narration-item][hidden], [data-narration-empty][hidden] { display: none !important; }
 .narration-item.is-focused { outline: 3px solid var(--admin-gold); }
 .narration-item > img { width: 72px; height: 72px; border-radius: 6px; object-fit: cover; background: var(--admin-surface-2); }
 .narration-item__details h2 { margin: 0; font-size: 17px; }.narration-item__details p { margin: 4px 0 8px; color: var(--admin-muted); }

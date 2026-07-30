@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
@@ -144,6 +145,170 @@ class AdminDashboardTests(unittest.TestCase):
         self.assertEqual(analytics["trend_ranges"]["daily_7d"][-1]["visitors"], 1)
         self.assertIn({"label": "Landing", "value": 1}, analytics["top_pages"])
         self.assertIn({"label": "google.com", "value": 1}, analytics["top_referrers"])
+
+    def test_project_and_model_routes_resolve_current_names_by_id_and_slug(self):
+        module.write_json(
+            module.PROJECTS_FILE,
+            [
+                {
+                    "id": "project-dynamic-id",
+                    "slug": "project-dynamic-slug",
+                    "name": "Dynamic Project Name",
+                    "visible": True,
+                }
+            ],
+        )
+        module.write_json(
+            module.CATALOG_FILE,
+            [
+                {
+                    "id": "model-dynamic-id",
+                    "slug": "model-dynamic-slug",
+                    "name": "Dynamic Model Name",
+                    "project_id": "project-dynamic-id",
+                    "visible": True,
+                }
+            ],
+        )
+
+        with patch.dict(module.os.environ, {"ARMODEL_ANALYTICS_ENABLED": "0"}):
+            for path, expected_name in (
+                ("/projects/project-dynamic-id", "Dynamic Project Name"),
+                ("/projects/project-dynamic-slug", "Dynamic Project Name"),
+                ("/models/model-dynamic-id", "Dynamic Model Name"),
+                ("/models/model-dynamic-slug", "Dynamic Model Name"),
+            ):
+                with self.subTest(path=path):
+                    response = self.client.get(path)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertIn(expected_name, response.get_data(as_text=True))
+
+    def test_dashboard_relabels_historical_paths_without_mutating_events(self):
+        module.write_json(
+            module.PROJECTS_FILE,
+            [
+                {
+                    "id": "project-current-id",
+                    "slug": "project-current-slug",
+                    "name": "Hidden Historical Project",
+                    "visible": False,
+                }
+            ],
+        )
+        module.write_json(
+            module.CATALOG_FILE,
+            [
+                {
+                    "id": "model-current-id",
+                    "slug": "model-current-slug",
+                    "name": "Hidden Historical Model",
+                    "project_id": "project-current-id",
+                    "visible": False,
+                }
+            ],
+        )
+        timestamp = datetime.now(timezone.utc).isoformat()
+        events = [
+            {
+                "timestamp": timestamp,
+                "visitor_id": "project-visitor",
+                "path": "/projects/project-current-id",
+                "page": "Project: project-current-id",
+                "referrer": "Direct",
+                "country": "TH",
+            },
+            {
+                "timestamp": timestamp,
+                "visitor_id": "model-visitor",
+                "path": "/models/model-current-slug",
+                "page": "Model: model-current-slug",
+                "referrer": "Direct",
+                "country": "TH",
+            },
+            {
+                "timestamp": timestamp,
+                "visitor_id": "missing-project-visitor",
+                "path": "/projects/deleted-project-id",
+                "page": "Project: deleted-project-id",
+                "referrer": "Direct",
+                "country": "TH",
+            },
+            {
+                "timestamp": timestamp,
+                "visitor_id": "missing-model-visitor",
+                "path": "/models/deleted-model-slug",
+                "page": "Model: deleted-model-slug",
+                "referrer": "Direct",
+                "country": "TH",
+            },
+        ]
+        module.write_json(module.ANALYTICS_FILE, events)
+        before = module.ANALYTICS_FILE.read_bytes()
+
+        analytics = module.dashboard_analytics_status()
+
+        self.assertEqual(analytics["metrics"]["total_events"], 4)
+        self.assertEqual(analytics["metrics"]["pageviews_today"], 4)
+        self.assertEqual(
+            analytics["top_pages"],
+            [
+                {"label": "Model: Hidden Historical Model", "value": 1},
+                {"label": "Project: Hidden Historical Project", "value": 1},
+                {"label": "โครงการที่ไม่พบ", "value": 1},
+                {"label": "โมเดลที่ไม่พบ", "value": 1},
+            ],
+        )
+        self.assertEqual(module.ANALYTICS_FILE.read_bytes(), before)
+
+        self.assertEqual(
+            module.analytics_page_label("/projects/project-current-slug"),
+            "Project: Hidden Historical Project",
+        )
+        self.assertEqual(
+            module.analytics_page_label("/models/model-current-id"),
+            "Model: Hidden Historical Model",
+        )
+
+    def test_new_analytics_events_store_human_readable_content_names(self):
+        module.write_json(
+            module.PROJECTS_FILE,
+            [
+                {
+                    "id": "project-new-id",
+                    "slug": "project-new-slug",
+                    "name": "New Project Name",
+                    "visible": True,
+                }
+            ],
+        )
+        module.write_json(
+            module.CATALOG_FILE,
+            [
+                {
+                    "id": "model-new-id",
+                    "slug": "model-new-slug",
+                    "name": "New Model Name",
+                    "project_id": "project-new-id",
+                    "visible": True,
+                }
+            ],
+        )
+
+        self.assertEqual(self.client.get("/projects/project-new-slug").status_code, 200)
+        self.assertEqual(self.client.get("/models/model-new-id").status_code, 200)
+
+        labels_by_path = {
+            event["path"]: event["page"]
+            for event in module.read_analytics_events()
+        }
+        self.assertEqual(
+            labels_by_path["/projects/project-new-slug"],
+            "Project: New Project Name",
+        )
+        self.assertEqual(
+            labels_by_path["/models/model-new-id"],
+            "Model: New Model Name",
+        )
 
     def test_production_analytics_uses_r2_when_configured(self):
         r2_env = {

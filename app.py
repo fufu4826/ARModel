@@ -710,7 +710,23 @@ def analytics_referrer_label() -> str:
     return host.removeprefix("www.")
 
 
-def analytics_page_label(path: str) -> str:
+def content_lookup(records: list[dict]) -> dict[str, dict]:
+    lookup: dict[str, dict] = {}
+    for record in records:
+        for key in ("id", "slug"):
+            value = str(record.get(key) or "").strip()
+            if value:
+                lookup[value] = record
+    return lookup
+
+
+def analytics_page_label(
+    path: str,
+    *,
+    project_lookup: dict[str, dict] | None = None,
+    model_lookup: dict[str, dict] | None = None,
+) -> str:
+    path = urlsplit(path).path.rstrip("/") or "/"
     if path == "/":
         return "Landing"
     if path == "/home":
@@ -718,9 +734,21 @@ def analytics_page_label(path: str) -> str:
     if path == "/models":
         return "Models"
     if path.startswith("/models/"):
-        return f"Model: {path.rsplit('/', 1)[-1]}"
+        model_id = path.rsplit("/", 1)[-1]
+        if model_lookup is None:
+            model_lookup = content_lookup(get_models(include_hidden=True))
+        model = model_lookup.get(model_id)
+        if model is None:
+            return "โมเดลที่ไม่พบ"
+        return f"Model: {model.get('name') or 'โมเดลที่ไม่พบ'}"
     if path.startswith("/projects/"):
-        return f"Project: {path.rsplit('/', 1)[-1]}"
+        project_id = path.rsplit("/", 1)[-1]
+        if project_lookup is None:
+            project_lookup = content_lookup(get_projects(include_hidden=True))
+        project = project_lookup.get(project_id)
+        if project is None:
+            return "โครงการที่ไม่พบ"
+        return f"Project: {project.get('name') or 'โครงการที่ไม่พบ'}"
     return path
 
 
@@ -917,12 +945,21 @@ def _analytics_trend_ranges(now: datetime, events: list[dict]) -> dict:
 def dashboard_analytics_status() -> dict:
     now = datetime.now(timezone.utc)
     today = now.date()
+    project_lookup = content_lookup(get_projects(include_hidden=True))
+    model_lookup = content_lookup(get_models(include_hidden=True))
     events = []
     for event in read_analytics_events():
         occurred_at = _analytics_event_datetime(event)
         if occurred_at is None:
             continue
         normalized = dict(event)
+        path = str(event.get("path") or "").strip()
+        if path:
+            normalized["page"] = analytics_page_label(
+                path,
+                project_lookup=project_lookup,
+                model_lookup=model_lookup,
+            )
         normalized["_occurred_at"] = occurred_at
         events.append(normalized)
 
@@ -1160,17 +1197,11 @@ def project_model_counts(projects: list[dict], models: list[dict]) -> dict[str, 
 
 
 def find_project(project_id: str, include_hidden: bool = False) -> dict | None:
-    for project in get_projects(include_hidden=include_hidden):
-        if project.get("id") == project_id:
-            return project
-    return None
+    return content_lookup(get_projects(include_hidden=include_hidden)).get(project_id)
 
 
 def find_model(model_id: str, include_hidden: bool = False) -> dict | None:
-    for model in get_models(include_hidden=include_hidden):
-        if model.get("id") == model_id:
-            return model
-    return None
+    return content_lookup(get_models(include_hidden=include_hidden)).get(model_id)
 
 
 def load_config() -> dict:
@@ -2572,7 +2603,7 @@ def project_detail(project_id: str):
     models = [
         model_with_project(model, projects)
         for model in get_models(include_hidden=False)
-        if model.get("project_id") == project_id
+        if model.get("project_id") == project.get("id")
     ]
     project = project_with_urls(project, models)
     return render_template(

@@ -6,6 +6,7 @@
   <div class="admin-nav-group">
     <span class="admin-nav-heading">ภาพรวมระบบ</span>
     <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint in ['admin_dashboard', 'admin_dashboard_summary'] else '' }}"><span class="admin-icon admin-icon--dashboard" aria-hidden="true"></span> แดชบอร์ด</a>
+    <a href="{{ url_for('admin_audit_logs') }}" class="{{ 'active' if request.endpoint in ['admin_audit_logs', 'export_audit_logs'] else '' }}"><span class="admin-icon admin-icon--settings" aria-hidden="true"></span> บันทึกการใช้งาน</a>
   </div>
 
   <div class="admin-nav-group">

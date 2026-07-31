@@ -920,6 +920,30 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(selected["narration_audio"], "audio/confirmed.wav")
         self.assertEqual(self.client.post(f"/admin/narrations/drafts/{token}/confirm").status_code, 302)
 
+    def test_audit_logs_are_signed_private_and_require_admin(self):
+        self.assertEqual(self.client.get("/admin/audit-logs").status_code, 302)
+        with tempfile.TemporaryDirectory() as audit_dir, patch.object(module, "LOCAL_AUDIT_LOG_DIR", Path(audit_dir)):
+            with self.client.session_transaction() as audit_session:
+                audit_session["admin"] = True
+                audit_session["admin_session_id"] = "test-session"
+            with self.client:
+                self.client.get("/admin")
+                event = module.write_audit_event(
+                    "model", "edit", "success", "แก้ไขโมเดลทดสอบสำเร็จ",
+                    resource_type="model", resource_id="test", resource_name="โมเดลทดสอบ",
+                    metadata={"password": "never-store", "token": "never-store", "bytes": b"file"},
+                )
+            self.assertIsNotNone(event)
+            self.assertTrue(module.verify_audit_event(event))
+            self.assertEqual(event["metadata"]["password"], "[ปกปิด]")
+            self.assertEqual(event["metadata"]["token"], "[ปกปิด]")
+            self.assertEqual(event["metadata"]["bytes"]["kind"], "binary")
+            self.assertTrue(list(Path(audit_dir).rglob("*.json")))
+            page = self.client.get("/admin/audit-logs").get_data(as_text=True)
+            self.assertIn("บันทึกการใช้งาน", page)
+            self.assertIn("แก้ไขโมเดลทดสอบสำเร็จ", page)
+            self.assertEqual(self.client.get("/admin/audit-logs/export/csv").status_code, 200)
+
     def test_gemini_dependency_and_audio_format_helpers(self):
         requirements = (
             Path(module.BASE_DIR) / "requirements.txt"

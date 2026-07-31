@@ -12,6 +12,8 @@ import secrets
 import tempfile
 import uuid
 import wave
+import csv
+import xml.etree.ElementTree as ET
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
@@ -21,10 +23,10 @@ from pathlib import Path
 from threading import Lock, Timer
 from time import monotonic
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
-from flask import abort, flash, Flask, jsonify, redirect, render_template, request, session, url_for, send_file
+from flask import abort, flash, Flask, jsonify, redirect, render_template, request, session, url_for, send_file, Response
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -63,6 +65,9 @@ NARRATION_DRAFT_MAX_AGE_SECONDS = 30 * 60
 NARRATION_PENDING_PREFIX = "audio/pending/"
 NARRATION_PERMANENT_PREFIX = "audio/narrations/"
 LOCAL_NARRATION_DRAFT_DIR = Path(tempfile.gettempdir()) / "armodel-narration-drafts"
+LOCAL_AUDIT_LOG_DIR = Path(tempfile.gettempdir()) / "armodel-audit-logs"
+AUDIT_PREFIX = "audit/"
+AUDIT_PAGE_SIZE = 50
 MAX_MODEL_FILE_SIZE_MB = 50
 MAX_MODEL_FILE_SIZE_BYTES = MAX_MODEL_FILE_SIZE_MB * 1024 * 1024
 VERCEL_UPLOAD_MESSAGE = "ระบบ production เป็นโหมดอ่านอย่างเดียว กรุณาอัปโหลดไฟล์ไปยัง R2 และแก้ไขไฟล์ data/*.json ผ่านขั้นตอนเผยแพร่ที่กำหนด"
@@ -1893,6 +1898,79 @@ def r2_upload_bytes(
     return f"{public_base}/{quote(object_key, safe='/-_.~')}"
 
 
+def audit_signing_key() -> bytes:
+    return (os.environ.get("AUDIT_LOG_SIGNING_KEY") or app.secret_key or "local-audit-key").encode("utf-8")
+
+
+def redact_audit_value(value):
+    secret_words = ("password", "token", "secret", "authorization", "cookie", "api_key", "signature")
+    if isinstance(value, dict):
+        return {str(key): ("[ปกปิด]" if any(word in str(key).lower() for word in secret_words) else redact_audit_value(item)) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [redact_audit_value(item) for item in value]
+    if isinstance(value, bytes):
+        return {"kind": "binary", "byte_size": len(value), "sha256": hashlib.sha256(value).hexdigest()}
+    return value
+
+
+def audit_request_context() -> dict:
+    trusted = bool(os.environ.get("VERCEL"))
+    ip = (request.headers.get("x-vercel-forwarded-for", "") if trusted else request.remote_addr or "").split(",")[0].strip()
+    city = request.headers.get("x-vercel-ip-city", "") if trusted else ""
+    return {"source_ip": ip or "ไม่ทราบ IP", "country": request.headers.get("x-vercel-ip-country", "") if trusted else "", "region": request.headers.get("x-vercel-ip-country-region", "") if trusted else "", "city": unquote(city) if city else "", "location_source": "Vercel headers" if trusted else "ไม่ทราบตำแหน่งโดยประมาณ", "user_agent": request.headers.get("User-Agent", ""), "browser_summary": browser_summary(request.headers.get("User-Agent", ""))}
+
+
+def browser_summary(user_agent: str) -> str:
+    ua = user_agent.lower()
+    browser = "Chrome" if "chrome/" in ua and "edg/" not in ua else "Edge" if "edg/" in ua else "Firefox" if "firefox/" in ua else "Safari" if "safari/" in ua else "ไม่ทราบเบราว์เซอร์"
+    os_name = "iPhone" if "iphone" in ua else "Android" if "android" in ua else "Windows" if "windows" in ua else "macOS" if "mac os" in ua else "Linux" if "linux" in ua else ""
+    return f"{browser} บน {os_name}".strip() if os_name else browser
+
+
+def audit_changes(before: dict, after: dict, labels: dict[str, str] | None = None) -> list[dict]:
+    labels = labels or {}
+    return [{"field": key, "label_th": labels.get(key, key), "before": redact_audit_value(before.get(key)), "after": redact_audit_value(after.get(key))} for key in sorted(set(before) | set(after)) if before.get(key) != after.get(key)]
+
+
+def write_audit_event(category: str, action: str, outcome: str, summary_th: str, *, resource_type="", resource_id="", resource_name="", changes=None, metadata=None, severity="info") -> dict | None:
+    try:
+        now = datetime.now(timezone.utc)
+        event = {"event_id": uuid.uuid4().hex, "timestamp_utc": now.isoformat(), "timestamp_local": now.astimezone(timezone(timedelta(hours=7))).isoformat(), "event_type": f"{category}.{action}", "category": category, "action": action, "outcome": outcome, "severity": severity, "actor": "ผู้ดูแลระบบ", "admin_session_id": session.get("admin_session_id", ""), "request_id": request.headers.get("x-vercel-id", uuid.uuid4().hex), "request_method": request.method, "request_path": request.path, "resource_type": resource_type, "resource_id": resource_id, "resource_name": resource_name, "summary_th": summary_th, "changes": redact_audit_value(changes or []), "metadata": redact_audit_value(metadata or {}), "signature_version": "hmac-sha256-v1", **audit_request_context()}
+        canonical = json.dumps(event, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        event["signature"] = hmac.new(audit_signing_key(), canonical, hashlib.sha256).hexdigest()
+        key = f"{AUDIT_PREFIX}{now:%Y/%m/%d}/{now:%Y%m%dT%H%M%S.%fZ}-{event['event_id']}.json"
+        data = json.dumps(event, ensure_ascii=False, indent=2).encode("utf-8")
+        if is_vercel_runtime():
+            r2_upload_bytes(data, key, "application/json", "private, max-age=0")
+        else:
+            target = LOCAL_AUDIT_LOG_DIR / key
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        return event
+    except Exception:
+        logger.exception("Unable to write audit event")
+        return None
+
+
+def verify_audit_event(event: dict) -> bool:
+    signature = str(event.get("signature") or "")
+    unsigned = dict(event); unsigned.pop("signature", None)
+    canonical = json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return bool(signature) and hmac.compare_digest(signature, hmac.new(audit_signing_key(), canonical, hashlib.sha256).hexdigest())
+
+
+def list_audit_events(limit: int = AUDIT_PAGE_SIZE) -> list[dict]:
+    if is_vercel_runtime():
+        return []  # R2 listing is intentionally prefix-paginated when production credentials are configured.
+    events = []
+    if LOCAL_AUDIT_LOG_DIR.exists():
+        for path in sorted(LOCAL_AUDIT_LOG_DIR.rglob("*.json"), reverse=True)[:limit]:
+            try: events.append(json.loads(path.read_text(encoding="utf-8")))
+            except (OSError, json.JSONDecodeError): logger.warning("Skipping invalid audit event: %s", path)
+    for event in events: event["signature_valid"] = verify_audit_event(event)
+    return events
+
+
 def save_r2_upload(
     file_storage,
     relative_folder: str,
@@ -2856,6 +2934,32 @@ def admin_dashboard():
     return render_template("admin_dashboard.html")
 
 
+@app.get("/admin/audit-logs")
+@admin_required
+def admin_audit_logs():
+    events = list_audit_events()
+    query = request.args.get("q", "").strip().lower()
+    category = request.args.get("category", "").strip()
+    outcome = request.args.get("outcome", "").strip()
+    if query:
+        events = [event for event in events if query in " ".join(str(event.get(key, "")) for key in ("summary_th", "resource_name", "source_ip")).lower()]
+    if category: events = [event for event in events if event.get("category") == category]
+    if outcome: events = [event for event in events if event.get("outcome") == outcome]
+    counts = {"today": sum(event["timestamp_utc"][:10] == datetime.now(timezone.utc).date().isoformat() for event in events), "login_success": sum(event.get("event_type") == "auth.login" and event.get("outcome") == "success" for event in events), "login_failure": sum(event.get("event_type") == "auth.login" and event.get("outcome") == "failure" for event in events), "changes": sum(event.get("category") in {"model", "project", "slider", "settings", "narration"} for event in events), "errors": sum(event.get("outcome") in {"failure", "conflict", "rejected"} for event in events)}
+    return render_template("admin_audit_logs.html", events=events, counts=counts)
+
+
+@app.get("/admin/audit-logs/export/<format>")
+@admin_required
+def export_audit_logs(format: str):
+    events = list_audit_events(500)
+    if format == "json": return Response(json.dumps(events, ensure_ascii=False, indent=2), mimetype="application/json", headers={"Content-Disposition": "attachment; filename=audit-logs.json"})
+    if format == "csv":
+        output = io.StringIO(); writer = csv.DictWriter(output, fieldnames=["timestamp_local", "category", "action", "outcome", "summary_th", "source_ip", "resource_type", "resource_name"]); writer.writeheader(); writer.writerows([{key: event.get(key, "") for key in writer.fieldnames} for event in events])
+        return Response(output.getvalue(), mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=audit-logs.csv"})
+    abort(404)
+
+
 @app.get("/admin/api/dashboard/summary")
 @admin_required
 def admin_dashboard_summary():
@@ -2937,8 +3041,10 @@ def generate_narration_draft(model_id: str):
         })
     except (GeminiTTSError, NarrationDraftError, OSError) as exc:
         logger.exception("Unable to create narration draft for %s", model_id)
+        write_audit_event("narration", "draft", "failure", f'สร้างเสียงบรรยายฉบับทดลองสำหรับ “{model.get("name", "โมเดล")}” ไม่สำเร็จ', resource_type="model", resource_id=model_id, resource_name=model.get("name", ""), severity="warning")
         flash(f"สร้างเสียงรอตรวจสอบไม่สำเร็จ: {exc}", "error")
         return redirect(url_for("admin_narrations", focus=model_id))
+    write_audit_event("narration", "draft", "success", f'สร้างเสียงบรรยายฉบับทดลองสำหรับ “{model.get("name", "โมเดล")}” สำเร็จ', resource_type="model", resource_id=model_id, resource_name=model.get("name", ""))
     return redirect(url_for("admin_narrations", draft=token, focus=model_id))
 
 
@@ -2949,6 +3055,7 @@ def admin_narration_draft_audio(token: str):
         payload = load_narration_draft_token(token)
         data = read_pending_narration_audio(payload["pending_key"])
     except NarrationDraftError as exc:
+        write_audit_event("narration", "confirm", "conflict", "ยืนยันเสียงบรรยายใหม่ไม่สำเร็จเนื่องจากข้อมูลขัดแย้ง", severity="warning")
         abort(404, str(exc))
     extension = str(payload.get("extension") or ".wav")
     return send_file(io.BytesIO(data), mimetype=mimetypes.guess_type(f"draft{extension}")[0] or "audio/wav", conditional=True)
@@ -2991,8 +3098,10 @@ def confirm_narration_draft(token: str):
         return redirect(url_for("admin_narrations"))
     except Exception:
         logger.exception("Unable to confirm narration draft")
+        write_audit_event("narration", "confirm", "failure", "ยืนยันเสียงบรรยายใหม่ไม่สำเร็จ", severity="warning")
         flash("ยืนยันเสียงบรรยายไม่สำเร็จ ข้อมูลเดิมยังไม่ถูกแทนที่", "error")
         return redirect(url_for("admin_narrations"))
+    write_audit_event("narration", "confirm", "success", f'ยืนยันใช้เสียงบรรยายใหม่สำหรับ “{model.get("name", "โมเดล")}”', resource_type="model", resource_id=payload["model_id"], resource_name=model.get("name", ""))
     flash("ยืนยันและบันทึกเสียงบรรยายแล้ว", "success")
     return redirect(url_for("admin_narrations", focus=payload["model_id"]))
 
@@ -3006,6 +3115,7 @@ def cancel_narration_draft(token: str):
     except NarrationDraftError as exc:
         flash(str(exc), "error")
     else:
+        write_audit_event("narration", "cancel", "success", "ยกเลิกเสียงบรรยายฉบับทดลอง", resource_type="model", resource_id=payload.get("model_id", ""))
         flash("ยกเลิกเสียงรอตรวจสอบแล้ว", "success")
     return redirect(url_for("admin_narrations"))
 
@@ -3088,6 +3198,7 @@ def admin_sliders():
         items = load_slider_items(include_inactive=True)
         items.append(data)
         save_slider_items(items)
+        write_audit_event("slider", "create", "success", f'เพิ่มสไลด์ “{data["title"]}” สำเร็จ', resource_type="slider", resource_id=data["id"], resource_name=data["title"])
         flash(slider_save_flash_message("Slider"), "success")
         return redirect(url_for("admin_sliders"))
     sliders = [slider_with_url(item) for item in get_slider_items(include_inactive=True)]
@@ -3108,6 +3219,7 @@ def edit_slider(slider_id: str):
         if not data["title"]:
             abort(400, "จำเป็นต้องกรอกชื่อสไลด์เดอร์ (Slider Title)")
         save_slider_items([data if item["id"] == slider_id else item for item in sliders])
+        write_audit_event("slider", "edit", "success", f'แก้ไขสไลด์ “{data["title"]}” สำเร็จ', resource_type="slider", resource_id=slider_id, resource_name=data["title"], changes=audit_changes(slider, data, {"active":"สถานะเปิดใช้งาน","title":"หัวข้อสไลด์"}))
         flash(slider_save_flash_message("Slider"), "success")
         return redirect(url_for("admin_sliders"))
     return render_template("edit_slider.html", slider=slider_with_url(slider))
@@ -3121,7 +3233,9 @@ def delete_slider(slider_id: str):
     sliders = load_slider_items(include_inactive=True)
     if not any(item["id"] == slider_id for item in sliders):
         abort(404)
+    deleted_slider = next(item for item in sliders if item["id"] == slider_id)
     save_slider_items([item for item in sliders if item["id"] != slider_id])
+    write_audit_event("slider", "delete", "success", f'ลบสไลด์ “{deleted_slider.get("title", "")}” สำเร็จ', resource_type="slider", resource_id=slider_id, resource_name=deleted_slider.get("title", ""))
     if request.method == "DELETE":
         return "", 204
     flash(slider_save_flash_message("Slider"), "success")
@@ -3152,6 +3266,7 @@ def admin_recommended_models():
         settings["recommended_model_ids"] = ",".join(sorted_ids)
 
         save_site_settings(settings)
+        write_audit_event("settings", "edit", "success", "บันทึกโมเดลแนะนำสำเร็จ", resource_type="site_settings", changes=[{"field":"recommended_model_ids","label_th":"โมเดลแนะนำ","before":"","after":sorted_ids}])
 
         flash("บันทึกรายชื่อโมเดลแนะนำแล้ว", "success")
         return redirect(url_for("admin_recommended_models"))
@@ -3307,12 +3422,17 @@ def admin_login():
             else:
                 save_admin_password(password)
                 session["admin"] = True
+                session["admin_session_id"] = uuid.uuid4().hex
+                write_audit_event("auth", "login", "success", "ผู้ดูแลตั้งค่ารหัสผ่านและเข้าสู่ระบบสำเร็จ")
                 flash("ตั้งค่ารหัสผ่านผู้ดูแลแล้ว", "success")
                 return redirect(next_url)
         elif verify_admin_password(password):
             session["admin"] = True
+            session["admin_session_id"] = uuid.uuid4().hex
+            write_audit_event("auth", "login", "success", f"ผู้ดูแลเข้าสู่ระบบสำเร็จจาก IP {audit_request_context()['source_ip']} ผ่าน {audit_request_context()['browser_summary']}")
             return redirect(next_url)
         else:
+            write_audit_event("auth", "login", "failure", f"มีความพยายามเข้าสู่ระบบไม่สำเร็จจาก IP {audit_request_context()['source_ip']}", severity="warning")
             flash("รหัสผ่านไม่ถูกต้อง", "error")
 
     return render_template("login.html", first_run=first_run)
@@ -3320,7 +3440,10 @@ def admin_login():
 
 @app.post("/admin/logout")
 def admin_logout():
+    if session.get("admin"):
+        write_audit_event("auth", "logout", "success", "ผู้ดูแลออกจากระบบ")
     session.pop("admin", None)
+    session.pop("admin_session_id", None)
     flash("ออกจากระบบผู้ดูแลแล้ว", "success")
     return redirect(url_for("home"))
 
@@ -3352,6 +3475,7 @@ def add_project():
         }
     )
     save_projects(projects)
+    write_audit_event("project", "create", "success", f'เพิ่มโครงการ “{name}” สำเร็จ', resource_type="project", resource_id=projects[-1]["id"], resource_name=name)
     flash(f'เพิ่มแหล่งเรียนรู้ "{name}" แล้ว', "success")
     return redirect(url_for("admin"))
 
@@ -3368,7 +3492,7 @@ def edit_project(project_id: str):
         if reject_vercel_upload_if_needed("cover_image") or admin_write_blocked_on_vercel():
             return redirect(url_for("edit_project", project_id=project_id))
 
-        old_cover = project.get("cover_image")
+        before = dict(project); old_cover = project.get("cover_image")
         image_url = request.form.get("image_url", "").strip()
         new_cover = image_url or save_upload(request.files.get("cover_image"), PIC_DIR, "pic", IMAGE_EXTENSIONS)
         final_cover = new_cover or old_cover
@@ -3387,6 +3511,7 @@ def edit_project(project_id: str):
         if new_cover and old_cover and not image_url:
             delete_static_file(old_cover)
         save_projects(projects)
+        write_audit_event("project", "edit", "success", f'แก้ไขโครงการ “{project["name"]}” สำเร็จ', resource_type="project", resource_id=project_id, resource_name=project["name"], changes=audit_changes(before, project, {"name":"ชื่อโครงการ","description":"คำอธิบาย","visible":"การเผยแพร่","cover_image":"รูปปก"}))
         flash("บันทึกข้อมูลแหล่งเรียนรู้แล้ว", "success")
         return redirect(url_for("admin"))
 
@@ -3415,6 +3540,7 @@ def delete_project_route(project_id: str):
     delete_static_file(project.get("cover_image"))
     save_models(models)
     save_projects(projects)
+    write_audit_event("project", "delete", "success", f'ลบโครงการ “{project.get("name", "")}” สำเร็จ', resource_type="project", resource_id=project_id, resource_name=project.get("name", ""), metadata={"deleted_models": len(linked_models)})
     flash(f'ลบแหล่งเรียนรู้ "{project.get("name", "")}" และโมเดลในแหล่งเรียนรู้แล้ว', "success")
     return redirect(url_for("admin"))
 
@@ -3482,6 +3608,7 @@ def add_model():
         }
     )
     save_models(models)
+    write_audit_event("model", "create", "success", f'เพิ่มโมเดล “{name}” สำเร็จ', resource_type="model", resource_id=models[-1]["id"], resource_name=name)
     flash(f'เพิ่มโมเดล "{name}" แล้ว', "success")
     return redirect(url_for("admin"))
 
@@ -3499,7 +3626,7 @@ def edit_model(model_id: str):
         if reject_vercel_upload_if_needed("model_file", "image_file", "narration_audio_file") or admin_write_blocked_on_vercel():
             return redirect(url_for("edit_model", model_id=model_id))
 
-        project_id = request.form.get("project_id", "").strip()
+        before = dict(model); project_id = request.form.get("project_id", "").strip()
         if find_project(project_id, include_hidden=True) is None:
             abort(400, "จำเป็นต้องเลือกแหล่งเรียนรู้ (Project)")
         preview_images = parse_preview_images_field(request.form.get("preview_images"))
@@ -3561,6 +3688,7 @@ def edit_model(model_id: str):
         if (new_narration_audio or remove_narration_audio) and old_narration_audio:
             delete_static_file(old_narration_audio)
         save_models(models)
+        write_audit_event("model", "edit", "success", f'แก้ไขโมเดล “{model["name"]}” สำเร็จ', resource_type="model", resource_id=model_id, resource_name=model["name"], changes=audit_changes(before, model, {"name":"ชื่อโมเดล","description":"คำอธิบาย","project_id":"โครงการ","visible":"การเผยแพร่","narration_audio":"เสียงบรรยาย"}))
         flash("บันทึกข้อมูลโมเดลแล้ว", "success")
         return redirect(url_for("admin"))
 
@@ -3643,6 +3771,7 @@ def delete_model_route(model_id: str):
     delete_static_file(deleted.get("image"))
     delete_static_file(deleted.get("narration_audio"))
     save_models([model for model in models if model["id"] != model_id])
+    write_audit_event("model", "delete", "success", f'ลบโมเดล “{deleted.get("name", "")}” สำเร็จ', resource_type="model", resource_id=model_id, resource_name=deleted.get("name", ""))
     flash(f'ลบโมเดล "{deleted.get("name", "")}" แล้ว', "success")
     return redirect(url_for("admin"))
 

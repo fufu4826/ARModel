@@ -944,6 +944,30 @@ class SiteManagementTests(unittest.TestCase):
             self.assertIn("แก้ไขโมเดลทดสอบสำเร็จ", page)
             self.assertEqual(self.client.get("/admin/audit-logs/export/csv").status_code, 200)
 
+    def test_production_audit_logs_are_listed_from_r2(self):
+        with self.client.session_transaction() as audit_session:
+            audit_session["admin"] = True
+            audit_session["admin_session_id"] = "r2-session"
+        with self.client:
+            self.client.get("/admin")
+            first = module.write_audit_event("auth", "login", "success", "เข้าสู่ระบบสำเร็จ")
+            second = module.write_audit_event("model", "edit", "success", "แก้ไขโมเดลสำเร็จ")
+        first["timestamp_utc"] = "2026-07-01T00:00:00+00:00"
+        first["timestamp_local"] = "2026-07-01T07:00:00+07:00"
+        first["signature"] = ""  # Re-sign after making the sort order deterministic.
+        unsigned_first = dict(first); unsigned_first.pop("signature")
+        first["signature"] = module.hmac.new(module.audit_signing_key(), module.json.dumps(unsigned_first, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"), module.hashlib.sha256).hexdigest()
+        objects = {"audit/2026/07/01/first.json": first, "audit/2026/07/01/second.json": second}
+        with (
+            patch.object(module, "is_vercel_runtime", return_value=True),
+            patch.object(module, "r2_list_object_keys", return_value=(list(objects), "")) as listed,
+            patch.object(module, "r2_get_bytes", side_effect=lambda key: module.json.dumps(objects[key]).encode("utf-8")),
+        ):
+            events = module.list_audit_events(2)
+        self.assertEqual([event["summary_th"] for event in events], ["แก้ไขโมเดลสำเร็จ", "เข้าสู่ระบบสำเร็จ"])
+        self.assertTrue(all(event["signature_valid"] for event in events))
+        self.assertEqual(listed.call_args.args[0], f"{module.AUDIT_PREFIX}{module.datetime.now(module.timezone.utc):%Y/%m/%d}/")
+
     def test_gemini_dependency_and_audio_format_helpers(self):
         requirements = (
             Path(module.BASE_DIR) / "requirements.txt"

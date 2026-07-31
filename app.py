@@ -1766,6 +1766,7 @@ def r2_signed_request(
     extra_headers: dict[str, str] | None = None,
     data: bytes | None = None,
     timeout: int = 120,
+    query_params: dict[str, str] | None = None,
 ):
     account_id = env_value("R2_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID")
     access_key = env_value("R2_ACCESS_KEY_ID")
@@ -1775,8 +1776,18 @@ def r2_signed_request(
         abort(500, "R2 environment variables are not configured")
 
     host = f"{account_id}.r2.cloudflarestorage.com"
-    canonical_uri = f"/{quote(bucket, safe='')}/{quote(object_key, safe='/-_.~')}"
+    canonical_uri = f"/{quote(bucket, safe='')}"
+    if object_key:
+        canonical_uri += f"/{quote(object_key, safe='/-_.~')}"
+    canonical_query = ""
+    if query_params:
+        canonical_query = "&".join(
+            f"{quote(str(key), safe='-_.~')}={quote(str(value), safe='-_.~')}"
+            for key, value in sorted(query_params.items())
+        )
     endpoint = f"https://{host}{canonical_uri}"
+    if canonical_query:
+        endpoint += f"?{canonical_query}"
     now = datetime.now(timezone.utc)
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
     date_stamp = now.strftime("%Y%m%d")
@@ -1795,7 +1806,7 @@ def r2_signed_request(
         [
             method,
             canonical_uri,
-            "",
+            canonical_query,
             canonical_headers,
             signed_headers,
             payload_hash,
@@ -1860,6 +1871,39 @@ def r2_get_bytes(object_key: str) -> bytes:
     except (URLError, OSError, TimeoutError) as exc:
         logger.warning("R2 read connection failed: %s", exc)
         abort(502, "R2 read failed")
+
+
+def r2_list_object_keys(
+    prefix: str,
+    max_keys: int = AUDIT_PAGE_SIZE,
+    continuation_token: str = "",
+) -> tuple[list[str], str]:
+    """List a bounded page of private R2 object keys using S3 ListObjectsV2."""
+    payload_hash = hashlib.sha256(b"").hexdigest()
+    query_params = {"list-type": "2", "prefix": prefix, "max-keys": str(max_keys)}
+    if continuation_token:
+        query_params["continuation-token"] = continuation_token
+    try:
+        with r2_signed_request(
+            "GET", "", payload_hash, timeout=45, query_params=query_params
+        ) as response:
+            if response.status != 200:
+                abort(502, f"R2 list failed: HTTP {response.status}")
+            root = ET.fromstring(response.read())
+    except ET.ParseError as exc:
+        logger.warning("R2 list returned invalid XML: %s", exc)
+        abort(502, "R2 list returned invalid data")
+    except HTTPError as exc:
+        logger.warning("R2 list failed: HTTP %s", exc.code)
+        abort(502, f"R2 list failed: HTTP {exc.code}")
+    except (URLError, OSError, TimeoutError) as exc:
+        logger.warning("R2 list connection failed: %s", exc)
+        abort(502, "R2 list failed")
+
+    namespace = "{http://s3.amazonaws.com/doc/2006-03-01/}"
+    keys = [node.text for node in root.findall(f"{namespace}Contents/{namespace}Key") if node.text]
+    next_token = root.findtext(f"{namespace}NextContinuationToken", default="")
+    return keys, next_token or ""
 
 
 def r2_upload_bytes(
@@ -1960,14 +2004,40 @@ def verify_audit_event(event: dict) -> bool:
 
 
 def list_audit_events(limit: int = AUDIT_PAGE_SIZE) -> list[dict]:
+    """Read a bounded recent page of immutable audit events from local storage or R2."""
+    events: list[dict] = []
     if is_vercel_runtime():
-        return []  # R2 listing is intentionally prefix-paginated when production credentials are configured.
-    events = []
-    if LOCAL_AUDIT_LOG_DIR.exists():
+        # Object listings are lexicographic, so use daily prefixes from newest to oldest.
+        # This keeps normal Admin views bounded instead of scanning the entire audit archive.
+        keys: list[str] = []
+        today = datetime.now(timezone.utc).date()
+        for days_ago in range(31):
+            prefix_date = today - timedelta(days=days_ago)
+            day_keys, _ = r2_list_object_keys(
+                f"{AUDIT_PREFIX}{prefix_date:%Y/%m/%d}/", max_keys=1000
+            )
+            keys.extend(day_keys)
+            if len(keys) >= limit:
+                break
+        keys = sorted(keys, reverse=True)[:limit]
+        if keys:
+            with ThreadPoolExecutor(max_workers=min(10, len(keys))) as executor:
+                futures = {executor.submit(r2_get_bytes, key): key for key in keys}
+                for future in as_completed(futures):
+                    key = futures[future]
+                    try:
+                        events.append(json.loads(future.result().decode("utf-8")))
+                    except (HTTPError, URLError, OSError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                        logger.warning("Skipping unreadable audit event %s: %s", key, exc)
+    elif LOCAL_AUDIT_LOG_DIR.exists():
         for path in sorted(LOCAL_AUDIT_LOG_DIR.rglob("*.json"), reverse=True)[:limit]:
-            try: events.append(json.loads(path.read_text(encoding="utf-8")))
-            except (OSError, json.JSONDecodeError): logger.warning("Skipping invalid audit event: %s", path)
-    for event in events: event["signature_valid"] = verify_audit_event(event)
+            try:
+                events.append(json.loads(path.read_text(encoding="utf-8")))
+            except (OSError, json.JSONDecodeError):
+                logger.warning("Skipping invalid audit event: %s", path)
+    events.sort(key=lambda event: event.get("timestamp_utc", ""), reverse=True)
+    for event in events:
+        event["signature_valid"] = verify_audit_event(event)
     return events
 
 

@@ -28,6 +28,10 @@ html {
   scroll-behavior: smooth;
 }
 
+#projects {
+  scroll-margin-top: 96px;
+}
+
 body {
   margin: 0;
   min-width: 320px;

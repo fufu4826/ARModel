@@ -474,8 +474,8 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("นิทรรศการดิจิทัล 3D / AR", home_html)
         self.assertIn("ศูนย์ศึกษาการพัฒนาภูพาน", home_html)
         self.assertIn("เริ่มชมโมเดล 3D", home_html)
-        self.assertIn('href="/models"', home_html)
-        self.assertIn('href="#projects"', home_html)
+        self.assertIn('<a class="button" href="#projects">เริ่มชมโมเดล 3D</a>', home_html)
+        self.assertEqual(home_html.count('id="projects"'), 1)
 
         self.sign_in()
         admin_html = self.client.get("/admin/landing").get_data(as_text=True)
@@ -519,8 +519,8 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("Test home description", home_html)
         self.assertIn("Test primary action", home_html)
         self.assertIn("Test secondary action", home_html)
-        self.assertIn('href="/models"', home_html)
-        self.assertIn('href="#projects"', home_html)
+        self.assertIn('<a class="button" href="#projects">Test primary action</a>', home_html)
+        self.assertEqual(home_html.count('id="projects"'), 1)
 
     def test_landing_mobile_cover_image(self):
         # 1. Renders admin landing page and includes mobile cover inputs/preview

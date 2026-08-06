@@ -7,6 +7,12 @@
   const errorMessage = document.getElementById("dashboard-error-message");
   const content = document.getElementById("dashboard-content");
   const retry = document.getElementById("dashboard-retry");
+  const dateInput = document.getElementById("analytics-date");
+  const todayButton = document.getElementById("analytics-today");
+  const dateLabel = document.getElementById("analytics-date-label");
+  const dateStatus = document.getElementById("analytics-date-status");
+  let requestController = null;
+  let activeTrendRange = "daily_7d";
 
   const formatInteger = (value) => new Intl.NumberFormat().format(Number(value || 0));
   const formatBytes = (bytes) => {
@@ -188,7 +194,7 @@
       ["daily_30d", "30 วัน"],
       ["monthly_12m", "12 เดือน"],
     ].filter(([key]) => Array.isArray(ranges[key]));
-    let activeRange = ranges.default_range || "daily_7d";
+    let activeRange = activeTrendRange || ranges.default_range || "daily_7d";
     if (!ranges[activeRange]) activeRange = rangeOptions[0]?.[0] || "daily_7d";
 
     container.replaceChildren();
@@ -204,6 +210,7 @@
 
     function draw(rangeKey) {
       activeRange = rangeKey;
+      activeTrendRange = rangeKey;
       controls.querySelectorAll("button").forEach((button) => {
         button.classList.toggle("active", button.dataset.range === rangeKey);
       });
@@ -316,12 +323,22 @@
       metrics.replaceChildren();
       const values = data.metrics || {};
       [
-        ["ผู้เข้าชมวันนี้", values.visitors_today],
-        ["จำนวนการเปิดหน้าเว็บวันนี้", values.pageviews_today],
-        ["ผู้เข้าชม 7 วันที่ผ่านมา", values.visitors_7d],
-        ["ผู้เข้าชม 30 วันที่ผ่านมา", values.visitors_30d],
+        [data.is_today ? "ผู้เข้าชมวันนี้" : "ผู้เข้าชมวันที่เลือก", values.visitors_today],
+        [data.is_today ? "จำนวนการเปิดหน้าเว็บวันนี้" : "จำนวนการเปิดหน้าวันที่เลือก", values.pageviews_today],
+        ["ผู้เข้าชมย้อนหลัง 7 วัน สิ้นสุดวันที่เลือก", values.visitors_7d],
+        ["ผู้เข้าชมย้อนหลัง 30 วัน สิ้นสุดวันที่เลือก", values.visitors_30d],
       ].forEach(([title, value]) => addMetric(metrics, title, formatInteger(value)));
     }
+
+    const scope = data.selected_date_label ? `ข้อมูลประจำวันที่ ${data.selected_date_label}` : "ข้อมูลวันที่เลือก";
+    document.querySelectorAll("[data-analytics-heading]").forEach((heading) => {
+      const base = {
+        countries: "ประเทศที่มีผู้เข้าชมสูงสุด",
+        referrers: "แหล่งที่มาของผู้เข้าชม",
+        pages: "หน้าที่มีผู้เข้าชมสูงสุด",
+      }[heading.dataset.analyticsHeading] || heading.textContent;
+      heading.textContent = `${base} · ${scope}`;
+    });
 
     if (trend) {
       trend.classList.toggle("dashboard-chart-placeholder--active", Boolean(data.enabled));
@@ -340,31 +357,71 @@
     renderStorage(data.storage);
     renderHealth(data.health);
     renderAnalytics(data.analytics);
+    if (data.analytics?.selected_date && dateInput) {
+      dateInput.value = data.analytics.selected_date;
+      dateLabel.textContent = `ข้อมูลประจำวันที่ ${data.analytics.selected_date_label}`;
+    }
     document.getElementById("dashboard-generated").textContent =
       `สร้างข้อมูลเมื่อ ${new Date(data.generated_at).toLocaleString("th-TH")}`;
   }
 
+  function syncDateUrl(selectedDate) {
+    const url = new URL(window.location.href);
+    if (selectedDate) url.searchParams.set("date", selectedDate);
+    else url.searchParams.delete("date");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+
   async function loadDashboard() {
-    loading.hidden = false;
+    const selectedDate = dateInput?.value || "";
+    if (requestController) requestController.abort();
+    requestController = new AbortController();
+    if (content.hidden) loading.hidden = false;
     error.hidden = true;
-    content.hidden = true;
+    if (dateInput) dateInput.disabled = true;
+    if (todayButton) todayButton.disabled = true;
+    if (dateStatus) dateStatus.textContent = "กำลังโหลดข้อมูลวันที่เลือก…";
     try {
-      const response = await fetch(config.summaryUrl, {
+      const url = new URL(config.summaryUrl, window.location.origin);
+      if (selectedDate) url.searchParams.set("date", selectedDate);
+      const response = await fetch(url, {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
+        signal: requestController.signal,
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || `เกิดข้อผิดพลาด HTTP ${response.status}`);
       render(data);
       loading.hidden = true;
       content.hidden = false;
+      syncDateUrl(data.analytics?.selected_date || selectedDate);
+      if (dateStatus) dateStatus.textContent = "อัปเดตข้อมูลแล้ว";
     } catch (loadError) {
+      if (loadError.name === "AbortError") return;
       loading.hidden = true;
       error.hidden = false;
       errorMessage.textContent = loadError.message || "กรุณาลองอีกครั้ง";
+      if (dateStatus) dateStatus.textContent = "ไม่สามารถอัปเดตข้อมูลได้";
+    } finally {
+      if (dateInput) dateInput.disabled = false;
+      if (todayButton) todayButton.disabled = false;
     }
   }
 
   retry.addEventListener("click", loadDashboard);
+  if (dateInput) {
+    const requestedDate = new URLSearchParams(window.location.search).get("date");
+    if (requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) && requestedDate <= dateInput.max) {
+      dateInput.value = requestedDate;
+    }
+    dateInput.addEventListener("change", loadDashboard);
+  }
+  if (todayButton && dateInput) {
+    todayButton.addEventListener("click", () => {
+      if (dateInput.value === dateInput.max) return;
+      dateInput.value = dateInput.max;
+      loadDashboard();
+    });
+  }
   loadDashboard();
 })();

@@ -76,6 +76,15 @@
               <div><p class="admin-eyebrow">Analytics</p><h2 id="analytics-title">ข้อมูลวิเคราะห์ผู้เข้าชม</h2></div>
               <span class="dashboard-badge dashboard-badge--disabled">ยังไม่ได้ตั้งค่า</span>
             </div>
+            <div class="dashboard-date-toolbar" aria-label="เลือกช่วงเวลาสำหรับข้อมูลวิเคราะห์">
+              <div class="dashboard-date-field">
+                <label for="analytics-date">เลือกวันที่ดูสถิติ</label>
+                <input id="analytics-date" type="date" value="{{ analytics_today }}" max="{{ analytics_today }}" />
+                <span id="analytics-date-label" aria-live="polite"></span>
+              </div>
+              <button class="button secondary" id="analytics-today" type="button">กลับมาวันนี้</button>
+              <span class="dashboard-date-status" id="analytics-date-status" role="status" aria-live="polite"></span>
+            </div>
             <div class="dashboard-disabled" id="analytics-disabled" role="status">
               <strong>ยังไม่ได้ตั้งค่าระบบวิเคราะห์ผู้เข้าชม</strong>
               <span>ข้อมูลผู้เข้าชมจริงจะแสดงที่นี่หลังจากตั้งค่าผู้ให้บริการ Analytics</span>
@@ -93,9 +102,9 @@
                   <span>ยังไม่มีกราฟรายวัน / รายสัปดาห์ / รายเดือน</span>
                 </div>
               </article>
-              <article class="dashboard-panel"><h3>ประเทศที่มีผู้เข้าชมสูงสุด</h3><div class="dashboard-empty">ยังไม่มีข้อมูลวิเคราะห์ผู้เข้าชม</div></article>
-              <article class="dashboard-panel"><h3>แหล่งที่มาของผู้เข้าชม</h3><div class="dashboard-empty">ยังไม่มีข้อมูลวิเคราะห์ผู้เข้าชม</div></article>
-              <article class="dashboard-panel"><h3>หน้าที่มีผู้เข้าชมสูงสุด</h3><div class="dashboard-empty">ยังไม่มีข้อมูลวิเคราะห์ผู้เข้าชม</div></article>
+              <article class="dashboard-panel"><h3 data-analytics-heading="countries">ประเทศที่มีผู้เข้าชมสูงสุด</h3><div class="dashboard-empty">ยังไม่มีข้อมูลวิเคราะห์ผู้เข้าชม</div></article>
+              <article class="dashboard-panel"><h3 data-analytics-heading="referrers">แหล่งที่มาของผู้เข้าชม</h3><div class="dashboard-empty">ยังไม่มีข้อมูลวิเคราะห์ผู้เข้าชม</div></article>
+              <article class="dashboard-panel"><h3 data-analytics-heading="pages">หน้าที่มีผู้เข้าชมสูงสุด</h3><div class="dashboard-empty">ยังไม่มีข้อมูลวิเคราะห์ผู้เข้าชม</div></article>
             </div>
           </section>
         </div>

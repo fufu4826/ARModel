@@ -79,6 +79,57 @@
   font-size: clamp(22px, 3vw, 28px);
 }
 
+.dashboard-date-toolbar {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: -2px 0 14px;
+  padding: 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: 12px;
+  background: #f8fbf8;
+}
+
+.dashboard-date-field {
+  display: grid;
+  min-width: min(100%, 250px);
+  gap: 4px;
+}
+
+.dashboard-date-field label {
+  color: var(--admin-green-dark);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.dashboard-date-field input {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #b9cbbd;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--admin-green-dark);
+  font: inherit;
+}
+
+.dashboard-date-field input:focus-visible,
+.dashboard-date-toolbar .button:focus-visible {
+  outline: 3px solid rgba(212, 157, 39, .42);
+  outline-offset: 2px;
+}
+
+#analytics-date-label,
+.dashboard-date-status {
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+.dashboard-date-status {
+  min-height: 18px;
+  padding-bottom: 3px;
+}
+
 .dashboard-card-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -473,6 +524,15 @@
   .dashboard-section-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .dashboard-date-toolbar {
+    align-items: stretch;
+  }
+
+  .dashboard-date-field,
+  .dashboard-date-toolbar .button {
+    width: 100%;
   }
 }
 

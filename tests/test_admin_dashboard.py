@@ -1,7 +1,7 @@
 import json
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
@@ -37,6 +37,7 @@ class AdminDashboardTests(unittest.TestCase):
             [
                 {
                     "id": "model-1",
+                    "name": "Model 1",
                     "project_id": "project-1",
                     "model_url": f"{R2_BASE}/models/model-1.glb",
                     "thumbnail_url": f"{R2_BASE}/images/model-1.webp",
@@ -45,6 +46,7 @@ class AdminDashboardTests(unittest.TestCase):
                 },
                 {
                     "id": "model-2",
+                    "name": "Model 2",
                     "project_id": "project-1",
                     "model_url": f"{R2_BASE}/models/model-2.glb",
                     "thumbnail_url": "https://legacy.supabase.co/storage/model-2.webp",
@@ -55,7 +57,7 @@ class AdminDashboardTests(unittest.TestCase):
         )
         module.write_json(
             module.PROJECTS_FILE,
-            [{"id": "project-1", "image_url": f"{R2_BASE}/projects/project-1.webp"}],
+            [{"id": "project-1", "name": "Project 1", "image_url": f"{R2_BASE}/projects/project-1.webp"}],
         )
         module.write_json(
             module.SITE_SETTINGS_FILE,
@@ -145,6 +147,56 @@ class AdminDashboardTests(unittest.TestCase):
         self.assertEqual(analytics["trend_ranges"]["daily_7d"][-1]["visitors"], 1)
         self.assertIn({"label": "Landing", "value": 1}, analytics["top_pages"])
         self.assertIn({"label": "google.com", "value": 1}, analytics["top_referrers"])
+
+    def test_dashboard_analytics_uses_selected_bangkok_date_and_boundaries(self):
+        events = [
+            {"timestamp": "2026-08-05T16:59:59+00:00", "visitor_id": "before", "path": "/", "page": "Landing", "referrer": "Direct", "country": "TH"},
+            {"timestamp": "2026-08-05T17:00:00+00:00", "visitor_id": "start", "path": "/projects/project-1", "page": "Project: old", "referrer": "google.com", "country": "TH"},
+            {"timestamp": "2026-08-06T04:30:00+00:00", "visitor_id": "middle", "path": "/models/model-1", "page": "Model: old", "referrer": "Direct", "country": "US"},
+            {"timestamp": "2026-08-06T16:59:59.999999+00:00", "visitor_id": "end", "path": "/models/model-1", "page": "Model: old", "referrer": "Direct", "country": "US"},
+            {"timestamp": "2026-08-06T17:00:00+00:00", "visitor_id": "after", "path": "/", "page": "Landing", "referrer": "Direct", "country": "JP"},
+            {"timestamp": "2026-07-31T17:00:00+00:00", "visitor_id": "week", "path": "/models", "page": "Models", "referrer": "Internal", "country": "TH"},
+        ]
+        module.write_json(module.ANALYTICS_FILE, events)
+        before = module.ANALYTICS_FILE.read_bytes()
+
+        analytics = module.dashboard_analytics_status(date(2026, 8, 6))
+
+        self.assertEqual(analytics["selected_date"], "2026-08-06")
+        self.assertEqual(analytics["metrics"]["visitors_today"], 3)
+        self.assertEqual(analytics["metrics"]["pageviews_today"], 3)
+        self.assertEqual(analytics["metrics"]["visitors_7d"], 5)
+        self.assertEqual(analytics["trend_ranges"]["hourly_24h"][0]["label"], "00:00")
+        self.assertEqual(analytics["trend_ranges"]["hourly_24h"][-1]["label"], "23:00")
+        self.assertEqual(len(analytics["trend_ranges"]["hourly_24h"]), 24)
+        self.assertEqual(analytics["trend_ranges"]["daily_7d"][-1]["label"], "2026-08-06")
+        self.assertEqual(analytics["trend_ranges"]["daily_30d"][-1]["label"], "2026-08-06")
+        self.assertEqual(analytics["trend_ranges"]["monthly_12m"][-1]["label"], "2026-08")
+        self.assertEqual(analytics["top_countries"], [{"label": "US", "value": 2}, {"label": "TH", "value": 1}])
+        self.assertEqual(analytics["top_referrers"], [{"label": "Direct", "value": 2}, {"label": "google.com", "value": 1}])
+        self.assertIn({"label": "Model: Model 1", "value": 2}, analytics["top_pages"])
+        self.assertEqual(module.ANALYTICS_FILE.read_bytes(), before)
+
+    def test_dashboard_selected_date_api_validation_and_empty_day(self):
+        self.sign_in()
+        with patch.object(module, "dashboard_asset_head", side_effect=self.successful_head):
+            default_payload = self.client.get("/admin/api/dashboard/summary").get_json()
+            empty_payload = self.client.get("/admin/api/dashboard/summary?date=2020-01-01").get_json()
+            malformed = self.client.get("/admin/api/dashboard/summary?date=06-08-2026")
+            future = self.client.get("/admin/api/dashboard/summary?date=2999-01-01")
+
+        self.assertEqual(default_payload["analytics"]["selected_date"], module.datetime.now(module.BANGKOK_TZ).date().isoformat())
+        self.assertEqual(empty_payload["analytics"]["metrics"]["pageviews_today"], 0)
+        self.assertEqual(len(empty_payload["analytics"]["trend_ranges"]["hourly_24h"]), 24)
+        self.assertEqual(malformed.status_code, 400)
+        self.assertEqual(future.status_code, 400)
+
+    def test_dashboard_calendar_markup_is_accessible(self):
+        self.sign_in()
+        page = self.client.get("/admin/dashboard").get_data(as_text=True)
+        self.assertIn('for="analytics-date"', page)
+        self.assertIn('id="analytics-date" type="date"', page)
+        self.assertIn('id="analytics-today"', page)
 
     def test_project_and_model_routes_resolve_current_names_by_id_and_slug(self):
         module.write_json(

@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 from threading import Lock, Timer
@@ -25,6 +25,7 @@ from time import monotonic
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
 from flask import abort, flash, Flask, jsonify, redirect, render_template, request, session, url_for, send_file, Response
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
@@ -281,6 +282,7 @@ ANALYTICS_R2_OBJECT_KEY = os.environ.get(
     "ANALYTICS_R2_OBJECT_KEY",
     "analytics/analytics_events.json",
 ).strip("/")
+BANGKOK_TZ = ZoneInfo("Asia/Bangkok")
 _DATA_READY = False
 PRODUCTION_DATA_FILES = {
     "models.json",
@@ -890,17 +892,37 @@ def _analytics_bucket_payload(
     }
 
 
-def _analytics_trend_ranges(now: datetime, events: list[dict]) -> dict:
-    current_hour = now.replace(minute=0, second=0, microsecond=0)
-    current_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    current_month = _analytics_month_start(now)
+def _analytics_day_bounds(selected_date: date) -> tuple[datetime, datetime]:
+    """Return the UTC half-open interval for one Bangkok calendar day."""
+    start_local = datetime.combine(selected_date, datetime.min.time(), tzinfo=BANGKOK_TZ)
+    end_local = start_local + timedelta(days=1)
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
+
+
+def _analytics_date_label(selected_date: date) -> str:
+    thai_months = (
+        "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+        "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+    )
+    return f"{selected_date.day} {thai_months[selected_date.month - 1]} {selected_date.year + 543}"
+
+
+def _analytics_events_between(events: list[dict], start: datetime, end: datetime) -> list[dict]:
+    return [event for event in events if start <= event["_occurred_at"] < end]
+
+
+def _analytics_trend_ranges(selected_date: date, events: list[dict]) -> dict:
+    selected_start, _ = _analytics_day_bounds(selected_date)
+    selected_local_start = selected_start.astimezone(BANGKOK_TZ)
+    current_month = _analytics_month_start(selected_local_start)
 
     hourly = []
-    for offset in range(23, -1, -1):
-        start = current_hour - timedelta(hours=offset)
+    for hour in range(24):
+        start_local = selected_local_start + timedelta(hours=hour)
+        start = start_local.astimezone(timezone.utc)
         hourly.append(
             _analytics_bucket_payload(
-                start.strftime("%H:00"),
+                start_local.strftime("%H:00"),
                 start,
                 start + timedelta(hours=1),
                 events,
@@ -909,24 +931,26 @@ def _analytics_trend_ranges(now: datetime, events: list[dict]) -> dict:
 
     daily_7d = []
     for offset in range(6, -1, -1):
-        start = current_day - timedelta(days=offset)
+        day = selected_date - timedelta(days=offset)
+        start, end = _analytics_day_bounds(day)
         daily_7d.append(
             _analytics_bucket_payload(
-                start.date().isoformat(),
+                day.isoformat(),
                 start,
-                start + timedelta(days=1),
+                end,
                 events,
             )
         )
 
     daily_30d = []
     for offset in range(29, -1, -1):
-        start = current_day - timedelta(days=offset)
+        day = selected_date - timedelta(days=offset)
+        start, end = _analytics_day_bounds(day)
         daily_30d.append(
             _analytics_bucket_payload(
-                start.date().isoformat(),
+                day.isoformat(),
                 start,
-                start + timedelta(days=1),
+                end,
                 events,
             )
         )
@@ -953,9 +977,8 @@ def _analytics_trend_ranges(now: datetime, events: list[dict]) -> dict:
     }
 
 
-def dashboard_analytics_status() -> dict:
-    now = datetime.now(timezone.utc)
-    today = now.date()
+def dashboard_analytics_status(selected_date: date | None = None) -> dict:
+    selected_date = selected_date or datetime.now(BANGKOK_TZ).date()
     project_lookup = content_lookup(get_projects(include_hidden=True))
     model_lookup = content_lookup(get_models(include_hidden=True))
     events = []
@@ -974,20 +997,18 @@ def dashboard_analytics_status() -> dict:
         normalized["_occurred_at"] = occurred_at
         events.append(normalized)
 
-    events_30d = [
-        event for event in events if (now - event["_occurred_at"]).days < 30
-    ]
-    today_events = [
-        event for event in events_30d if event["_occurred_at"].date() == today
-    ]
-    events_7d = [
-        event for event in events_30d if (now - event["_occurred_at"]).days < 7
-    ]
+    selected_start, selected_end = _analytics_day_bounds(selected_date)
+    seven_start, _ = _analytics_day_bounds(selected_date - timedelta(days=6))
+    thirty_start, _ = _analytics_day_bounds(selected_date - timedelta(days=29))
+    selected_events = _analytics_events_between(events, selected_start, selected_end)
+    events_7d = _analytics_events_between(events, seven_start, selected_end)
+    events_30d = _analytics_events_between(events, thirty_start, selected_end)
 
     daily_counts = []
     for offset in range(29, -1, -1):
-        day = today - timedelta(days=offset)
-        day_events = [event for event in events_30d if event["_occurred_at"].date() == day]
+        day = selected_date - timedelta(days=offset)
+        start, end = _analytics_day_bounds(day)
+        day_events = _analytics_events_between(events, start, end)
         daily_counts.append(
             {
                 "date": day.isoformat(),
@@ -1006,17 +1027,20 @@ def dashboard_analytics_status() -> dict:
             else "Analytics is ready. Visit public pages to collect data."
         ),
         "metrics": {
-            "visitors_today": _analytics_unique_visitors(today_events),
-            "pageviews_today": len(today_events),
+            "visitors_today": _analytics_unique_visitors(selected_events),
+            "pageviews_today": len(selected_events),
             "visitors_7d": _analytics_unique_visitors(events_7d),
             "visitors_30d": _analytics_unique_visitors(events_30d),
             "total_events": len(events),
         },
+        "selected_date": selected_date.isoformat(),
+        "selected_date_label": _analytics_date_label(selected_date),
+        "is_today": selected_date == datetime.now(BANGKOK_TZ).date(),
         "trend": daily_counts,
-        "trend_ranges": _analytics_trend_ranges(now, events),
-        "top_countries": _analytics_top_counts(events_30d, "country"),
-        "top_referrers": _analytics_top_counts(events_30d, "referrer"),
-        "top_pages": _analytics_top_counts(events_30d, "page"),
+        "trend_ranges": _analytics_trend_ranges(selected_date, events),
+        "top_countries": _analytics_top_counts(selected_events, "country"),
+        "top_referrers": _analytics_top_counts(selected_events, "referrer"),
+        "top_pages": _analytics_top_counts(selected_events, "page"),
     }
 
 
@@ -1577,7 +1601,7 @@ def dashboard_source_data() -> tuple[dict, list[str]]:
     return sources, errors
 
 
-def build_admin_dashboard_summary() -> dict:
+def build_admin_dashboard_summary(selected_date: date | None = None) -> dict:
     sources, data_errors = dashboard_source_data()
     assets = dashboard_assets_from_sources(
         sources["models"],
@@ -1737,7 +1761,7 @@ def build_admin_dashboard_summary() -> dict:
                 "details": {"source": "JSON"},
             },
         },
-        "analytics": dashboard_analytics_status(),
+        "analytics": dashboard_analytics_status(selected_date),
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -3001,7 +3025,10 @@ def admin():
 @app.get("/admin/dashboard")
 @admin_required
 def admin_dashboard():
-    return render_template("admin_dashboard.html")
+    return render_template(
+        "admin_dashboard.html",
+        analytics_today=datetime.now(BANGKOK_TZ).date().isoformat(),
+    )
 
 
 @app.get("/admin/audit-logs")
@@ -3033,8 +3060,17 @@ def export_audit_logs(format: str):
 @app.get("/admin/api/dashboard/summary")
 @admin_required
 def admin_dashboard_summary():
+    raw_date = request.args.get("date", "").strip()
+    selected_date = datetime.now(BANGKOK_TZ).date()
+    if raw_date:
+        try:
+            selected_date = date.fromisoformat(raw_date)
+        except ValueError:
+            return jsonify({"error": "รูปแบบวันที่ไม่ถูกต้อง กรุณาใช้ YYYY-MM-DD"}), 400
+        if selected_date > datetime.now(BANGKOK_TZ).date():
+            return jsonify({"error": "ไม่สามารถเลือกวันที่ในอนาคตได้"}), 400
     try:
-        return jsonify(build_admin_dashboard_summary())
+        return jsonify(build_admin_dashboard_summary(selected_date))
     except Exception:
         logger.exception("Unable to build admin dashboard summary")
         return jsonify(

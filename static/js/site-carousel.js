@@ -6,6 +6,7 @@
   const landingSliderMobileQuery = window.matchMedia("(max-width: 768px)");
   const carouselInstances = new WeakMap();
   let activeHoverCard = null;
+  let activeHoverPanelPortal = null;
   let hoverHideTimer = null;
 
   function pauseCarouselAutoplay(carousel) {
@@ -36,18 +37,55 @@
     carousel.update();
   }
 
+  function makeMarqueeClones(element, originalSlides) {
+    const wrapper = element.querySelector(".swiper-wrapper");
+    if (!wrapper || originalSlides.length < 2) return originalSlides.length;
+
+    const minimumSlides = Math.max(8, originalSlides.length * 4);
+    for (let index = originalSlides.length; index < minimumSlides; index += 1) {
+      const clone = originalSlides[index % originalSlides.length].cloneNode(true);
+      clone.dataset.marqueeClone = "true";
+      clone.removeAttribute("data-hover-panel-ready");
+      clone.setAttribute("aria-hidden", "true");
+      clone.setAttribute("tabindex", "-1");
+      clone.querySelectorAll("a, button, input, select, textarea, [tabindex]").forEach((control) => {
+        control.setAttribute("tabindex", "-1");
+      });
+      wrapper.append(clone);
+    }
+    return minimumSlides;
+  }
+
+  function pauseMarquee(carousel) {
+    if (!carousel || carousel.destroyed) return;
+    carousel.setTransition(0);
+    carousel.setTranslate(carousel.getTranslate());
+    pauseCarouselAutoplay(carousel);
+  }
+
+  function resumeMarquee(carousel) {
+    if (reduceMotion || !carousel || carousel.destroyed) return;
+    carousel.setTransition(750);
+    carousel.slideNext();
+    resumeCarouselAutoplay(carousel);
+  }
+
   function clearActiveHoverCard() {
     if (hoverHideTimer) {
       window.clearTimeout(hoverHideTimer);
       hoverHideTimer = null;
     }
+    if (activeHoverPanelPortal) {
+      activeHoverPanelPortal.remove();
+      activeHoverPanelPortal = null;
+    }
     document.querySelectorAll(".site-slide.is-hover-active, .site-slide.site-slide--dialog-return-focus").forEach((card) => {
-      card.classList.remove("is-hover-active", "site-slide--dialog-return-focus");
+      card.classList.remove("is-hover-active", "is-hover-portal-active", "site-slide--dialog-return-focus");
       card.style.removeProperty("--slide-hover-panel-left");
       card.style.removeProperty("--slide-hover-panel-top");
     });
     if (activeHoverCard) {
-      activeHoverCard.classList.remove("is-hover-active", "site-slide--dialog-return-focus");
+      activeHoverCard.classList.remove("is-hover-active", "is-hover-portal-active", "site-slide--dialog-return-focus");
       activeHoverCard.style.removeProperty("--slide-hover-panel-left");
       activeHoverCard.style.removeProperty("--slide-hover-panel-top");
       activeHoverCard = null;
@@ -64,43 +102,55 @@
       return;
     }
     if (activeHoverCard === card) {
-      updateHoverPanelPosition(card);
+      positionHoverPanelPortal(card);
       return;
     }
     clearActiveHoverCard();
-    updateHoverPanelPosition(card);
     card.classList.add("is-hover-active");
+    createHoverPanelPortal(card);
     activeHoverCard = card;
   }
 
-  function updateHoverPanelPosition(slide) {
-    if (document.body.classList.contains("landing-page")) return;
-    const panel = slide.querySelector(".site-slide-hover-panel");
-    if (!panel || !window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 921px)").matches) {
-      slide.style.removeProperty("--slide-hover-panel-left");
-      slide.style.removeProperty("--slide-hover-panel-top");
+  function positionHoverPanelPortal(slide) {
+    if (!activeHoverPanelPortal || !slide) return;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 921px)").matches) {
+      clearActiveHoverCard();
       return;
     }
     const slideRect = slide.getBoundingClientRect();
-    const panelWidth = Math.min(460, Math.max(0, window.innerWidth - 32));
-    const panelHeight = Math.min(panel.getBoundingClientRect().height, Math.max(0, window.innerHeight - 32));
-    const desiredPanelLeft = slideRect.left + (slideRect.width / 2) - (panelWidth / 2);
+    const panelRect = activeHoverPanelPortal.getBoundingClientRect();
+    const panelWidth = Math.min(panelRect.width, Math.max(0, window.innerWidth - 32));
+    const panelHeight = Math.min(panelRect.height, Math.max(0, window.innerHeight - 32));
+    const desiredPanelLeft = slideRect.left + (slideRect.width / 2);
     const clampedPanelLeft = Math.min(
-      Math.max(desiredPanelLeft, 16),
-      Math.max(16, window.innerWidth - panelWidth - 16)
+      Math.max(desiredPanelLeft, 16 + (panelWidth / 2)),
+      Math.max(16 + (panelWidth / 2), window.innerWidth - 16 - (panelWidth / 2))
     );
-    const panelCenterWithinSlide = clampedPanelLeft - slideRect.left + (panelWidth / 2);
     const desiredPanelTop = slideRect.top + (slideRect.height / 2);
     const clampedPanelTop = Math.min(
       Math.max(desiredPanelTop, 16 + (panelHeight / 2)),
       Math.max(16 + (panelHeight / 2), window.innerHeight - 16 - (panelHeight / 2))
     );
-    const panelMiddleWithinSlide = clampedPanelTop - slideRect.top;
-    slide.style.setProperty("--slide-hover-panel-left", `${Math.round(panelCenterWithinSlide)}px`);
-    slide.style.setProperty("--slide-hover-panel-top", `${Math.round(panelMiddleWithinSlide)}px`);
+    activeHoverPanelPortal.style.left = `${Math.round(clampedPanelLeft)}px`;
+    activeHoverPanelPortal.style.top = `${Math.round(clampedPanelTop)}px`;
   }
 
-  document.querySelectorAll("body:not(.landing-page) .site-slider-section .site-slide").forEach((slide) => {
+  function createHoverPanelPortal(slide) {
+    const panel = slide.querySelector(".site-slide-hover-panel");
+    if (!panel) return;
+
+    const portal = panel.cloneNode(true);
+    portal.classList.add("site-slide-hover-panel--portal");
+    portal.setAttribute("aria-hidden", "true");
+    portal.style.visibility = "hidden";
+    document.body.append(portal);
+    activeHoverPanelPortal = portal;
+    slide.classList.add("is-hover-portal-active");
+    positionHoverPanelPortal(slide);
+    portal.style.removeProperty("visibility");
+  }
+
+  function setupHoverPanel(slide) {
     if (slide.dataset.hoverPanelReady === "true") return;
     slide.dataset.hoverPanelReady = "true";
     slide.addEventListener("pointerenter", (event) => {
@@ -119,27 +169,38 @@
       slide.classList.remove("site-slide--dialog-return-focus");
     });
     window.addEventListener("resize", () => {
-      if (activeHoverCard === slide) updateHoverPanelPosition(slide);
+      if (activeHoverCard === slide) positionHoverPanelPortal(slide);
     });
-  });
+  }
+
+  document.querySelectorAll("body:not(.landing-page) .site-slider-section .site-slide").forEach(setupHoverPanel);
 
   if (window.Swiper) {
     document.querySelectorAll("[data-site-slider]").forEach((element) => {
-      const slideCount = element.querySelectorAll(".swiper-slide").length;
+      const originalSlides = Array.from(element.querySelectorAll(".swiper-wrapper > .swiper-slide"));
+      const slideCount = originalSlides.length;
       const isLandingCarousel = Boolean(element.closest(".landing-carousel"));
+      const isHomeMarquee = !isLandingCarousel && slideCount > 1 && !reduceMotion;
+      const effectiveSlideCount = isHomeMarquee ? makeMarqueeClones(element, originalSlides) : slideCount;
+      if (isHomeMarquee) element.classList.add("site-slider--marquee");
+      if (isHomeMarquee) {
+        element.querySelectorAll(".site-slide").forEach(setupHoverPanel);
+      }
       let carousel;
       try {
         carousel = new window.Swiper(element, {
-        loop: slideCount > 1,
-        speed: reduceMotion ? 0 : 600,
-        autoplay: slideCount > 1 && !reduceMotion ? { delay: 7000, disableOnInteraction: false } : false,
+        loop: isHomeMarquee || (isLandingCarousel && slideCount > 1),
+        speed: isHomeMarquee ? 750 : (reduceMotion ? 0 : 600),
+        autoplay: isHomeMarquee
+          ? { delay: 5000, disableOnInteraction: false, pauseOnMouseEnter: false, waitForTransition: true }
+          : (slideCount > 1 && !reduceMotion ? { delay: 7000, disableOnInteraction: false } : false),
         keyboard: { enabled: true },
         pagination: { el: element.querySelector(".swiper-pagination"), clickable: true },
         navigation: {
           nextEl: element.querySelector(".swiper-button-next"),
           prevEl: element.querySelector(".swiper-button-prev"),
         },
-        slidesPerView: isLandingCarousel ? 1 : 3,
+        slidesPerView: isHomeMarquee ? "auto" : (isLandingCarousel ? 1 : 3),
         spaceBetween: isLandingCarousel ? 0 : 18,
         breakpoints: isLandingCarousel ? {} : {
           921: {
@@ -157,6 +218,25 @@
         return;
       }
       carouselInstances.set(element, carousel);
+      if (isHomeMarquee && effectiveSlideCount > 1) {
+        let resumeTimer = null;
+        const resumeAfterInteraction = () => {
+          window.clearTimeout(resumeTimer);
+          resumeTimer = window.setTimeout(() => {
+            if (!element.matches(":hover") && !element.contains(document.activeElement)) resumeMarquee(carousel);
+          }, 120);
+        };
+        element.addEventListener("pointerenter", () => pauseMarquee(carousel));
+        element.addEventListener("pointerleave", resumeAfterInteraction);
+        element.addEventListener("focusin", () => pauseMarquee(carousel));
+        element.addEventListener("focusout", resumeAfterInteraction);
+        carousel.on("touchStart", () => pauseMarquee(carousel));
+        carousel.on("touchEnd", resumeAfterInteraction);
+        element.querySelectorAll("img").forEach((image) => {
+          image.addEventListener("load", () => refreshCarousel(carousel), { once: true });
+          image.addEventListener("error", () => refreshCarousel(carousel), { once: true });
+        });
+      }
       if (element.closest("[data-landing-slider-region][hidden]") && !landingSliderMobileQuery.matches) {
         pauseCarouselAutoplay(carousel);
       }
@@ -220,6 +300,7 @@
     const description = dialog.querySelector("[data-slide-dialog-description]");
     const link = dialog.querySelector("[data-slide-dialog-link]");
     const closeButtons = dialog.querySelectorAll("[data-slide-dialog-close]");
+    const sectionSlider = section.querySelector("[data-site-slider]");
     let lastTrigger = null;
 
     function unlockPageScroll() {
@@ -243,6 +324,9 @@
       unlockPageScroll();
       image.hidden = true;
       image.removeAttribute("src");
+      if (sectionSlider?.classList.contains("site-slider--marquee")) {
+        resumeMarquee(carouselInstances.get(sectionSlider));
+      }
 
       if (returnFocus && lastTrigger && lastTrigger.isConnected) {
         lastTrigger.classList.add("site-slide--dialog-return-focus");
@@ -254,6 +338,9 @@
 
     function openDialog(trigger) {
       clearActiveHoverCard();
+      if (sectionSlider?.classList.contains("site-slider--marquee")) {
+        pauseMarquee(carouselInstances.get(sectionSlider));
+      }
       const slideImage = trigger.querySelector("img");
       const slideTitle = trigger.querySelector(".site-slide-content h2");
       const slideDescription = trigger.querySelector(".site-slide-content p");

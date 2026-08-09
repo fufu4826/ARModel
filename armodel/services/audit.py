@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -96,12 +97,20 @@ def build_event(
         "event_type": f"{category}.{action}", "category": category, "action": action,
         "outcome": outcome, "severity": severity, "actor": "ผู้ดูแลระบบ",
         "admin_session_id": admin_session_id, "request_id": request_id,
-        "request_method": request_method, "request_path": request_path,
+        "request_method": request_method, "request_path": sanitize_request_path(request_path),
         "resource_type": resource_type, "resource_id": resource_id,
         "resource_name": resource_name, "summary_th": summary_th,
         "changes": redact(changes_value or []), "metadata": redact(metadata or {}),
         "signature_version": SIGNATURE_VERSION, **context,
     }
+
+
+def sanitize_request_path(path: str) -> str:
+    return re.sub(
+        r"(/admin/narrations/drafts/)[^/]+(?=/|$)",
+        rf"\1{REDACTED}",
+        str(path or ""),
+    )
 
 
 def object_key(event: dict, prefix: str) -> str:

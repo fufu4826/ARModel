@@ -24,6 +24,12 @@ def test_recursive_redaction_preserves_safe_values():
     assert redacted["cookie_value"] == audit.REDACTED
 
 
+def test_signed_narration_token_is_redacted_from_request_path():
+    value = base_event(request_path="/admin/narrations/drafts/secret-signed-token/confirm")
+    assert value["request_path"] == f"/admin/narrations/drafts/{audit.REDACTED}/confirm"
+    assert "secret-signed-token" not in audit.serialize(value).decode("utf-8")
+
+
 def test_signatures_are_canonical_and_tamper_evident():
     key = b"test-signing-key"
     first = audit.sign_event(base_event(metadata={"b": 2, "a": 1}), key)

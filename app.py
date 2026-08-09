@@ -2944,18 +2944,29 @@ def model_detail(model_id: str):
 
 @app.get("/api/models")
 def api_models():
-    projects = get_projects(include_hidden=True)
-    models = get_models(include_hidden=True)
+    projects = get_projects(include_hidden=False)
+    visible_project_ids = {project.get("id") for project in projects}
+    models = [
+        model
+        for model in get_models(include_hidden=False)
+        if model.get("project_id") in visible_project_ids
+    ]
     return jsonify([api_model_payload(model, projects) for model in models])
 
 
 @app.get("/api/projects")
 def api_projects():
-    models = get_models(include_hidden=True)
+    projects = get_projects(include_hidden=False)
+    visible_project_ids = {project.get("id") for project in projects}
+    models = [
+        model
+        for model in get_models(include_hidden=False)
+        if model.get("project_id") in visible_project_ids
+    ]
     return jsonify(
         [
             project_with_urls(project, models)
-            for project in get_projects(include_hidden=True)
+            for project in projects
         ]
     )
 

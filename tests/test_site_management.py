@@ -89,6 +89,51 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(settings["intro_logo_duration_ms_value"], 1400)
         self.assertEqual(settings["intro_display_mode"], "sequence")
 
+    def test_public_apis_exclude_hidden_content_and_hidden_relationships(self):
+        module.save_projects(
+            [
+                {"id": "visible-project", "name": "Visible project", "visible": True},
+                {"id": "hidden-project", "name": "Hidden project", "visible": False},
+            ]
+        )
+        module.save_models(
+            [
+                {
+                    "id": "visible-model",
+                    "name": "Visible model",
+                    "project_id": "visible-project",
+                    "visible": True,
+                },
+                {
+                    "id": "hidden-model",
+                    "name": "Hidden model",
+                    "project_id": "visible-project",
+                    "visible": False,
+                    "narration_audio": "https://example.com/hidden.mp3",
+                },
+                {
+                    "id": "orphaned-visible-model",
+                    "name": "Visible model in hidden project",
+                    "project_id": "hidden-project",
+                    "visible": True,
+                },
+                {
+                    "id": "hidden-project-model",
+                    "name": "Hidden model in hidden project",
+                    "project_id": "hidden-project",
+                    "visible": False,
+                },
+            ]
+        )
+
+        models = self.client.get("/api/models").get_json()
+        projects = self.client.get("/api/projects").get_json()
+
+        self.assertEqual([item["id"] for item in models], ["visible-model"])
+        self.assertEqual([item["id"] for item in projects], ["visible-project"])
+        self.assertNotIn("Hidden model", str(models))
+        self.assertNotIn("Hidden project", str(projects))
+
     def test_vercel_runtime_reads_slider_json_from_github(self):
         remote_sliders = [
             {

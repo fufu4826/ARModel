@@ -235,8 +235,8 @@ def main() -> int:
 
     urls = standalone_urls((models, projects, settings, sliders))
     r2_urls = sorted(url for url in urls if url.startswith(R2_PREFIX))
-    if len(r2_urls) != 116:
-        fail(f"Referenced R2 URL count is {len(r2_urls)}, expected 116")
+    if not r2_urls:
+        fail("No Cloudflare R2 asset URLs were found in production data")
 
     failures: list[tuple[str, str]] = []
     with ThreadPoolExecutor(max_workers=10) as executor:

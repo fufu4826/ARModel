@@ -32,6 +32,8 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+from armodel.services import github_storage, r2_storage
+
 
 def load_local_env() -> None:
     env_file = Path(__file__).resolve().parent / ".env"
@@ -606,25 +608,8 @@ def github_api_request(method: str, api_path: str, payload: dict | None = None) 
     token = env_value("GITHUB_CONTENTS_TOKEN", "GITHUB_TOKEN", "GH_TOKEN")
     if not token:
         abort(500, "GITHUB_CONTENTS_TOKEN is not configured")
-    url = f"https://api.github.com{api_path}"
-    data = None
-    if payload is not None:
-        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    request_obj = Request(
-        url,
-        data=data,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "User-Agent": "ARModel-Production-Admin/1.0",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-        method=method,
-    )
     try:
-        with urlopen(request_obj, timeout=45) as response:
-            body = response.read().decode("utf-8")
+        return github_storage.request_json(method, api_path, token, payload, opener=urlopen)
     except HTTPError as exc:
         detail = exc.read(500).decode("utf-8", errors="replace").strip()
         logger.warning("GitHub content API failed: HTTP %s %s", exc.code, detail)
@@ -632,7 +617,6 @@ def github_api_request(method: str, api_path: str, payload: dict | None = None) 
     except (URLError, OSError, TimeoutError) as exc:
         logger.warning("GitHub content API connection failed: %s", exc)
         abort(502, "GitHub content update failed")
-    return json.loads(body) if body else {}
 
 
 def github_commit_json(relative_path: str, value) -> None:
@@ -640,20 +624,17 @@ def github_commit_json(relative_path: str, value) -> None:
     branch = env_value("GITHUB_BRANCH", "GIT_BRANCH") or "main"
     if not repo:
         abort(500, "GITHUB_REPOSITORY is not configured")
-    content_api_path = f"/repos/{repo}/contents/{quote(relative_path, safe='/')}"
-    current = github_api_request("GET", f"{content_api_path}?ref={quote(branch, safe='')}")
-    content = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-    payload = {
-        "message": f"Update {relative_path} from production admin",
-        "content": base64.b64encode(content).decode("ascii"),
-        "branch": branch,
-        "sha": current.get("sha"),
-    }
     committer_name = env_value("GITHUB_COMMITTER_NAME")
     committer_email = env_value("GITHUB_COMMITTER_EMAIL")
-    if committer_name and committer_email:
-        payload["committer"] = {"name": committer_name, "email": committer_email}
-    github_api_request("PUT", content_api_path, payload)
+    github_storage.commit_json(
+        relative_path,
+        value,
+        repository=repo,
+        branch=branch,
+        requester=lambda method, path, payload=None: github_api_request(method, path, payload),
+        committer_name=committer_name,
+        committer_email=committer_email,
+    )
 
 
 def write_json(path: Path, value) -> None:
@@ -1885,97 +1866,27 @@ def r2_signed_request(
     if not all((account_id, access_key, secret_key, bucket)):
         abort(500, "R2 environment variables are not configured")
 
-    host = f"{account_id}.r2.cloudflarestorage.com"
-    canonical_uri = f"/{quote(bucket, safe='')}"
-    if object_key:
-        canonical_uri += f"/{quote(object_key, safe='/-_.~')}"
-    canonical_query = ""
-    if query_params:
-        canonical_query = "&".join(
-            f"{quote(str(key), safe='-_.~')}={quote(str(value), safe='-_.~')}"
-            for key, value in sorted(query_params.items())
-        )
-    endpoint = f"https://{host}{canonical_uri}"
-    if canonical_query:
-        endpoint += f"?{canonical_query}"
-    now = datetime.now(timezone.utc)
-    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
-    date_stamp = now.strftime("%Y%m%d")
-    headers = {
-        "host": host,
-        "x-amz-content-sha256": payload_hash,
-        "x-amz-date": amz_date,
-    }
-    if extra_headers:
-        headers.update({key.lower(): value for key, value in extra_headers.items()})
-    signed_headers = ";".join(sorted(headers))
-    canonical_headers = "".join(
-        f"{key}:{headers[key]}\n" for key in sorted(headers)
+    return r2_storage.signed_request(
+        method,
+        object_key,
+        payload_hash,
+        account_id=account_id,
+        access_key=access_key,
+        secret_key=secret_key,
+        bucket=bucket,
+        extra_headers=extra_headers,
+        data=data,
+        timeout=timeout,
+        query_params=query_params,
+        opener=urlopen,
     )
-    canonical_request = "\n".join(
-        [
-            method,
-            canonical_uri,
-            canonical_query,
-            canonical_headers,
-            signed_headers,
-            payload_hash,
-        ]
-    )
-    credential_scope = f"{date_stamp}/auto/s3/aws4_request"
-    string_to_sign = "\n".join(
-        [
-            "AWS4-HMAC-SHA256",
-            amz_date,
-            credential_scope,
-            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
-        ]
-    )
-
-    def sign(key: bytes, message: str) -> bytes:
-        return hmac.new(key, message.encode("utf-8"), hashlib.sha256).digest()
-
-    signing_key = sign(
-        sign(
-            sign(
-                sign(("AWS4" + secret_key).encode("utf-8"), date_stamp),
-                "auto",
-            ),
-            "s3",
-        ),
-        "aws4_request",
-    )
-    signature = hmac.new(
-        signing_key,
-        string_to_sign.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-    auth_header = (
-        "AWS4-HMAC-SHA256 "
-        f"Credential={access_key}/{credential_scope}, "
-        f"SignedHeaders={signed_headers}, "
-        f"Signature={signature}"
-    )
-    request_headers = {key: value for key, value in extra_headers.items()} if extra_headers else {}
-    request_headers.update(
-        {
-            "Authorization": auth_header,
-            "Host": host,
-            "x-amz-content-sha256": payload_hash,
-            "x-amz-date": amz_date,
-        }
-    )
-    request_obj = Request(endpoint, data=data, headers=request_headers, method=method)
-    return urlopen(request_obj, timeout=timeout)
-
 
 def r2_get_bytes(object_key: str) -> bytes:
-    payload_hash = hashlib.sha256(b"").hexdigest()
     try:
-        with r2_signed_request("GET", object_key, payload_hash, timeout=45) as response:
-            if response.status != 200:
-                abort(502, f"R2 read failed: HTTP {response.status}")
-            return response.read()
+        status, body = r2_storage.get_bytes(r2_signed_request, object_key)
+        if status != 200:
+            abort(502, f"R2 read failed: HTTP {status}")
+        return body
     except HTTPError:
         raise
     except (URLError, OSError, TimeoutError) as exc:
@@ -1989,17 +1900,15 @@ def r2_list_object_keys(
     continuation_token: str = "",
 ) -> tuple[list[str], str]:
     """List a bounded page of private R2 object keys using S3 ListObjectsV2."""
-    payload_hash = hashlib.sha256(b"").hexdigest()
-    query_params = {"list-type": "2", "prefix": prefix, "max-keys": str(max_keys)}
-    if continuation_token:
-        query_params["continuation-token"] = continuation_token
     try:
-        with r2_signed_request(
-            "GET", "", payload_hash, timeout=45, query_params=query_params
-        ) as response:
-            if response.status != 200:
-                abort(502, f"R2 list failed: HTTP {response.status}")
-            root = ET.fromstring(response.read())
+        status, keys, next_token = r2_storage.list_object_keys(
+            r2_signed_request,
+            prefix,
+            max_keys=max_keys,
+            continuation_token=continuation_token,
+        )
+        if status != 200:
+            abort(502, f"R2 list failed: HTTP {status}")
     except ET.ParseError as exc:
         logger.warning("R2 list returned invalid XML: %s", exc)
         abort(502, "R2 list returned invalid data")
@@ -2010,10 +1919,7 @@ def r2_list_object_keys(
         logger.warning("R2 list connection failed: %s", exc)
         abort(502, "R2 list failed")
 
-    namespace = "{http://s3.amazonaws.com/doc/2006-03-01/}"
-    keys = [node.text for node in root.findall(f"{namespace}Contents/{namespace}Key") if node.text]
-    next_token = root.findtext(f"{namespace}NextContinuationToken", default="")
-    return keys, next_token or ""
+    return keys, next_token
 
 
 def r2_upload_bytes(
@@ -2026,22 +1932,16 @@ def r2_upload_bytes(
     if not public_base:
         abort(500, "R2_PUBLIC_BASE_URL is not configured")
 
-    payload_hash = hashlib.sha256(data).hexdigest()
-    upload_headers = {
-        "Cache-Control": cache_control,
-        "Content-Type": content_type or "application/octet-stream",
-    }
     try:
-        with r2_signed_request(
-            "PUT",
+        status = r2_storage.put_bytes(
+            r2_signed_request,
+            data,
             object_key,
-            payload_hash,
-            extra_headers=upload_headers,
-            data=data,
-            timeout=120,
-        ) as response:
-            if response.status not in {200, 201}:
-                abort(502, f"R2 upload failed: HTTP {response.status}")
+            content_type,
+            cache_control=cache_control,
+        )
+        if status not in {200, 201}:
+            abort(502, f"R2 upload failed: HTTP {status}")
     except HTTPError as exc:
         detail = exc.read(500).decode("utf-8", errors="replace").strip()
         logger.warning("R2 upload failed: HTTP %s %s", exc.code, detail)
@@ -2305,9 +2205,8 @@ def local_narration_draft_path(key: str) -> Path:
 
 
 def r2_delete_object(object_key: str) -> None:
-    payload_hash = hashlib.sha256(b"").hexdigest()
     try:
-        with r2_signed_request("DELETE", object_key, payload_hash, timeout=45) as response:
+        with r2_signed_request("DELETE", object_key, hashlib.sha256(b"").hexdigest(), timeout=45) as response:
             if response.status not in {200, 204}:
                 raise NarrationDraftError(f"ลบไฟล์เสียงไม่สำเร็จ (HTTP {response.status})")
     except HTTPError as exc:

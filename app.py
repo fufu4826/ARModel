@@ -35,6 +35,7 @@ from werkzeug.utils import secure_filename
 from armodel.services import analytics as analytics_service
 from armodel.services import audit as audit_service
 from armodel.services import github_storage, r2_storage
+from armodel.services import narration as narration_service
 from armodel.repositories import content as content_repository
 
 
@@ -1102,8 +1103,7 @@ def slider_save_flash_message(action: str) -> str:
     return f"{action} saved."
 
 
-class GeminiTTSError(RuntimeError):
-    pass
+GeminiTTSError = narration_service.GeminiTTSError
 
 
 def pcm_to_wav(
@@ -1112,98 +1112,21 @@ def pcm_to_wav(
     channels: int = 1,
     sample_width: int = 2,
 ) -> bytes:
-    output = io.BytesIO()
-    with wave.open(output, "wb") as wav_file:
-        wav_file.setnchannels(channels)
-        wav_file.setsampwidth(sample_width)
-        wav_file.setframerate(sample_rate)
-        wav_file.writeframes(pcm_data)
-    return output.getvalue()
+    return narration_service.pcm_to_wav(pcm_data, sample_rate, channels, sample_width)
 
 
 def parse_audio_mime_type(mime_type: str | None) -> tuple[int, int, int]:
-    mime = str(mime_type or "").lower()
-    rate_match = re.search(r"(?:rate|samplerate)=(\d+)", mime)
-    channels_match = re.search(r"channels=(\d+)", mime)
-    sample_rate = int(rate_match.group(1)) if rate_match else 24000
-    channels = int(channels_match.group(1)) if channels_match else 1
-    return sample_rate, channels, 2
+    return narration_service.parse_audio_mime_type(mime_type)
 
 
 def convert_to_wav(audio_data: bytes, mime_type: str | None) -> tuple[bytes, str]:
-    mime = str(mime_type or "").lower()
-    if mime.startswith(("audio/wav", "audio/x-wav")):
-        return audio_data, ".wav"
-    if mime.startswith(("audio/mpeg", "audio/mp3")):
-        return audio_data, ".mp3"
-    if mime.startswith(("audio/ogg", "application/ogg")):
-        return audio_data, ".ogg"
-    if mime.startswith(("audio/mp4", "audio/x-m4a")):
-        return audio_data, ".m4a"
-    sample_rate, channels, sample_width = parse_audio_mime_type(mime)
-    return pcm_to_wav(audio_data, sample_rate, channels, sample_width), ".wav"
+    return narration_service.convert_to_wav(audio_data, mime_type)
 
 
 def generate_gemini_tts_audio(text: str) -> tuple[bytes, str]:
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        raise GeminiTTSError("GEMINI_API_KEY is not configured")
-
-    prompt = (
-        "อ่านคำบรรยายต่อไปนี้เป็นภาษาไทย น้ำเสียงชัดเจน เป็นมิตร "
-        "เหมาะกับนิทรรศการและแหล่งเรียนรู้ เว้นจังหวะพอดี:\n"
-        f"{text.strip()}"
+    return narration_service.generate_gemini_tts_audio(
+        text, os.environ.get("GEMINI_API_KEY", "").strip(), opener=urlopen
     )
-    endpoint = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        "gemini-3.1-flash-tts-preview:generateContent"
-    )
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "responseModalities": ["AUDIO"],
-            "speechConfig": {
-                "voiceConfig": {
-                    "prebuiltVoiceConfig": {"voiceName": "Iapetus"}
-                }
-            },
-        },
-    }
-    request_obj = Request(
-        endpoint,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-        },
-        method="POST",
-    )
-
-    try:
-        with urlopen(request_obj, timeout=90) as response:
-            response_data = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        detail = exc.read(500).decode("utf-8", errors="replace").strip()
-        raise GeminiTTSError(
-            f"Gemini API returned HTTP {exc.code}: {detail or exc.reason}"
-        ) from exc
-    except URLError as exc:
-        raise GeminiTTSError(f"Gemini API connection failed: {exc.reason}") from exc
-    except (OSError, json.JSONDecodeError) as exc:
-        raise GeminiTTSError("Gemini API returned an invalid response") from exc
-
-    try:
-        inline_data = response_data["candidates"][0]["content"]["parts"][0][
-            "inlineData"
-        ]
-        encoded_audio = inline_data["data"]
-        mime_type = str(inline_data.get("mimeType") or "")
-        audio_bytes = base64.b64decode(encoded_audio, validate=True)
-    except (KeyError, IndexError, TypeError, ValueError) as exc:
-        raise GeminiTTSError("Gemini did not return audio data") from exc
-    if not audio_bytes:
-        raise GeminiTTSError("Gemini did not return audio data")
-    return convert_to_wav(audio_bytes, mime_type)
 
 
 def slugify(value: str, fallback: str | None = None) -> str:
@@ -1869,12 +1792,11 @@ def save_generated_narration_audio(
     return f"audio/{filename}"
 
 
-class NarrationDraftError(RuntimeError):
-    pass
+NarrationDraftError = narration_service.NarrationDraftError
 
 
 def narration_draft_serializer() -> URLSafeTimedSerializer:
-    return URLSafeTimedSerializer(app.secret_key, salt="armodel-narration-draft-v1")
+    return narration_service.serializer(app.secret_key)
 
 
 def narration_draft_token(payload: dict) -> str:
@@ -1882,34 +1804,13 @@ def narration_draft_token(payload: dict) -> str:
 
 
 def load_narration_draft_token(token: str) -> dict:
-    try:
-        payload = narration_draft_serializer().loads(
-            token, max_age=NARRATION_DRAFT_MAX_AGE_SECONDS
-        )
-    except SignatureExpired as exc:
-        raise NarrationDraftError("เสียงรอตรวจสอบหมดอายุแล้ว กรุณาสร้างใหม่") from exc
-    except BadSignature as exc:
-        raise NarrationDraftError("ข้อมูลเสียงรอตรวจสอบไม่ถูกต้อง") from exc
-    if not isinstance(payload, dict):
-        raise NarrationDraftError("ข้อมูลเสียงรอตรวจสอบไม่ถูกต้อง")
-    key = str(payload.get("pending_key") or "")
-    model_id = str(payload.get("model_id") or "")
-    if not model_id or not (
-        key.startswith(NARRATION_PENDING_PREFIX) or key.startswith("local-pending/")
-    ):
-        raise NarrationDraftError("ข้อมูลเสียงรอตรวจสอบไม่ถูกต้อง")
-    return payload
+    return narration_service.load_token(
+        token, app.secret_key, NARRATION_DRAFT_MAX_AGE_SECONDS, NARRATION_PENDING_PREFIX
+    )
 
 
 def local_narration_draft_path(key: str) -> Path:
-    if not key.startswith("local-pending/"):
-        raise NarrationDraftError("ตำแหน่งไฟล์รอตรวจสอบไม่ถูกต้อง")
-    relative = Path(key.removeprefix("local-pending/"))
-    target = (LOCAL_NARRATION_DRAFT_DIR / relative).resolve()
-    root = LOCAL_NARRATION_DRAFT_DIR.resolve()
-    if root not in target.parents:
-        raise NarrationDraftError("ตำแหน่งไฟล์รอตรวจสอบไม่ถูกต้อง")
-    return target
+    return narration_service.local_draft_path(LOCAL_NARRATION_DRAFT_DIR, key)
 
 
 def r2_delete_object(object_key: str) -> None:
@@ -1959,11 +1860,9 @@ def delete_pending_narration_audio(key: str) -> None:
 
 
 def owned_r2_narration_key(audio_url: str) -> str:
-    base = r2_public_base_url().rstrip("/")
-    if not base or not audio_url.startswith(f"{base}/"):
-        return ""
-    key = audio_url.removeprefix(f"{base}/")
-    return key if key.startswith(NARRATION_PERMANENT_PREFIX) else ""
+    return narration_service.owned_r2_key(
+        audio_url, r2_public_base_url(), NARRATION_PERMANENT_PREFIX
+    )
 
 
 def admin_write_blocked_on_vercel() -> bool:

@@ -13,12 +13,12 @@ Status values: `TODO`, `IN_PROGRESS`, `PASS`, `BLOCKED_EXTERNAL`, `NOT_APPLICABL
 | 6 | PASS | CSRF protection |
 | 7 | PASS | Serverless-safe Admin login rate limiting |
 | 8 | PASS | CSP/security-policy evaluation |
-| 9 | IN_PROGRESS | Serverless-safe analytics event architecture |
-| 10 | TODO | Audit Log completeness and failure visibility |
-| 11 | TODO | README/documentation reconciliation |
-| 12 | TODO | Duplicate root JSON cleanup |
-| 13 | TODO | Dependency management |
-| 14A | TODO | Extract R2/GitHub storage services |
+| 9 | PASS | Serverless-safe analytics event architecture |
+| 10 | PASS | Audit Log completeness and failure visibility |
+| 11 | PASS | README/documentation reconciliation |
+| 12 | PASS | Duplicate root JSON cleanup |
+| 13 | PASS | Dependency management |
+| 14A | IN_PROGRESS | Extract R2/GitHub storage services |
 | 14B | TODO | Extract content repositories |
 | 14C | TODO | Extract analytics/audit/narration services |
 | 14D | TODO | Organize Flask routes/Blueprints where safe |

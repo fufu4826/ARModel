@@ -32,6 +32,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+from armodel.services import analytics as analytics_service
 from armodel.services import github_storage, r2_storage
 from armodel.repositories import content as content_repository
 
@@ -898,145 +899,7 @@ def record_local_analytics(response):
 
 
 def _analytics_event_datetime(event: dict) -> datetime | None:
-    raw_value = str(event.get("timestamp") or "")
-    if not raw_value:
-        return None
-    try:
-        value = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
-
-
-def _analytics_top_counts(events: list[dict], key: str, limit: int = 5) -> list[dict]:
-    counts: dict[str, int] = {}
-    for event in events:
-        label = str(event.get(key) or "Unknown").strip() or "Unknown"
-        counts[label] = counts.get(label, 0) + 1
-    return [
-        {"label": label, "value": value}
-        for label, value in sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
-    ]
-
-
-def _analytics_unique_visitors(items: list[dict]) -> int:
-    return len({str(item.get("visitor_id") or "") for item in items if item.get("visitor_id")})
-
-
-def _analytics_month_start(value: datetime) -> datetime:
-    return value.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-
-
-def _analytics_shift_months(value: datetime, months: int) -> datetime:
-    month_index = value.month - 1 + months
-    year = value.year + month_index // 12
-    month = month_index % 12 + 1
-    return value.replace(year=year, month=month)
-
-
-def _analytics_bucket_payload(
-    label: str,
-    start: datetime,
-    end: datetime,
-    events: list[dict],
-) -> dict:
-    bucket_events = [
-        event for event in events if start <= event["_occurred_at"] < end
-    ]
-    return {
-        "label": label,
-        "start": start.isoformat(),
-        "end": end.isoformat(),
-        "visitors": _analytics_unique_visitors(bucket_events),
-        "pageviews": len(bucket_events),
-    }
-
-
-def _analytics_day_bounds(selected_date: date) -> tuple[datetime, datetime]:
-    """Return the UTC half-open interval for one Bangkok calendar day."""
-    start_local = datetime.combine(selected_date, datetime.min.time(), tzinfo=BANGKOK_TZ)
-    end_local = start_local + timedelta(days=1)
-    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
-
-
-def _analytics_date_label(selected_date: date) -> str:
-    thai_months = (
-        "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-        "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
-    )
-    return f"{selected_date.day} {thai_months[selected_date.month - 1]} {selected_date.year + 543}"
-
-
-def _analytics_events_between(events: list[dict], start: datetime, end: datetime) -> list[dict]:
-    return [event for event in events if start <= event["_occurred_at"] < end]
-
-
-def _analytics_trend_ranges(selected_date: date, events: list[dict]) -> dict:
-    selected_start, _ = _analytics_day_bounds(selected_date)
-    selected_local_start = selected_start.astimezone(BANGKOK_TZ)
-    current_month = _analytics_month_start(selected_local_start)
-
-    hourly = []
-    for hour in range(24):
-        start_local = selected_local_start + timedelta(hours=hour)
-        start = start_local.astimezone(timezone.utc)
-        hourly.append(
-            _analytics_bucket_payload(
-                start_local.strftime("%H:00"),
-                start,
-                start + timedelta(hours=1),
-                events,
-            )
-        )
-
-    daily_7d = []
-    for offset in range(6, -1, -1):
-        day = selected_date - timedelta(days=offset)
-        start, end = _analytics_day_bounds(day)
-        daily_7d.append(
-            _analytics_bucket_payload(
-                day.isoformat(),
-                start,
-                end,
-                events,
-            )
-        )
-
-    daily_30d = []
-    for offset in range(29, -1, -1):
-        day = selected_date - timedelta(days=offset)
-        start, end = _analytics_day_bounds(day)
-        daily_30d.append(
-            _analytics_bucket_payload(
-                day.isoformat(),
-                start,
-                end,
-                events,
-            )
-        )
-
-    monthly_12 = []
-    for offset in range(11, -1, -1):
-        start = _analytics_shift_months(current_month, -offset)
-        end = _analytics_shift_months(start, 1)
-        monthly_12.append(
-            _analytics_bucket_payload(
-                start.strftime("%Y-%m"),
-                start,
-                end,
-                events,
-            )
-        )
-
-    return {
-        "hourly_24h": hourly,
-        "daily_7d": daily_7d,
-        "daily_30d": daily_30d,
-        "monthly_12m": monthly_12,
-        "default_range": "daily_7d",
-    }
+    return analytics_service.event_datetime(event)
 
 
 def dashboard_analytics_status(selected_date: date | None = None) -> dict:
@@ -1059,51 +922,12 @@ def dashboard_analytics_status(selected_date: date | None = None) -> dict:
         normalized["_occurred_at"] = occurred_at
         events.append(normalized)
 
-    selected_start, selected_end = _analytics_day_bounds(selected_date)
-    seven_start, _ = _analytics_day_bounds(selected_date - timedelta(days=6))
-    thirty_start, _ = _analytics_day_bounds(selected_date - timedelta(days=29))
-    selected_events = _analytics_events_between(events, selected_start, selected_end)
-    events_7d = _analytics_events_between(events, seven_start, selected_end)
-    events_30d = _analytics_events_between(events, thirty_start, selected_end)
-
-    daily_counts = []
-    for offset in range(29, -1, -1):
-        day = selected_date - timedelta(days=offset)
-        start, end = _analytics_day_bounds(day)
-        day_events = _analytics_events_between(events, start, end)
-        daily_counts.append(
-            {
-                "date": day.isoformat(),
-                "visitors": _analytics_unique_visitors(day_events),
-                "pageviews": len(day_events),
-            }
-        )
-
-    enabled = bool(events)
-    return {
-        "enabled": enabled,
-        "provider": analytics_provider_name(),
-        "message": (
-            "Analytics is collecting visitor data."
-            if enabled
-            else "Analytics is ready. Visit public pages to collect data."
-        ),
-        "metrics": {
-            "visitors_today": _analytics_unique_visitors(selected_events),
-            "pageviews_today": len(selected_events),
-            "visitors_7d": _analytics_unique_visitors(events_7d),
-            "visitors_30d": _analytics_unique_visitors(events_30d),
-            "total_events": len(events),
-        },
-        "selected_date": selected_date.isoformat(),
-        "selected_date_label": _analytics_date_label(selected_date),
-        "is_today": selected_date == datetime.now(BANGKOK_TZ).date(),
-        "trend": daily_counts,
-        "trend_ranges": _analytics_trend_ranges(selected_date, events),
-        "top_countries": _analytics_top_counts(selected_events, "country"),
-        "top_referrers": _analytics_top_counts(selected_events, "referrer"),
-        "top_pages": _analytics_top_counts(selected_events, "page"),
-    }
+    return analytics_service.dashboard_status(
+        events,
+        selected_date,
+        provider=analytics_provider_name(),
+        today=datetime.now(BANGKOK_TZ).date(),
+    )
 
 
 def save_projects(projects: list[dict]) -> None:

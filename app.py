@@ -67,7 +67,11 @@ NARRATION_PENDING_PREFIX = "audio/pending/"
 NARRATION_PERMANENT_PREFIX = "audio/narrations/"
 LOCAL_NARRATION_DRAFT_DIR = Path(tempfile.gettempdir()) / "armodel-narration-drafts"
 LOCAL_AUDIT_LOG_DIR = Path(tempfile.gettempdir()) / "armodel-audit-logs"
+LOCAL_LOGIN_RATE_LIMIT_DIR = Path(tempfile.gettempdir()) / "armodel-login-rate-limit"
 AUDIT_PREFIX = "audit/"
+LOGIN_FAILURE_PREFIX = "auth/login-failures/"
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
 AUDIT_PAGE_SIZE = 50
 MAX_MODEL_FILE_SIZE_MB = 50
 MAX_MODEL_FILE_SIZE_BYTES = MAX_MODEL_FILE_SIZE_MB * 1024 * 1024
@@ -2033,6 +2037,60 @@ def audit_request_context() -> dict:
     return {"source_ip": ip or "ไม่ทราบ IP", "country": request.headers.get("x-vercel-ip-country", "") if trusted else "", "region": request.headers.get("x-vercel-ip-country-region", "") if trusted else "", "city": unquote(city) if city else "", "location_source": "Vercel headers" if trusted else "ไม่ทราบตำแหน่งโดยประมาณ", "user_agent": request.headers.get("User-Agent", ""), "browser_summary": browser_summary(request.headers.get("User-Agent", ""))}
 
 
+def login_rate_limit_identity() -> str:
+    context = audit_request_context()
+    material = str(context["source_ip"]).encode("utf-8")
+    return hmac.new(audit_signing_key(), material, hashlib.sha256).hexdigest()
+
+
+def record_login_attempt(identity: str, outcome: str, now: datetime | None = None) -> bool:
+    now = now or datetime.now(timezone.utc)
+    event = {"timestamp": now.isoformat(), "identity": identity, "outcome": outcome}
+    key = f"{LOGIN_FAILURE_PREFIX}{identity}/{now:%Y/%m/%d}/{now:%Y%m%dT%H%M%S.%fZ}-{uuid.uuid4().hex}.json"
+    payload = json.dumps(event, separators=(",", ":")).encode("utf-8")
+    try:
+        if is_vercel_runtime():
+            r2_upload_bytes(payload, key, "application/json", "private, max-age=0")
+        else:
+            target = LOCAL_LOGIN_RATE_LIMIT_DIR / key
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(payload)
+        return True
+    except Exception:
+        logger.exception("Unable to write login rate-limit event")
+        return False
+
+
+def recent_login_attempts(identity: str, now: datetime | None = None) -> list[dict]:
+    now = now or datetime.now(timezone.utc)
+    earliest = now - LOGIN_FAILURE_WINDOW
+    records: list[dict] = []
+    try:
+        days = {now.date(), earliest.date()}
+        if is_vercel_runtime():
+            sources = ((key, r2_get_bytes(key)) for day in days for key in r2_list_object_keys(f"{LOGIN_FAILURE_PREFIX}{identity}/{day:%Y/%m/%d}/", max_keys=1000)[0])
+        else:
+            sources = ((str(path), path.read_bytes()) for day in days for path in (LOCAL_LOGIN_RATE_LIMIT_DIR / f"{LOGIN_FAILURE_PREFIX}{identity}/{day:%Y/%m/%d}").glob("*.json"))
+        for _, payload in sources:
+            try:
+                event = json.loads(payload)
+                timestamp = datetime.fromisoformat(str(event.get("timestamp") or "").replace("Z", "+00:00"))
+                if event.get("identity") == identity and earliest <= timestamp <= now:
+                    records.append(event)
+            except (ValueError, TypeError, json.JSONDecodeError):
+                continue
+    except Exception:
+        logger.exception("Unable to read login rate-limit events")
+        return []
+    return sorted(records, key=lambda event: event["timestamp"])
+
+
+def login_is_rate_limited(identity: str, now: datetime | None = None) -> bool:
+    attempts = recent_login_attempts(identity, now)
+    last_success = max((index for index, event in enumerate(attempts) if event.get("outcome") == "success"), default=-1)
+    return sum(event.get("outcome") == "failure" for event in attempts[last_success + 1 :]) >= LOGIN_FAILURE_LIMIT
+
+
 def browser_summary(user_agent: str) -> str:
     ua = user_agent.lower()
     browser = "Chrome" if "chrome/" in ua and "edg/" not in ua else "Edge" if "edg/" in ua else "Firefox" if "firefox/" in ua else "Safari" if "safari/" in ua else "ไม่ทราบเบราว์เซอร์"
@@ -3571,6 +3629,16 @@ def admin_login():
     next_url = safe_redirect_target(request.args.get("next"))
 
     if request.method == "POST":
+        identity = login_rate_limit_identity()
+        if not first_run and login_is_rate_limited(identity):
+            write_audit_event(
+                "auth", "login", "rejected",
+                "มีความพยายามเข้าสู่ระบบเกินจำนวนที่กำหนด",
+                severity="warning",
+                metadata={"reason": "rate_limited"},
+            )
+            flash("ไม่สามารถเข้าสู่ระบบได้ในขณะนี้ โปรดลองใหม่ภายหลัง", "error")
+            return render_template("login.html", first_run=first_run), 429
         password = request.form.get("password", "")
         confirm = request.form.get("confirm_password", "")
 
@@ -3589,11 +3657,13 @@ def admin_login():
                 flash("ตั้งค่ารหัสผ่านผู้ดูแลแล้ว", "success")
                 return redirect(next_url)
         elif verify_admin_password(password):
+            record_login_attempt(identity, "success")
             session["admin"] = True
             session["admin_session_id"] = uuid.uuid4().hex
             write_audit_event("auth", "login", "success", f"ผู้ดูแลเข้าสู่ระบบสำเร็จจาก IP {audit_request_context()['source_ip']} ผ่าน {audit_request_context()['browser_summary']}")
             return redirect(next_url)
         else:
+            record_login_attempt(identity, "failure")
             write_audit_event("auth", "login", "failure", f"มีความพยายามเข้าสู่ระบบไม่สำเร็จจาก IP {audit_request_context()['source_ip']}", severity="warning")
             flash("รหัสผ่านไม่ถูกต้อง", "error")
 

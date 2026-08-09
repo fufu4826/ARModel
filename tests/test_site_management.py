@@ -1094,6 +1094,32 @@ class SiteManagementTests(unittest.TestCase):
             self.assertIn("แก้ไขโมเดลทดสอบสำเร็จ", page)
             self.assertEqual(self.client.get("/admin/audit-logs/export/csv").status_code, 200)
 
+    def test_settings_mutations_are_audited_and_audit_failure_is_visible(self):
+        self.sign_in()
+        with patch.object(module, "write_audit_event", return_value={}) as audited:
+            intro = self.client.post(
+                "/admin/intro",
+                data={"intro_enabled": "on", "intro_display_mode": "sequence", "intro_logo_duration_ms": "1400"},
+            )
+            branding = self.client.post(
+                "/admin/settings",
+                data={"section": "branding", "return_to": "/admin/branding"},
+            )
+        self.assertEqual(intro.status_code, 302)
+        self.assertEqual(branding.status_code, 302)
+        sections = [call.kwargs.get("metadata", {}).get("section") for call in audited.call_args_list]
+        self.assertIn("intro", sections)
+        self.assertIn("branding", sections)
+
+        with patch("pathlib.Path.write_bytes", side_effect=OSError("disk full")):
+            response = self.client.post(
+                "/admin/intro",
+                data={"intro_enabled": "on", "intro_display_mode": "sequence", "intro_logo_duration_ms": "1400"},
+                follow_redirects=True,
+            )
+        page = response.get_data(as_text=True)
+        self.assertIn("บันทึกข้อมูลสำเร็จ แต่ไม่สามารถเขียนบันทึกการใช้งานได้", page)
+
     def test_production_audit_logs_are_listed_from_r2(self):
         with self.client.session_transaction() as audit_session:
             audit_session["admin"] = True

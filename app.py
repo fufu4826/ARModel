@@ -2157,6 +2157,8 @@ def write_audit_event(category: str, action: str, outcome: str, summary_th: str,
         return event
     except Exception:
         logger.exception("Unable to write audit event")
+        if session.get("admin") and request.path.startswith("/admin"):
+            flash("บันทึกข้อมูลสำเร็จ แต่ไม่สามารถเขียนบันทึกการใช้งานได้", "warning")
         return None
 
 
@@ -3406,6 +3408,7 @@ def admin_intro():
         return redirect(url_for("admin_intro"))
 
     settings = get_site_settings()
+    before = dict(settings)
     settings["intro_enabled"] = (
         "true" if request.form.get("intro_enabled") in {"1", "true", "on", "yes"} else "false"
     )
@@ -3437,6 +3440,12 @@ def admin_intro():
             )
 
     save_site_settings(settings)
+    write_audit_event(
+        "settings", "edit", "success", "บันทึกการตั้งค่า Intro สำเร็จ",
+        resource_type="site_settings",
+        changes=audit_changes(before, settings),
+        metadata={"section": "intro"},
+    )
     flash("บันทึกการตั้งค่าอินโทรแล้ว", "success")
     return redirect(url_for("admin_intro"))
 
@@ -3520,10 +3529,11 @@ def admin_recommended_models():
         id_order_pairs.sort(key=lambda x: x[1])
         sorted_ids = [pair[0] for pair in id_order_pairs][:MAX_RECOMMENDED_MODELS]
 
+        previous_ids = settings.get("recommended_model_ids", "")
         settings["recommended_model_ids"] = ",".join(sorted_ids)
 
         save_site_settings(settings)
-        write_audit_event("settings", "edit", "success", "บันทึกโมเดลแนะนำสำเร็จ", resource_type="site_settings", changes=[{"field":"recommended_model_ids","label_th":"โมเดลแนะนำ","before":"","after":sorted_ids}])
+        write_audit_event("settings", "edit", "success", "บันทึกโมเดลแนะนำสำเร็จ", resource_type="site_settings", changes=[{"field":"recommended_model_ids","label_th":"โมเดลแนะนำ","before":previous_ids,"after":settings["recommended_model_ids"]}], metadata={"section":"recommended_models"})
 
         flash("บันทึกรายชื่อโมเดลแนะนำแล้ว", "success")
         return redirect(url_for("admin_recommended_models"))
@@ -3555,6 +3565,7 @@ def update_admin_settings():
     ) or admin_write_blocked_on_vercel():
         return redirect(request.form.get("return_to") or url_for("admin"))
     settings = get_site_settings()
+    before = dict(settings)
     section = request.form.get("section", "").strip()
     if section == "landing":
         settings.update(
@@ -3650,6 +3661,13 @@ def update_admin_settings():
     else:
         abort(400, "Unsupported settings section")
     save_site_settings(settings)
+    section_label = "Landing" if section == "landing" else "Branding และ SEO"
+    write_audit_event(
+        "settings", "edit", "success", f"บันทึกการตั้งค่า {section_label} สำเร็จ",
+        resource_type="site_settings",
+        changes=audit_changes(before, settings),
+        metadata={"section": section},
+    )
     flash("บันทึกการตั้งค่าแล้ว", "success")
     return redirect(request.form.get("return_to") or url_for("admin"))
 

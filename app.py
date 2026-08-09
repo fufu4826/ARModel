@@ -33,6 +33,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 from armodel.services import github_storage, r2_storage
+from armodel.repositories import content as content_repository
 
 
 def load_local_env() -> None:
@@ -734,13 +735,7 @@ def analytics_referrer_label() -> str:
 
 
 def content_lookup(records: list[dict]) -> dict[str, dict]:
-    lookup: dict[str, dict] = {}
-    for record in records:
-        for key in ("id", "slug"):
-            value = str(record.get(key) or "").strip()
-            if value:
-                lookup[value] = record
-    return lookup
+    return content_repository.content_lookup(records)
 
 
 def analytics_page_label(
@@ -1120,53 +1115,23 @@ def save_models(models: list[dict]) -> None:
 
 
 def normalize_project(project: dict) -> dict:
-    name = str(project.get("name") or project.get("project_name") or "แหล่งเรียนรู้").strip()
-    image_url = str(project.get("image_url") or "").strip()
-    image_path = str(project.get("image_path") or project.get("cover_image") or project.get("image") or "").strip()
-    return {
-        "id": str(project.get("id") or uuid.uuid4().hex),
-        "slug": str(project.get("slug") or "").strip(),
-        "name": name,
-        "description": str(project.get("description") or "").strip(),
-        "department": str(project.get("department") or project.get("unit") or "").strip(),
-        "cover_image": image_url or image_path,
-        "image_url": image_url,
-        "image_path": image_path,
-        "visible": bool(project.get("visible", True)),
-        "created_at": str(project.get("created_at") or "").strip(),
-        "updated_at": str(project.get("updated_at") or "").strip(),
-    }
+    return content_repository.normalize_project(project, default_name="แหล่งเรียนรู้")
 
 
 def load_projects(include_hidden: bool = True) -> list[dict]:
     ensure_data_files()
-    projects = [normalize_project(project) for project in read_json(PROJECTS_FILE, DEFAULT_PROJECTS)]
-    if not projects:
-        projects = [normalize_project(project) for project in DEFAULT_PROJECTS]
-    if include_hidden:
-        return projects
-    return [project for project in projects if project.get("visible", True)]
+    return content_repository.load_normalized(
+        PROJECTS_FILE,
+        DEFAULT_PROJECTS,
+        read_json,
+        normalize_project,
+        visible_key="visible",
+        include_hidden=include_hidden,
+    )
 
 
 def normalize_preview_images(value) -> list[str]:
-    if isinstance(value, str):
-        candidate = value.strip()
-        if candidate.startswith("["):
-            try:
-                value = json.loads(candidate)
-            except json.JSONDecodeError:
-                value = candidate.splitlines()
-        else:
-            value = candidate.splitlines()
-    if not isinstance(value, (list, tuple)):
-        return []
-
-    images = []
-    for item in value:
-        image = str(item or "").strip()
-        if image and image not in images:
-            images.append(image)
-    return images
+    return content_repository.normalize_preview_images(value)
 
 
 def parse_preview_images_field(value: str | None) -> list[str]:
@@ -1202,72 +1167,20 @@ def parse_narration_audio_field(value: str | None) -> str:
 
 
 def normalize_model(model: dict, projects: list[dict]) -> dict:
-    project_ids = {project["id"] for project in projects}
-    model_id = str(model.get("id") or uuid.uuid4().hex)
-    project_id = str(model.get("project_id") or "").strip()
-    if project_id not in project_ids:
-        if model_id in {"lukplakob"}:
-            project_id = "wellness"
-        elif model_id in {"lychee", "mond"}:
-            project_id = "garden"
-        else:
-            project_id = "rice-and-food" if "rice-and-food" in project_ids else (projects[0]["id"] if projects else "")
-
-    try:
-        rotate_x = float(model.get("rotate_x") or 0)
-        rotate_y = float(model.get("rotate_y") or 0)
-        rotate_z = float(model.get("rotate_z") or 0)
-        scale = float(model.get("scale") or 0.2)
-    except (TypeError, ValueError):
-        rotate_x = 0
-        rotate_y = 0
-        rotate_z = 0
-        scale = 0.2
-
-    model_url = str(model.get("model_url") or "").strip()
-    model_path = str(model.get("model_path") or model.get("model") or "").strip()
-    thumbnail_url = str(model.get("thumbnail_url") or "").strip()
-    thumbnail_path = str(model.get("thumbnail_path") or model.get("image") or model.get("thumbnail") or "").strip()
-    narration_audio = str(model.get("narration_audio") or "").strip()
-    size_mb = model.get("file_size_mb")
-    try:
-        size_mb = float(size_mb) if size_mb is not None else None
-    except (TypeError, ValueError):
-        size_mb = None
-
-    return {
-        "id": model_id,
-        "slug": str(model.get("slug") or "").strip(),
-        "name": str(model.get("name") or "โมเดล").strip(),
-        "description": str(model.get("description") or model.get("info") or "").strip(),
-        "department": str(model.get("department") or model.get("unit") or "").strip(),
-        "project_id": project_id,
-        "model": model_url or model_path,
-        "model_url": model_url,
-        "model_path": model_path,
-        "image": thumbnail_url or thumbnail_path,
-        "thumbnail_url": thumbnail_url,
-        "thumbnail_path": thumbnail_path,
-        "preview_images": normalize_preview_images(model.get("preview_images")),
-        "narration_audio": narration_audio,
-        "file_size_mb": size_mb,
-        "rotate_x": rotate_x,
-        "rotate_y": rotate_y,
-        "rotate_z": rotate_z,
-        "scale": scale,
-        "visible": bool(model.get("visible", True)),
-        "created_at": str(model.get("created_at") or "").strip(),
-        "updated_at": str(model.get("updated_at") or "").strip(),
-    }
+    return content_repository.normalize_model(model, projects, default_name="โมเดล")
 
 
 def load_models(include_hidden: bool = True) -> list[dict]:
     ensure_data_files()
     projects = load_projects(include_hidden=True)
-    models = [normalize_model(model, projects) for model in read_json(CATALOG_FILE, DEFAULT_MODELS)]
-    if include_hidden:
-        return models
-    return [model for model in models if model.get("visible", True)]
+    return content_repository.load_normalized(
+        CATALOG_FILE,
+        DEFAULT_MODELS,
+        read_json,
+        lambda model: normalize_model(model, projects),
+        visible_key="visible",
+        include_hidden=include_hidden,
+    )
 
 
 def model_with_project(model: dict, projects: list[dict]) -> dict:
@@ -1315,29 +1228,15 @@ def save_config(config: dict) -> None:
 
 
 def normalize_site_settings(settings: dict | None) -> dict:
-    normalized = dict(DEFAULT_SITE_SETTINGS)
-    for key in normalized:
-        value = (settings or {}).get(key)
-        if value is not None:
-            normalized[key] = str(value).strip()
-    for key, fallback in DEFAULT_SITE_SETTINGS.items():
-        if not normalized[key]:
-            normalized[key] = fallback
-    for key in LANDING_TYPOGRAPHY_SETTINGS:
-        normalized[key] = normalize_landing_typography_value(key, normalized[key])
-    return normalized
+    return content_repository.normalize_site_settings(
+        settings, DEFAULT_SITE_SETTINGS, LANDING_TYPOGRAPHY_SETTINGS
+    )
 
 
 def normalize_landing_typography_value(key: str, value) -> str:
-    minimum, maximum = LANDING_TYPOGRAPHY_SETTINGS[key]
-    try:
-        numeric_value = float(str(value).strip())
-        if not math.isfinite(numeric_value):
-            raise ValueError
-        parsed_value = int(round(numeric_value))
-    except (TypeError, ValueError):
-        parsed_value = int(DEFAULT_SITE_SETTINGS[key])
-    return str(max(minimum, min(parsed_value, maximum)))
+    return content_repository.normalize_landing_typography_value(
+        key, value, DEFAULT_SITE_SETTINGS, LANDING_TYPOGRAPHY_SETTINGS
+    )
 
 
 def load_site_settings() -> dict:
@@ -1349,27 +1248,13 @@ def save_site_settings(settings: dict) -> None:
 
 
 def normalize_slider_item(item: dict) -> dict:
-    try:
-        sort_order = int(item.get("sort_order") or 0)
-    except (TypeError, ValueError):
-        sort_order = 0
-    created_at = str(item.get("created_at") or "").strip()
-    return {
-        "id": str(item.get("id") or uuid.uuid4().hex),
-        "title": str(item.get("title") or "").strip(),
-        "description": str(item.get("description") or "").strip(),
-        "image_url": str(item.get("image_url") or item.get("image") or "").strip(),
-        "button_text": str(item.get("button_text") or "").strip(),
-        "button_url": str(item.get("button_url") or "").strip(),
-        "sort_order": sort_order,
-        "active": bool(item.get("active", True)),
-        "created_at": created_at,
-        "updated_at": str(item.get("updated_at") or created_at).strip(),
-    }
+    return content_repository.normalize_slider_item(item)
 
 
 def load_slider_items(include_inactive: bool = True) -> list[dict]:
-    items = [normalize_slider_item(item) for item in read_json(SLIDER_ITEMS_FILE, DEFAULT_SLIDER_ITEMS)]
+    items = content_repository.load_normalized(
+        SLIDER_ITEMS_FILE, DEFAULT_SLIDER_ITEMS, read_json, normalize_slider_item
+    )
     items.sort(key=lambda item: (item["sort_order"], item["id"]))
     if include_inactive:
         return items
@@ -1377,9 +1262,13 @@ def load_slider_items(include_inactive: bool = True) -> list[dict]:
 
 
 def save_slider_items(items: list[dict]) -> None:
-    normalized = [normalize_slider_item(item) for item in items]
-    normalized.sort(key=lambda item: (item["sort_order"], item["id"]))
-    write_json(SLIDER_ITEMS_FILE, normalized)
+    content_repository.save_normalized(
+        SLIDER_ITEMS_FILE,
+        items,
+        write_json,
+        normalize_slider_item,
+        sort_key=lambda item: (item["sort_order"], item["id"]),
+    )
 
 
 def slider_save_flash_message(action: str) -> str:

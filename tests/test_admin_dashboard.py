@@ -81,6 +81,8 @@ class AdminDashboardTests(unittest.TestCase):
     def sign_in(self):
         with self.client.session_transaction() as session:
             session["admin"] = True
+            session["csrf_token"] = "test-csrf-token"
+        self.client.environ_base["HTTP_X_CSRF_TOKEN"] = "test-csrf-token"
 
     @staticmethod
     def successful_head(_url):

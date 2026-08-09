@@ -54,6 +54,8 @@ class SiteManagementTests(unittest.TestCase):
     def sign_in(self):
         with self.client.session_transaction() as session:
             session["admin"] = True
+            session["csrf_token"] = "test-csrf-token"
+        self.client.environ_base["HTTP_X_CSRF_TOKEN"] = "test-csrf-token"
 
     def test_public_routes_and_apis_render(self):
         expected_statuses = {
@@ -2224,6 +2226,8 @@ class ZeroSupabaseRuntimeTests(unittest.TestCase):
     def sign_in(self):
         with self.client.session_transaction() as session:
             session["admin"] = True
+            session["csrf_token"] = "test-csrf-token"
+        self.client.environ_base["HTTP_X_CSRF_TOKEN"] = "test-csrf-token"
 
     def test_versioned_json_counts_and_public_apis(self):
         models = json.loads((module.DATA_DIR / "models.json").read_text("utf-8"))

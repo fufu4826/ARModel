@@ -32,6 +32,8 @@ class ProductionAdminWritesTests(unittest.TestCase):
         self.client = module.app.test_client()
         with self.client.session_transaction() as session:
             session["admin"] = True
+            session["csrf_token"] = "test-csrf-token"
+        self.client.environ_base["HTTP_X_CSRF_TOKEN"] = "test-csrf-token"
 
     def tearDown(self):
         for name, value in self.original_paths.items():

@@ -303,6 +303,29 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("VERCEL"))
 
 
+def csrf_token() -> str:
+    """Return the per-session token used by authenticated Admin mutations."""
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return token
+
+
+@app.before_request
+def protect_admin_mutations_with_csrf():
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+    if not request.path.startswith("/admin/") or request.path == "/admin/login":
+        return None
+    if not session.get("admin"):
+        return None
+    supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token", "")
+    expected = session.get("csrf_token", "")
+    if not expected or not supplied or not hmac.compare_digest(str(expected), str(supplied)):
+        abort(400, "Invalid CSRF token")
+
+
 def is_vercel_runtime() -> bool:
     return bool(os.environ.get("VERCEL"))
 
@@ -813,6 +836,21 @@ def record_local_analytics(response):
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     if is_vercel_runtime() or request.is_secure:
         response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    if (
+        session.get("admin")
+        and request.path.startswith("/admin")
+        and response.mimetype == "text/html"
+        and response.status_code < 400
+    ):
+        token = csrf_token()
+        html = response.get_data(as_text=True)
+        html = re.sub(
+            r"(<form\\b[^>]*method=[\"']post[\"'][^>]*>)",
+            lambda match: match.group(1) + f'<input type="hidden" name="csrf_token" value="{token}">',
+            html,
+            flags=re.IGNORECASE,
+        )
+        response.set_data(html)
     if not analytics_should_track(response):
         return response
     visitor_id, needs_cookie = analytics_visitor_id()

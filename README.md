@@ -9,6 +9,8 @@ pip install -r requirements.txt
 python app.py
 ```
 
+Development and CI dependencies are installed with `pip install -r requirements-dev.txt`.
+
 Open `http://127.0.0.1:5000`. Local metadata is read and written under `data/`; local uploads and runtime analytics use local files. Tests replace these paths with temporary fixtures.
 
 ## Production architecture

@@ -24,7 +24,7 @@ Vercel runs `app.py` through the Python runtime. The versioned source of truth i
 
 When GitHub Contents credentials are configured, Production Admin writes update only these allow-listed files and create a commit on the configured branch. Without GitHub write configuration, Production mutations are blocked safely.
 
-Cloudflare R2 stores GLB files, thumbnails, gallery and slider images, branding assets, narration audio, analytics events, and Audit Log objects. New Production analytics events are immutable objects under `analytics/events/YYYY/MM/DD/`; the dashboard also reads the legacy `analytics/analytics_events.json` object during transition.
+Cloudflare R2 stores GLB files, thumbnails, gallery and slider images, branding assets, narration audio, analytics events, and Audit Log objects. New Production analytics events are immutable objects under `analytics/events/YYYY/MM/DD/<timestamp>-<uuid>.json`; the dashboard also reads the legacy `analytics/analytics_events.json` object during transition.
 
 ## Admin security
 
@@ -63,6 +63,16 @@ Configure an R2 lifecycle rule to remove `audio/pending/` after one day.
 ## Audit Log
 
 Meaningful authentication and Admin mutations create one signed immutable JSON object per event under `audit/YYYY/MM/DD/`. Events contain Thai summaries, request/session context, structured changes, recursive secret redaction, and HMAC-SHA256 tamper evidence. Authenticated Admin users can inspect and export CSV/JSON. Set a lifecycle policy for the `audit/` prefix according to the required retention period, commonly 180–365 days.
+
+## Production rollback
+
+A historical Git commit is a source baseline, not automatically the previous known-good Vercel deployment. Before a rollback:
+
+1. Record the commit and deployment currently serving Production.
+2. Identify and verify the previous known-good Vercel deployment in Vercel's deployment history.
+3. Review newer Production Admin commits, especially changes to `data/*.json`.
+4. Prefer Vercel rollback/redeploy controls for an application-only rollback, or use a reviewed Git revert/fix-forward change when source history must change.
+5. Never replace newer Production content files with stale copies from an older commit.
 
 ## Validation and CI
 

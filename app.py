@@ -33,6 +33,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 from armodel.services import analytics as analytics_service
+from armodel.services import audit as audit_service
 from armodel.services import github_storage, r2_storage
 from armodel.repositories import content as content_repository
 
@@ -1670,21 +1671,15 @@ def audit_signing_key() -> bytes:
 
 
 def redact_audit_value(value):
-    secret_words = ("password", "token", "secret", "authorization", "cookie", "api_key", "signature")
-    if isinstance(value, dict):
-        return {str(key): ("[ปกปิด]" if any(word in str(key).lower() for word in secret_words) else redact_audit_value(item)) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [redact_audit_value(item) for item in value]
-    if isinstance(value, bytes):
-        return {"kind": "binary", "byte_size": len(value), "sha256": hashlib.sha256(value).hexdigest()}
-    return value
+    return audit_service.redact(value)
 
 
 def audit_request_context() -> dict:
-    trusted = bool(os.environ.get("VERCEL"))
-    ip = (request.headers.get("x-vercel-forwarded-for", "") if trusted else request.remote_addr or "").split(",")[0].strip()
-    city = request.headers.get("x-vercel-ip-city", "") if trusted else ""
-    return {"source_ip": ip or "ไม่ทราบ IP", "country": request.headers.get("x-vercel-ip-country", "") if trusted else "", "region": request.headers.get("x-vercel-ip-country-region", "") if trusted else "", "city": unquote(city) if city else "", "location_source": "Vercel headers" if trusted else "ไม่ทราบตำแหน่งโดยประมาณ", "user_agent": request.headers.get("User-Agent", ""), "browser_summary": browser_summary(request.headers.get("User-Agent", ""))}
+    return audit_service.request_context(
+        trusted_vercel=bool(os.environ.get("VERCEL")),
+        remote_addr=request.remote_addr or "",
+        headers=request.headers,
+    )
 
 
 def login_rate_limit_identity() -> str:
@@ -1742,31 +1737,38 @@ def login_is_rate_limited(identity: str, now: datetime | None = None) -> bool:
 
 
 def browser_summary(user_agent: str) -> str:
-    ua = user_agent.lower()
-    browser = "Chrome" if "chrome/" in ua and "edg/" not in ua else "Edge" if "edg/" in ua else "Firefox" if "firefox/" in ua else "Safari" if "safari/" in ua else "ไม่ทราบเบราว์เซอร์"
-    os_name = "iPhone" if "iphone" in ua else "Android" if "android" in ua else "Windows" if "windows" in ua else "macOS" if "mac os" in ua else "Linux" if "linux" in ua else ""
-    return f"{browser} บน {os_name}".strip() if os_name else browser
+    return audit_service.browser_summary(user_agent)
 
 
 def audit_changes(before: dict, after: dict, labels: dict[str, str] | None = None) -> list[dict]:
-    labels = labels or {}
-    return [{"field": key, "label_th": labels.get(key, key), "before": redact_audit_value(before.get(key)), "after": redact_audit_value(after.get(key))} for key in sorted(set(before) | set(after)) if before.get(key) != after.get(key)]
+    return audit_service.changes(before, after, labels)
 
 
 def write_audit_event(category: str, action: str, outcome: str, summary_th: str, *, resource_type="", resource_id="", resource_name="", changes=None, metadata=None, severity="info") -> dict | None:
     try:
         now = datetime.now(timezone.utc)
-        event = {"event_id": uuid.uuid4().hex, "timestamp_utc": now.isoformat(), "timestamp_local": now.astimezone(timezone(timedelta(hours=7))).isoformat(), "event_type": f"{category}.{action}", "category": category, "action": action, "outcome": outcome, "severity": severity, "actor": "ผู้ดูแลระบบ", "admin_session_id": session.get("admin_session_id", ""), "request_id": request.headers.get("x-vercel-id", uuid.uuid4().hex), "request_method": request.method, "request_path": request.path, "resource_type": resource_type, "resource_id": resource_id, "resource_name": resource_name, "summary_th": summary_th, "changes": redact_audit_value(changes or []), "metadata": redact_audit_value(metadata or {}), "signature_version": "hmac-sha256-v1", **audit_request_context()}
-        canonical = json.dumps(event, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        event["signature"] = hmac.new(audit_signing_key(), canonical, hashlib.sha256).hexdigest()
-        key = f"{AUDIT_PREFIX}{now:%Y/%m/%d}/{now:%Y%m%dT%H%M%S.%fZ}-{event['event_id']}.json"
-        data = json.dumps(event, ensure_ascii=False, indent=2).encode("utf-8")
+        event = audit_service.build_event(
+            category, action, outcome, summary_th,
+            context=audit_request_context(),
+            admin_session_id=session.get("admin_session_id", ""),
+            request_id=request.headers.get("x-vercel-id", uuid.uuid4().hex),
+            request_method=request.method,
+            request_path=request.path,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            resource_name=resource_name,
+            changes_value=changes,
+            metadata=metadata,
+            severity=severity,
+            now=now,
+        )
+        event = audit_service.sign_event(event, audit_signing_key())
+        key = audit_service.object_key(event, AUDIT_PREFIX)
+        data = audit_service.serialize(event)
         if is_vercel_runtime():
             r2_upload_bytes(data, key, "application/json", "private, max-age=0")
         else:
-            target = LOCAL_AUDIT_LOG_DIR / key
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data)
+            audit_service.write_local(LOCAL_AUDIT_LOG_DIR, key, data)
         return event
     except Exception:
         logger.exception("Unable to write audit event")
@@ -1776,10 +1778,7 @@ def write_audit_event(category: str, action: str, outcome: str, summary_th: str,
 
 
 def verify_audit_event(event: dict) -> bool:
-    signature = str(event.get("signature") or "")
-    unsigned = dict(event); unsigned.pop("signature", None)
-    canonical = json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return bool(signature) and hmac.compare_digest(signature, hmac.new(audit_signing_key(), canonical, hashlib.sha256).hexdigest())
+    return audit_service.verify_event(event, audit_signing_key())
 
 
 def list_audit_events(limit: int = AUDIT_PAGE_SIZE) -> list[dict]:
@@ -1808,12 +1807,8 @@ def list_audit_events(limit: int = AUDIT_PAGE_SIZE) -> list[dict]:
                         events.append(json.loads(future.result().decode("utf-8")))
                     except (HTTPError, URLError, OSError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                         logger.warning("Skipping unreadable audit event %s: %s", key, exc)
-    elif LOCAL_AUDIT_LOG_DIR.exists():
-        for path in sorted(LOCAL_AUDIT_LOG_DIR.rglob("*.json"), reverse=True)[:limit]:
-            try:
-                events.append(json.loads(path.read_text(encoding="utf-8")))
-            except (OSError, json.JSONDecodeError):
-                logger.warning("Skipping invalid audit event: %s", path)
+    else:
+        events.extend(audit_service.list_local(LOCAL_AUDIT_LOG_DIR, limit))
     events.sort(key=lambda event: event.get("timestamp_utc", ""), reverse=True)
     for event in events:
         event["signature_valid"] = verify_audit_event(event)

@@ -2,21 +2,21 @@
 
 Current branch: `codex/armodel-hardening`
 origin/main: `44e3ca3aea333304dd7368dcb8562f3c5a445003`
-Current HEAD: `9f22f66`
-Working tree: checkpoint update pending after verified Phase 14C commits
-Current phase: 14D — Organize Flask routes/Blueprints where safe
-Last completed phase: 14C — Extract analytics/audit/narration services
-Last commit: `9f22f66 Extract narration service from Flask app`
-Last full pytest: `107 passed, 79 subtests passed`; audit focused `77 passed, 73 subtests passed`; narration focused `77 passed, 73 subtests passed`
+Current HEAD: `3c66b93`
+Working tree: verified browser-QA fixes and checkpoint updates pending commit
+Current phase: 19 — Final Git audit
+Last completed phase: 18 — Local browser QA
+Last commit: `3c66b93 Redact narration tokens from audit paths`
+Last full pytest: `109 passed, 79 subtests passed`; site-focused `74 passed, 73 subtests passed`
 Last validator: passed; 121 R2 URLs verified
 Last JS checks: passed for carousel, narration, dashboard
-Browser QA: not yet run
+Browser QA: passed local public/Admin responsive checks at 1920x1080, 1366x768, 1024x768, 768x1024, 390x844, and 360x800; fixed Admin overflow, Landing Swiper warning, and missing form CSRF tokens
 Push status: not pushed
 CI status: workflow added locally; remote run not started
 Deployment status: not started
 Production QA: not started
 External blockers: none known
-Next exact action: inventory all Flask route decorators, endpoint names, template/JavaScript `url_for` dependencies, auth/CSRF decorators, and error/after-request hooks; determine the smallest safe route-module boundary without changing URLs or endpoint names, then implement and regression-test it or document why Blueprint migration is disproportionate.
+Next exact action: commit verified browser-QA fixes, run final Git/secrets/artifact/data audit against origin/main, remove temporary `.codex` coordination files before integration, fetch and inspect latest origin/main, then integrate without overwriting newer Production content.
 
 Completed commits:
 - `6b1df15 Prevent hidden content exposure in public APIs`
@@ -37,3 +37,4 @@ Completed commits:
 - `790d544 Extract analytics service from Flask app`
 - `5e5c1ce Extract audit service from Flask app`
 - `9f22f66 Extract narration service from Flask app`
+- `3c66b93 Redact narration tokens from audit paths`

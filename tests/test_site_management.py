@@ -26,6 +26,7 @@ class SiteManagementTests(unittest.TestCase):
             "SLIDER_UPLOAD_DIR": module.SLIDER_UPLOAD_DIR,
             "AUDIO_DIR": module.AUDIO_DIR,
             "ANALYTICS_FILE": module.ANALYTICS_FILE,
+            "LOCAL_LOGIN_RATE_LIMIT_DIR": module.LOCAL_LOGIN_RATE_LIMIT_DIR,
         }
         module.CATALOG_FILE = data_dir / "models.json"
         module.PROJECTS_FILE = data_dir / "projects.json"
@@ -35,6 +36,7 @@ class SiteManagementTests(unittest.TestCase):
         module.SLIDER_UPLOAD_DIR = data_dir / "static" / "uploads" / "sliders"
         module.AUDIO_DIR = data_dir / "static" / "audio"
         module.ANALYTICS_FILE = data_dir / "analytics_events.json"
+        module.LOCAL_LOGIN_RATE_LIMIT_DIR = data_dir / "login-rate-limit"
         module._JSON_CACHE.clear()
         module._PRODUCTION_JSON_CACHE.clear()
         module.write_json(module.CATALOG_FILE, module.DEFAULT_MODELS)
@@ -54,6 +56,8 @@ class SiteManagementTests(unittest.TestCase):
     def sign_in(self):
         with self.client.session_transaction() as session:
             session["admin"] = True
+            session["csrf_token"] = "test-csrf-token"
+        self.client.environ_base["HTTP_X_CSRF_TOKEN"] = "test-csrf-token"
 
     def test_public_routes_and_apis_render(self):
         expected_statuses = {
@@ -88,6 +92,121 @@ class SiteManagementTests(unittest.TestCase):
         self.assertFalse(settings["intro_enabled_bool"])
         self.assertEqual(settings["intro_logo_duration_ms_value"], 1400)
         self.assertEqual(settings["intro_display_mode"], "sequence")
+
+    def test_security_headers_are_applied_without_breaking_local_http(self):
+        response = self.client.get("/home")
+        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response.headers["Referrer-Policy"], "strict-origin-when-cross-origin")
+        self.assertEqual(response.headers["X-Frame-Options"], "SAMEORIGIN")
+        self.assertNotIn("Strict-Transport-Security", response.headers)
+
+    def test_login_rate_limit_records_failures_and_blocks_before_password_check(self):
+        audit_events = []
+        with (
+            patch.dict(module.os.environ, {"ADMIN_PASSWORD": "correct-password"}, clear=False),
+            patch.object(module, "write_audit_event", side_effect=lambda *args, **kwargs: audit_events.append((args, kwargs))),
+            patch.object(module, "verify_admin_password", wraps=module.verify_admin_password) as verified,
+        ):
+            for _ in range(module.LOGIN_FAILURE_LIMIT):
+                response = self.client.post("/admin/login", data={"password": "wrong-password"})
+                self.assertEqual(response.status_code, 200)
+            blocked = self.client.post("/admin/login", data={"password": "correct-password"})
+
+        self.assertEqual(blocked.status_code, 429)
+        self.assertEqual(verified.call_count, module.LOGIN_FAILURE_LIMIT)
+        self.assertNotIn("correct-password", blocked.get_data(as_text=True))
+        self.assertEqual(len(list(module.LOCAL_LOGIN_RATE_LIMIT_DIR.rglob("*.json"))), module.LOGIN_FAILURE_LIMIT)
+        self.assertTrue(any(args[2] == "rejected" for args, _ in audit_events))
+        persisted = "".join(path.read_text(encoding="utf-8") for path in module.LOCAL_LOGIN_RATE_LIMIT_DIR.rglob("*.json"))
+        self.assertNotIn("wrong-password", persisted)
+
+    def test_login_rate_limit_expiry_reset_and_separate_clients(self):
+        now = module.datetime(2026, 8, 10, 12, tzinfo=module.timezone.utc)
+        first = "a" * 64
+        second = "b" * 64
+        for _ in range(module.LOGIN_FAILURE_LIMIT):
+            self.assertTrue(module.record_login_attempt(first, "failure", now))
+        self.assertTrue(module.login_is_rate_limited(first, now))
+        self.assertFalse(module.login_is_rate_limited(second, now))
+        self.assertFalse(module.login_is_rate_limited(first, now + module.LOGIN_FAILURE_WINDOW + module.timedelta(seconds=1)))
+        module.record_login_attempt(first, "success", now + module.timedelta(seconds=1))
+        self.assertFalse(module.login_is_rate_limited(first, now + module.timedelta(seconds=1)))
+
+    def test_login_rate_limit_identity_uses_only_trusted_ip(self):
+        with module.app.test_request_context("/admin/login", environ_base={"REMOTE_ADDR": "127.0.0.10"}, headers={"User-Agent": "One", "X-Forwarded-For": "198.51.100.2"}):
+            local_one = module.login_rate_limit_identity()
+        with module.app.test_request_context("/admin/login", environ_base={"REMOTE_ADDR": "127.0.0.10"}, headers={"User-Agent": "Two", "X-Forwarded-For": "203.0.113.9"}):
+            local_two = module.login_rate_limit_identity()
+        self.assertEqual(local_one, local_two)
+        with patch.dict(module.os.environ, {"VERCEL": "1"}, clear=False):
+            with module.app.test_request_context("/admin/login", environ_base={"REMOTE_ADDR": "127.0.0.10"}, headers={"x-vercel-forwarded-for": "198.51.100.8"}):
+                trusted = module.login_rate_limit_identity()
+        self.assertNotEqual(local_one, trusted)
+
+    def test_login_rate_limit_r2_keys_are_unique_and_storage_failures_fail_open(self):
+        now = module.datetime(2026, 8, 10, 12, tzinfo=module.timezone.utc)
+        uploaded = []
+        with (
+            patch.object(module, "is_vercel_runtime", return_value=True),
+            patch.object(module, "r2_upload_bytes", side_effect=lambda data, key, *args: uploaded.append((data, key))),
+        ):
+            self.assertTrue(module.record_login_attempt("c" * 64, "failure", now))
+            self.assertTrue(module.record_login_attempt("c" * 64, "failure", now))
+        self.assertEqual(len({key for _, key in uploaded}), 2)
+        self.assertNotIn("password", b"".join(data for data, _ in uploaded).decode("utf-8"))
+        with patch.object(module, "is_vercel_runtime", return_value=True), patch.object(module, "r2_upload_bytes", side_effect=OSError("offline")):
+            self.assertFalse(module.record_login_attempt("c" * 64, "failure", now))
+        with patch.object(module, "is_vercel_runtime", return_value=True), patch.object(module, "r2_list_object_keys", side_effect=OSError("offline")):
+            self.assertFalse(module.login_is_rate_limited("c" * 64, now))
+
+    def test_https_responses_receive_hsts(self):
+        response = self.client.get("/home", base_url="https://localhost")
+        self.assertIn("max-age=31536000", response.headers["Strict-Transport-Security"])
+
+    def test_public_apis_exclude_hidden_content_and_hidden_relationships(self):
+        module.save_projects(
+            [
+                {"id": "visible-project", "name": "Visible project", "visible": True},
+                {"id": "hidden-project", "name": "Hidden project", "visible": False},
+            ]
+        )
+        module.save_models(
+            [
+                {
+                    "id": "visible-model",
+                    "name": "Visible model",
+                    "project_id": "visible-project",
+                    "visible": True,
+                },
+                {
+                    "id": "hidden-model",
+                    "name": "Hidden model",
+                    "project_id": "visible-project",
+                    "visible": False,
+                    "narration_audio": "https://example.com/hidden.mp3",
+                },
+                {
+                    "id": "orphaned-visible-model",
+                    "name": "Visible model in hidden project",
+                    "project_id": "hidden-project",
+                    "visible": True,
+                },
+                {
+                    "id": "hidden-project-model",
+                    "name": "Hidden model in hidden project",
+                    "project_id": "hidden-project",
+                    "visible": False,
+                },
+            ]
+        )
+
+        models = self.client.get("/api/models").get_json()
+        projects = self.client.get("/api/projects").get_json()
+
+        self.assertEqual([item["id"] for item in models], ["visible-model"])
+        self.assertEqual([item["id"] for item in projects], ["visible-project"])
+        self.assertNotIn("Hidden model", str(models))
+        self.assertNotIn("Hidden project", str(projects))
 
     def test_vercel_runtime_reads_slider_json_from_github(self):
         remote_sliders = [
@@ -974,6 +1093,32 @@ class SiteManagementTests(unittest.TestCase):
             self.assertIn("บันทึกการใช้งาน", page)
             self.assertIn("แก้ไขโมเดลทดสอบสำเร็จ", page)
             self.assertEqual(self.client.get("/admin/audit-logs/export/csv").status_code, 200)
+
+    def test_settings_mutations_are_audited_and_audit_failure_is_visible(self):
+        self.sign_in()
+        with patch.object(module, "write_audit_event", return_value={}) as audited:
+            intro = self.client.post(
+                "/admin/intro",
+                data={"intro_enabled": "on", "intro_display_mode": "sequence", "intro_logo_duration_ms": "1400"},
+            )
+            branding = self.client.post(
+                "/admin/settings",
+                data={"section": "branding", "return_to": "/admin/branding"},
+            )
+        self.assertEqual(intro.status_code, 302)
+        self.assertEqual(branding.status_code, 302)
+        sections = [call.kwargs.get("metadata", {}).get("section") for call in audited.call_args_list]
+        self.assertIn("intro", sections)
+        self.assertIn("branding", sections)
+
+        with patch("pathlib.Path.write_bytes", side_effect=OSError("disk full")):
+            response = self.client.post(
+                "/admin/intro",
+                data={"intro_enabled": "on", "intro_display_mode": "sequence", "intro_logo_duration_ms": "1400"},
+                follow_redirects=True,
+            )
+        page = response.get_data(as_text=True)
+        self.assertIn("บันทึกข้อมูลสำเร็จ แต่ไม่สามารถเขียนบันทึกการใช้งานได้", page)
 
     def test_production_audit_logs_are_listed_from_r2(self):
         with self.client.session_transaction() as audit_session:
@@ -2158,6 +2303,17 @@ class SiteManagementTests(unittest.TestCase):
             self.assertIn('class="preset-btn"', admin_add_html)
             self.assertIn('data-preset-x="3.1416"', admin_add_html)
 
+    def test_authenticated_admin_forms_include_session_csrf_token(self):
+        with self.client.session_transaction() as session:
+            session["admin"] = True
+            session["csrf_token"] = "test-csrf-token"
+        html = self.client.get("/admin").get_data(as_text=True)
+        self.assertIn('name="csrf_token" value="test-csrf-token"', html)
+        self.assertEqual(
+            html.count('name="csrf_token" value="test-csrf-token"'),
+            html.count('method="post"'),
+        )
+
 
 class ZeroSupabaseRuntimeTests(unittest.TestCase):
     def setUp(self):
@@ -2168,6 +2324,8 @@ class ZeroSupabaseRuntimeTests(unittest.TestCase):
     def sign_in(self):
         with self.client.session_transaction() as session:
             session["admin"] = True
+            session["csrf_token"] = "test-csrf-token"
+        self.client.environ_base["HTTP_X_CSRF_TOKEN"] = "test-csrf-token"
 
     def test_versioned_json_counts_and_public_apis(self):
         models = json.loads((module.DATA_DIR / "models.json").read_text("utf-8"))

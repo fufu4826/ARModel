@@ -1,4 +1,6 @@
-# System Design
+# System Design (Historical Snapshot)
+
+> This snapshot predates the current GitHub Contents, R2 analytics/audit, and narration architecture. See `README.md` for current operations.
 
 ## Overview
 

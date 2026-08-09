@@ -32,6 +32,12 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+from armodel.services import analytics as analytics_service
+from armodel.services import audit as audit_service
+from armodel.services import github_storage, r2_storage
+from armodel.services import narration as narration_service
+from armodel.repositories import content as content_repository
+
 
 def load_local_env() -> None:
     env_file = Path(__file__).resolve().parent / ".env"
@@ -67,7 +73,11 @@ NARRATION_PENDING_PREFIX = "audio/pending/"
 NARRATION_PERMANENT_PREFIX = "audio/narrations/"
 LOCAL_NARRATION_DRAFT_DIR = Path(tempfile.gettempdir()) / "armodel-narration-drafts"
 LOCAL_AUDIT_LOG_DIR = Path(tempfile.gettempdir()) / "armodel-audit-logs"
+LOCAL_LOGIN_RATE_LIMIT_DIR = Path(tempfile.gettempdir()) / "armodel-login-rate-limit"
 AUDIT_PREFIX = "audit/"
+LOGIN_FAILURE_PREFIX = "auth/login-failures/"
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
 AUDIT_PAGE_SIZE = 50
 MAX_MODEL_FILE_SIZE_MB = 50
 MAX_MODEL_FILE_SIZE_BYTES = MAX_MODEL_FILE_SIZE_MB * 1024 * 1024
@@ -282,6 +292,7 @@ ANALYTICS_R2_OBJECT_KEY = os.environ.get(
     "ANALYTICS_R2_OBJECT_KEY",
     "analytics/analytics_events.json",
 ).strip("/")
+ANALYTICS_EVENT_PREFIX = "analytics/events/"
 BANGKOK_TZ = ZoneInfo("Asia/Bangkok")
 _DATA_READY = False
 PRODUCTION_DATA_FILES = {
@@ -300,6 +311,30 @@ app = Flask(
 app.config["MAX_CONTENT_LENGTH"] = 250 * 1024 * 1024
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("VERCEL"))
+
+
+def csrf_token() -> str:
+    """Return the per-session token used by authenticated Admin mutations."""
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return token
+
+
+@app.before_request
+def protect_admin_mutations_with_csrf():
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+    if not request.path.startswith("/admin/") or request.path == "/admin/login":
+        return None
+    if not session.get("admin"):
+        return None
+    supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token", "")
+    expected = session.get("csrf_token", "")
+    if not expected or not supplied or not hmac.compare_digest(str(expected), str(supplied)):
+        abort(400, "Invalid CSRF token")
 
 
 def is_vercel_runtime() -> bool:
@@ -577,25 +612,8 @@ def github_api_request(method: str, api_path: str, payload: dict | None = None) 
     token = env_value("GITHUB_CONTENTS_TOKEN", "GITHUB_TOKEN", "GH_TOKEN")
     if not token:
         abort(500, "GITHUB_CONTENTS_TOKEN is not configured")
-    url = f"https://api.github.com{api_path}"
-    data = None
-    if payload is not None:
-        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    request_obj = Request(
-        url,
-        data=data,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "User-Agent": "ARModel-Production-Admin/1.0",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-        method=method,
-    )
     try:
-        with urlopen(request_obj, timeout=45) as response:
-            body = response.read().decode("utf-8")
+        return github_storage.request_json(method, api_path, token, payload, opener=urlopen)
     except HTTPError as exc:
         detail = exc.read(500).decode("utf-8", errors="replace").strip()
         logger.warning("GitHub content API failed: HTTP %s %s", exc.code, detail)
@@ -603,7 +621,6 @@ def github_api_request(method: str, api_path: str, payload: dict | None = None) 
     except (URLError, OSError, TimeoutError) as exc:
         logger.warning("GitHub content API connection failed: %s", exc)
         abort(502, "GitHub content update failed")
-    return json.loads(body) if body else {}
 
 
 def github_commit_json(relative_path: str, value) -> None:
@@ -611,20 +628,17 @@ def github_commit_json(relative_path: str, value) -> None:
     branch = env_value("GITHUB_BRANCH", "GIT_BRANCH") or "main"
     if not repo:
         abort(500, "GITHUB_REPOSITORY is not configured")
-    content_api_path = f"/repos/{repo}/contents/{quote(relative_path, safe='/')}"
-    current = github_api_request("GET", f"{content_api_path}?ref={quote(branch, safe='')}")
-    content = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-    payload = {
-        "message": f"Update {relative_path} from production admin",
-        "content": base64.b64encode(content).decode("ascii"),
-        "branch": branch,
-        "sha": current.get("sha"),
-    }
     committer_name = env_value("GITHUB_COMMITTER_NAME")
     committer_email = env_value("GITHUB_COMMITTER_EMAIL")
-    if committer_name and committer_email:
-        payload["committer"] = {"name": committer_name, "email": committer_email}
-    github_api_request("PUT", content_api_path, payload)
+    github_storage.commit_json(
+        relative_path,
+        value,
+        repository=repo,
+        branch=branch,
+        requester=lambda method, path, payload=None: github_api_request(method, path, payload),
+        committer_name=committer_name,
+        committer_email=committer_email,
+    )
 
 
 def write_json(path: Path, value) -> None:
@@ -724,13 +738,7 @@ def analytics_referrer_label() -> str:
 
 
 def content_lookup(records: list[dict]) -> dict[str, dict]:
-    lookup: dict[str, dict] = {}
-    for record in records:
-        for key in ("id", "slug"):
-            value = str(record.get(key) or "").strip()
-            if value:
-                lookup[value] = record
-    return lookup
+    return content_repository.content_lookup(records)
 
 
 def analytics_page_label(
@@ -769,43 +777,100 @@ def read_analytics_events() -> list[dict]:
     if is_vercel_runtime():
         if not r2_upload_configured():
             return []
+        events: list[dict] = []
         try:
             value = json.loads(r2_get_bytes(ANALYTICS_R2_OBJECT_KEY).decode("utf-8"))
         except HTTPError as exc:
             if exc.code != 404:
                 logger.warning("Unable to read analytics R2 object: HTTP %s", exc.code)
-            return []
+            value = []
         except (OSError, TimeoutError, URLError, json.JSONDecodeError) as exc:
             logger.warning("Unable to read analytics R2 object: %s", exc)
-            return []
-        return [event for event in value if isinstance(event, dict)] if isinstance(value, list) else []
+            value = []
+        if isinstance(value, list):
+            events.extend(event for event in value if isinstance(event, dict))
+
+        continuation = ""
+        keys: list[str] = []
+        try:
+            while len(keys) < ANALYTICS_MAX_EVENTS:
+                page, continuation = r2_list_object_keys(
+                    ANALYTICS_EVENT_PREFIX,
+                    max_keys=min(1000, ANALYTICS_MAX_EVENTS - len(keys)),
+                    continuation_token=continuation,
+                )
+                keys.extend(page)
+                if not continuation:
+                    break
+        except Exception as exc:
+            logger.warning("Unable to list immutable analytics events: %s", exc)
+            return events[-ANALYTICS_MAX_EVENTS:]
+
+        for key in keys:
+            try:
+                event = json.loads(r2_get_bytes(key).decode("utf-8"))
+            except Exception as exc:
+                logger.warning("Skipping unreadable analytics event %s: %s", key, exc)
+                continue
+            if isinstance(event, dict):
+                events.append(event)
+        return events[-ANALYTICS_MAX_EVENTS:]
 
     events = read_json(ANALYTICS_FILE, [])
     return [event for event in events if isinstance(event, dict)]
 
 
 def append_analytics_event(event: dict) -> None:
+    if is_vercel_runtime():
+        if not r2_upload_configured():
+            return
+        stored_event = dict(event)
+        stored_event.setdefault("event_id", uuid.uuid4().hex)
+        occurred_at = _analytics_event_datetime(stored_event) or datetime.now(timezone.utc)
+        key = (
+            f"{ANALYTICS_EVENT_PREFIX}{occurred_at:%Y/%m/%d}/"
+            f"{occurred_at:%Y%m%dT%H%M%S.%fZ}-{stored_event['event_id']}.json"
+        )
+        payload = json.dumps(stored_event, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        r2_upload_bytes(
+            payload,
+            key,
+            "application/json; charset=utf-8",
+            cache_control="no-store, max-age=0",
+        )
+        return
+
     with _ANALYTICS_LOCK:
         events = read_analytics_events()
         events.append(event)
         if len(events) > ANALYTICS_MAX_EVENTS:
             events = events[-ANALYTICS_MAX_EVENTS:]
-        if is_vercel_runtime():
-            if not r2_upload_configured():
-                return
-            payload = (json.dumps(events, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-            r2_upload_bytes(
-                payload,
-                ANALYTICS_R2_OBJECT_KEY,
-                "application/json; charset=utf-8",
-                cache_control="no-store, max-age=0",
-            )
-            return
         write_json(ANALYTICS_FILE, events)
 
 
 @app.after_request
 def record_local_analytics(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=(self)")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    if is_vercel_runtime() or request.is_secure:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    if (
+        session.get("admin")
+        and request.path.startswith("/admin")
+        and response.mimetype == "text/html"
+        and response.status_code < 400
+    ):
+        token = csrf_token()
+        html = response.get_data(as_text=True)
+        html = re.sub(
+            r"(<form\b[^>]*method=[\"']post[\"'][^>]*>)",
+            lambda match: match.group(1) + f'<input type="hidden" name="csrf_token" value="{token}">',
+            html,
+            flags=re.IGNORECASE,
+        )
+        response.set_data(html)
     if not analytics_should_track(response):
         return response
     visitor_id, needs_cookie = analytics_visitor_id()
@@ -836,145 +901,7 @@ def record_local_analytics(response):
 
 
 def _analytics_event_datetime(event: dict) -> datetime | None:
-    raw_value = str(event.get("timestamp") or "")
-    if not raw_value:
-        return None
-    try:
-        value = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
-
-
-def _analytics_top_counts(events: list[dict], key: str, limit: int = 5) -> list[dict]:
-    counts: dict[str, int] = {}
-    for event in events:
-        label = str(event.get(key) or "Unknown").strip() or "Unknown"
-        counts[label] = counts.get(label, 0) + 1
-    return [
-        {"label": label, "value": value}
-        for label, value in sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
-    ]
-
-
-def _analytics_unique_visitors(items: list[dict]) -> int:
-    return len({str(item.get("visitor_id") or "") for item in items if item.get("visitor_id")})
-
-
-def _analytics_month_start(value: datetime) -> datetime:
-    return value.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-
-
-def _analytics_shift_months(value: datetime, months: int) -> datetime:
-    month_index = value.month - 1 + months
-    year = value.year + month_index // 12
-    month = month_index % 12 + 1
-    return value.replace(year=year, month=month)
-
-
-def _analytics_bucket_payload(
-    label: str,
-    start: datetime,
-    end: datetime,
-    events: list[dict],
-) -> dict:
-    bucket_events = [
-        event for event in events if start <= event["_occurred_at"] < end
-    ]
-    return {
-        "label": label,
-        "start": start.isoformat(),
-        "end": end.isoformat(),
-        "visitors": _analytics_unique_visitors(bucket_events),
-        "pageviews": len(bucket_events),
-    }
-
-
-def _analytics_day_bounds(selected_date: date) -> tuple[datetime, datetime]:
-    """Return the UTC half-open interval for one Bangkok calendar day."""
-    start_local = datetime.combine(selected_date, datetime.min.time(), tzinfo=BANGKOK_TZ)
-    end_local = start_local + timedelta(days=1)
-    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
-
-
-def _analytics_date_label(selected_date: date) -> str:
-    thai_months = (
-        "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-        "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
-    )
-    return f"{selected_date.day} {thai_months[selected_date.month - 1]} {selected_date.year + 543}"
-
-
-def _analytics_events_between(events: list[dict], start: datetime, end: datetime) -> list[dict]:
-    return [event for event in events if start <= event["_occurred_at"] < end]
-
-
-def _analytics_trend_ranges(selected_date: date, events: list[dict]) -> dict:
-    selected_start, _ = _analytics_day_bounds(selected_date)
-    selected_local_start = selected_start.astimezone(BANGKOK_TZ)
-    current_month = _analytics_month_start(selected_local_start)
-
-    hourly = []
-    for hour in range(24):
-        start_local = selected_local_start + timedelta(hours=hour)
-        start = start_local.astimezone(timezone.utc)
-        hourly.append(
-            _analytics_bucket_payload(
-                start_local.strftime("%H:00"),
-                start,
-                start + timedelta(hours=1),
-                events,
-            )
-        )
-
-    daily_7d = []
-    for offset in range(6, -1, -1):
-        day = selected_date - timedelta(days=offset)
-        start, end = _analytics_day_bounds(day)
-        daily_7d.append(
-            _analytics_bucket_payload(
-                day.isoformat(),
-                start,
-                end,
-                events,
-            )
-        )
-
-    daily_30d = []
-    for offset in range(29, -1, -1):
-        day = selected_date - timedelta(days=offset)
-        start, end = _analytics_day_bounds(day)
-        daily_30d.append(
-            _analytics_bucket_payload(
-                day.isoformat(),
-                start,
-                end,
-                events,
-            )
-        )
-
-    monthly_12 = []
-    for offset in range(11, -1, -1):
-        start = _analytics_shift_months(current_month, -offset)
-        end = _analytics_shift_months(start, 1)
-        monthly_12.append(
-            _analytics_bucket_payload(
-                start.strftime("%Y-%m"),
-                start,
-                end,
-                events,
-            )
-        )
-
-    return {
-        "hourly_24h": hourly,
-        "daily_7d": daily_7d,
-        "daily_30d": daily_30d,
-        "monthly_12m": monthly_12,
-        "default_range": "daily_7d",
-    }
+    return analytics_service.event_datetime(event)
 
 
 def dashboard_analytics_status(selected_date: date | None = None) -> dict:
@@ -997,51 +924,12 @@ def dashboard_analytics_status(selected_date: date | None = None) -> dict:
         normalized["_occurred_at"] = occurred_at
         events.append(normalized)
 
-    selected_start, selected_end = _analytics_day_bounds(selected_date)
-    seven_start, _ = _analytics_day_bounds(selected_date - timedelta(days=6))
-    thirty_start, _ = _analytics_day_bounds(selected_date - timedelta(days=29))
-    selected_events = _analytics_events_between(events, selected_start, selected_end)
-    events_7d = _analytics_events_between(events, seven_start, selected_end)
-    events_30d = _analytics_events_between(events, thirty_start, selected_end)
-
-    daily_counts = []
-    for offset in range(29, -1, -1):
-        day = selected_date - timedelta(days=offset)
-        start, end = _analytics_day_bounds(day)
-        day_events = _analytics_events_between(events, start, end)
-        daily_counts.append(
-            {
-                "date": day.isoformat(),
-                "visitors": _analytics_unique_visitors(day_events),
-                "pageviews": len(day_events),
-            }
-        )
-
-    enabled = bool(events)
-    return {
-        "enabled": enabled,
-        "provider": analytics_provider_name(),
-        "message": (
-            "Analytics is collecting visitor data."
-            if enabled
-            else "Analytics is ready. Visit public pages to collect data."
-        ),
-        "metrics": {
-            "visitors_today": _analytics_unique_visitors(selected_events),
-            "pageviews_today": len(selected_events),
-            "visitors_7d": _analytics_unique_visitors(events_7d),
-            "visitors_30d": _analytics_unique_visitors(events_30d),
-            "total_events": len(events),
-        },
-        "selected_date": selected_date.isoformat(),
-        "selected_date_label": _analytics_date_label(selected_date),
-        "is_today": selected_date == datetime.now(BANGKOK_TZ).date(),
-        "trend": daily_counts,
-        "trend_ranges": _analytics_trend_ranges(selected_date, events),
-        "top_countries": _analytics_top_counts(selected_events, "country"),
-        "top_referrers": _analytics_top_counts(selected_events, "referrer"),
-        "top_pages": _analytics_top_counts(selected_events, "page"),
-    }
+    return analytics_service.dashboard_status(
+        events,
+        selected_date,
+        provider=analytics_provider_name(),
+        today=datetime.now(BANGKOK_TZ).date(),
+    )
 
 
 def save_projects(projects: list[dict]) -> None:
@@ -1053,53 +941,23 @@ def save_models(models: list[dict]) -> None:
 
 
 def normalize_project(project: dict) -> dict:
-    name = str(project.get("name") or project.get("project_name") or "แหล่งเรียนรู้").strip()
-    image_url = str(project.get("image_url") or "").strip()
-    image_path = str(project.get("image_path") or project.get("cover_image") or project.get("image") or "").strip()
-    return {
-        "id": str(project.get("id") or uuid.uuid4().hex),
-        "slug": str(project.get("slug") or "").strip(),
-        "name": name,
-        "description": str(project.get("description") or "").strip(),
-        "department": str(project.get("department") or project.get("unit") or "").strip(),
-        "cover_image": image_url or image_path,
-        "image_url": image_url,
-        "image_path": image_path,
-        "visible": bool(project.get("visible", True)),
-        "created_at": str(project.get("created_at") or "").strip(),
-        "updated_at": str(project.get("updated_at") or "").strip(),
-    }
+    return content_repository.normalize_project(project, default_name="แหล่งเรียนรู้")
 
 
 def load_projects(include_hidden: bool = True) -> list[dict]:
     ensure_data_files()
-    projects = [normalize_project(project) for project in read_json(PROJECTS_FILE, DEFAULT_PROJECTS)]
-    if not projects:
-        projects = [normalize_project(project) for project in DEFAULT_PROJECTS]
-    if include_hidden:
-        return projects
-    return [project for project in projects if project.get("visible", True)]
+    return content_repository.load_normalized(
+        PROJECTS_FILE,
+        DEFAULT_PROJECTS,
+        read_json,
+        normalize_project,
+        visible_key="visible",
+        include_hidden=include_hidden,
+    )
 
 
 def normalize_preview_images(value) -> list[str]:
-    if isinstance(value, str):
-        candidate = value.strip()
-        if candidate.startswith("["):
-            try:
-                value = json.loads(candidate)
-            except json.JSONDecodeError:
-                value = candidate.splitlines()
-        else:
-            value = candidate.splitlines()
-    if not isinstance(value, (list, tuple)):
-        return []
-
-    images = []
-    for item in value:
-        image = str(item or "").strip()
-        if image and image not in images:
-            images.append(image)
-    return images
+    return content_repository.normalize_preview_images(value)
 
 
 def parse_preview_images_field(value: str | None) -> list[str]:
@@ -1135,72 +993,20 @@ def parse_narration_audio_field(value: str | None) -> str:
 
 
 def normalize_model(model: dict, projects: list[dict]) -> dict:
-    project_ids = {project["id"] for project in projects}
-    model_id = str(model.get("id") or uuid.uuid4().hex)
-    project_id = str(model.get("project_id") or "").strip()
-    if project_id not in project_ids:
-        if model_id in {"lukplakob"}:
-            project_id = "wellness"
-        elif model_id in {"lychee", "mond"}:
-            project_id = "garden"
-        else:
-            project_id = "rice-and-food" if "rice-and-food" in project_ids else (projects[0]["id"] if projects else "")
-
-    try:
-        rotate_x = float(model.get("rotate_x") or 0)
-        rotate_y = float(model.get("rotate_y") or 0)
-        rotate_z = float(model.get("rotate_z") or 0)
-        scale = float(model.get("scale") or 0.2)
-    except (TypeError, ValueError):
-        rotate_x = 0
-        rotate_y = 0
-        rotate_z = 0
-        scale = 0.2
-
-    model_url = str(model.get("model_url") or "").strip()
-    model_path = str(model.get("model_path") or model.get("model") or "").strip()
-    thumbnail_url = str(model.get("thumbnail_url") or "").strip()
-    thumbnail_path = str(model.get("thumbnail_path") or model.get("image") or model.get("thumbnail") or "").strip()
-    narration_audio = str(model.get("narration_audio") or "").strip()
-    size_mb = model.get("file_size_mb")
-    try:
-        size_mb = float(size_mb) if size_mb is not None else None
-    except (TypeError, ValueError):
-        size_mb = None
-
-    return {
-        "id": model_id,
-        "slug": str(model.get("slug") or "").strip(),
-        "name": str(model.get("name") or "โมเดล").strip(),
-        "description": str(model.get("description") or model.get("info") or "").strip(),
-        "department": str(model.get("department") or model.get("unit") or "").strip(),
-        "project_id": project_id,
-        "model": model_url or model_path,
-        "model_url": model_url,
-        "model_path": model_path,
-        "image": thumbnail_url or thumbnail_path,
-        "thumbnail_url": thumbnail_url,
-        "thumbnail_path": thumbnail_path,
-        "preview_images": normalize_preview_images(model.get("preview_images")),
-        "narration_audio": narration_audio,
-        "file_size_mb": size_mb,
-        "rotate_x": rotate_x,
-        "rotate_y": rotate_y,
-        "rotate_z": rotate_z,
-        "scale": scale,
-        "visible": bool(model.get("visible", True)),
-        "created_at": str(model.get("created_at") or "").strip(),
-        "updated_at": str(model.get("updated_at") or "").strip(),
-    }
+    return content_repository.normalize_model(model, projects, default_name="โมเดล")
 
 
 def load_models(include_hidden: bool = True) -> list[dict]:
     ensure_data_files()
     projects = load_projects(include_hidden=True)
-    models = [normalize_model(model, projects) for model in read_json(CATALOG_FILE, DEFAULT_MODELS)]
-    if include_hidden:
-        return models
-    return [model for model in models if model.get("visible", True)]
+    return content_repository.load_normalized(
+        CATALOG_FILE,
+        DEFAULT_MODELS,
+        read_json,
+        lambda model: normalize_model(model, projects),
+        visible_key="visible",
+        include_hidden=include_hidden,
+    )
 
 
 def model_with_project(model: dict, projects: list[dict]) -> dict:
@@ -1248,29 +1054,15 @@ def save_config(config: dict) -> None:
 
 
 def normalize_site_settings(settings: dict | None) -> dict:
-    normalized = dict(DEFAULT_SITE_SETTINGS)
-    for key in normalized:
-        value = (settings or {}).get(key)
-        if value is not None:
-            normalized[key] = str(value).strip()
-    for key, fallback in DEFAULT_SITE_SETTINGS.items():
-        if not normalized[key]:
-            normalized[key] = fallback
-    for key in LANDING_TYPOGRAPHY_SETTINGS:
-        normalized[key] = normalize_landing_typography_value(key, normalized[key])
-    return normalized
+    return content_repository.normalize_site_settings(
+        settings, DEFAULT_SITE_SETTINGS, LANDING_TYPOGRAPHY_SETTINGS
+    )
 
 
 def normalize_landing_typography_value(key: str, value) -> str:
-    minimum, maximum = LANDING_TYPOGRAPHY_SETTINGS[key]
-    try:
-        numeric_value = float(str(value).strip())
-        if not math.isfinite(numeric_value):
-            raise ValueError
-        parsed_value = int(round(numeric_value))
-    except (TypeError, ValueError):
-        parsed_value = int(DEFAULT_SITE_SETTINGS[key])
-    return str(max(minimum, min(parsed_value, maximum)))
+    return content_repository.normalize_landing_typography_value(
+        key, value, DEFAULT_SITE_SETTINGS, LANDING_TYPOGRAPHY_SETTINGS
+    )
 
 
 def load_site_settings() -> dict:
@@ -1282,27 +1074,13 @@ def save_site_settings(settings: dict) -> None:
 
 
 def normalize_slider_item(item: dict) -> dict:
-    try:
-        sort_order = int(item.get("sort_order") or 0)
-    except (TypeError, ValueError):
-        sort_order = 0
-    created_at = str(item.get("created_at") or "").strip()
-    return {
-        "id": str(item.get("id") or uuid.uuid4().hex),
-        "title": str(item.get("title") or "").strip(),
-        "description": str(item.get("description") or "").strip(),
-        "image_url": str(item.get("image_url") or item.get("image") or "").strip(),
-        "button_text": str(item.get("button_text") or "").strip(),
-        "button_url": str(item.get("button_url") or "").strip(),
-        "sort_order": sort_order,
-        "active": bool(item.get("active", True)),
-        "created_at": created_at,
-        "updated_at": str(item.get("updated_at") or created_at).strip(),
-    }
+    return content_repository.normalize_slider_item(item)
 
 
 def load_slider_items(include_inactive: bool = True) -> list[dict]:
-    items = [normalize_slider_item(item) for item in read_json(SLIDER_ITEMS_FILE, DEFAULT_SLIDER_ITEMS)]
+    items = content_repository.load_normalized(
+        SLIDER_ITEMS_FILE, DEFAULT_SLIDER_ITEMS, read_json, normalize_slider_item
+    )
     items.sort(key=lambda item: (item["sort_order"], item["id"]))
     if include_inactive:
         return items
@@ -1310,9 +1088,13 @@ def load_slider_items(include_inactive: bool = True) -> list[dict]:
 
 
 def save_slider_items(items: list[dict]) -> None:
-    normalized = [normalize_slider_item(item) for item in items]
-    normalized.sort(key=lambda item: (item["sort_order"], item["id"]))
-    write_json(SLIDER_ITEMS_FILE, normalized)
+    content_repository.save_normalized(
+        SLIDER_ITEMS_FILE,
+        items,
+        write_json,
+        normalize_slider_item,
+        sort_key=lambda item: (item["sort_order"], item["id"]),
+    )
 
 
 def slider_save_flash_message(action: str) -> str:
@@ -1321,8 +1103,7 @@ def slider_save_flash_message(action: str) -> str:
     return f"{action} saved."
 
 
-class GeminiTTSError(RuntimeError):
-    pass
+GeminiTTSError = narration_service.GeminiTTSError
 
 
 def pcm_to_wav(
@@ -1331,98 +1112,21 @@ def pcm_to_wav(
     channels: int = 1,
     sample_width: int = 2,
 ) -> bytes:
-    output = io.BytesIO()
-    with wave.open(output, "wb") as wav_file:
-        wav_file.setnchannels(channels)
-        wav_file.setsampwidth(sample_width)
-        wav_file.setframerate(sample_rate)
-        wav_file.writeframes(pcm_data)
-    return output.getvalue()
+    return narration_service.pcm_to_wav(pcm_data, sample_rate, channels, sample_width)
 
 
 def parse_audio_mime_type(mime_type: str | None) -> tuple[int, int, int]:
-    mime = str(mime_type or "").lower()
-    rate_match = re.search(r"(?:rate|samplerate)=(\d+)", mime)
-    channels_match = re.search(r"channels=(\d+)", mime)
-    sample_rate = int(rate_match.group(1)) if rate_match else 24000
-    channels = int(channels_match.group(1)) if channels_match else 1
-    return sample_rate, channels, 2
+    return narration_service.parse_audio_mime_type(mime_type)
 
 
 def convert_to_wav(audio_data: bytes, mime_type: str | None) -> tuple[bytes, str]:
-    mime = str(mime_type or "").lower()
-    if mime.startswith(("audio/wav", "audio/x-wav")):
-        return audio_data, ".wav"
-    if mime.startswith(("audio/mpeg", "audio/mp3")):
-        return audio_data, ".mp3"
-    if mime.startswith(("audio/ogg", "application/ogg")):
-        return audio_data, ".ogg"
-    if mime.startswith(("audio/mp4", "audio/x-m4a")):
-        return audio_data, ".m4a"
-    sample_rate, channels, sample_width = parse_audio_mime_type(mime)
-    return pcm_to_wav(audio_data, sample_rate, channels, sample_width), ".wav"
+    return narration_service.convert_to_wav(audio_data, mime_type)
 
 
 def generate_gemini_tts_audio(text: str) -> tuple[bytes, str]:
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        raise GeminiTTSError("GEMINI_API_KEY is not configured")
-
-    prompt = (
-        "อ่านคำบรรยายต่อไปนี้เป็นภาษาไทย น้ำเสียงชัดเจน เป็นมิตร "
-        "เหมาะกับนิทรรศการและแหล่งเรียนรู้ เว้นจังหวะพอดี:\n"
-        f"{text.strip()}"
+    return narration_service.generate_gemini_tts_audio(
+        text, os.environ.get("GEMINI_API_KEY", "").strip(), opener=urlopen
     )
-    endpoint = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        "gemini-3.1-flash-tts-preview:generateContent"
-    )
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "responseModalities": ["AUDIO"],
-            "speechConfig": {
-                "voiceConfig": {
-                    "prebuiltVoiceConfig": {"voiceName": "Iapetus"}
-                }
-            },
-        },
-    }
-    request_obj = Request(
-        endpoint,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-        },
-        method="POST",
-    )
-
-    try:
-        with urlopen(request_obj, timeout=90) as response:
-            response_data = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        detail = exc.read(500).decode("utf-8", errors="replace").strip()
-        raise GeminiTTSError(
-            f"Gemini API returned HTTP {exc.code}: {detail or exc.reason}"
-        ) from exc
-    except URLError as exc:
-        raise GeminiTTSError(f"Gemini API connection failed: {exc.reason}") from exc
-    except (OSError, json.JSONDecodeError) as exc:
-        raise GeminiTTSError("Gemini API returned an invalid response") from exc
-
-    try:
-        inline_data = response_data["candidates"][0]["content"]["parts"][0][
-            "inlineData"
-        ]
-        encoded_audio = inline_data["data"]
-        mime_type = str(inline_data.get("mimeType") or "")
-        audio_bytes = base64.b64decode(encoded_audio, validate=True)
-    except (KeyError, IndexError, TypeError, ValueError) as exc:
-        raise GeminiTTSError("Gemini did not return audio data") from exc
-    if not audio_bytes:
-        raise GeminiTTSError("Gemini did not return audio data")
-    return convert_to_wav(audio_bytes, mime_type)
 
 
 def slugify(value: str, fallback: str | None = None) -> str:
@@ -1799,97 +1503,27 @@ def r2_signed_request(
     if not all((account_id, access_key, secret_key, bucket)):
         abort(500, "R2 environment variables are not configured")
 
-    host = f"{account_id}.r2.cloudflarestorage.com"
-    canonical_uri = f"/{quote(bucket, safe='')}"
-    if object_key:
-        canonical_uri += f"/{quote(object_key, safe='/-_.~')}"
-    canonical_query = ""
-    if query_params:
-        canonical_query = "&".join(
-            f"{quote(str(key), safe='-_.~')}={quote(str(value), safe='-_.~')}"
-            for key, value in sorted(query_params.items())
-        )
-    endpoint = f"https://{host}{canonical_uri}"
-    if canonical_query:
-        endpoint += f"?{canonical_query}"
-    now = datetime.now(timezone.utc)
-    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
-    date_stamp = now.strftime("%Y%m%d")
-    headers = {
-        "host": host,
-        "x-amz-content-sha256": payload_hash,
-        "x-amz-date": amz_date,
-    }
-    if extra_headers:
-        headers.update({key.lower(): value for key, value in extra_headers.items()})
-    signed_headers = ";".join(sorted(headers))
-    canonical_headers = "".join(
-        f"{key}:{headers[key]}\n" for key in sorted(headers)
+    return r2_storage.signed_request(
+        method,
+        object_key,
+        payload_hash,
+        account_id=account_id,
+        access_key=access_key,
+        secret_key=secret_key,
+        bucket=bucket,
+        extra_headers=extra_headers,
+        data=data,
+        timeout=timeout,
+        query_params=query_params,
+        opener=urlopen,
     )
-    canonical_request = "\n".join(
-        [
-            method,
-            canonical_uri,
-            canonical_query,
-            canonical_headers,
-            signed_headers,
-            payload_hash,
-        ]
-    )
-    credential_scope = f"{date_stamp}/auto/s3/aws4_request"
-    string_to_sign = "\n".join(
-        [
-            "AWS4-HMAC-SHA256",
-            amz_date,
-            credential_scope,
-            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
-        ]
-    )
-
-    def sign(key: bytes, message: str) -> bytes:
-        return hmac.new(key, message.encode("utf-8"), hashlib.sha256).digest()
-
-    signing_key = sign(
-        sign(
-            sign(
-                sign(("AWS4" + secret_key).encode("utf-8"), date_stamp),
-                "auto",
-            ),
-            "s3",
-        ),
-        "aws4_request",
-    )
-    signature = hmac.new(
-        signing_key,
-        string_to_sign.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-    auth_header = (
-        "AWS4-HMAC-SHA256 "
-        f"Credential={access_key}/{credential_scope}, "
-        f"SignedHeaders={signed_headers}, "
-        f"Signature={signature}"
-    )
-    request_headers = {key: value for key, value in extra_headers.items()} if extra_headers else {}
-    request_headers.update(
-        {
-            "Authorization": auth_header,
-            "Host": host,
-            "x-amz-content-sha256": payload_hash,
-            "x-amz-date": amz_date,
-        }
-    )
-    request_obj = Request(endpoint, data=data, headers=request_headers, method=method)
-    return urlopen(request_obj, timeout=timeout)
-
 
 def r2_get_bytes(object_key: str) -> bytes:
-    payload_hash = hashlib.sha256(b"").hexdigest()
     try:
-        with r2_signed_request("GET", object_key, payload_hash, timeout=45) as response:
-            if response.status != 200:
-                abort(502, f"R2 read failed: HTTP {response.status}")
-            return response.read()
+        status, body = r2_storage.get_bytes(r2_signed_request, object_key)
+        if status != 200:
+            abort(502, f"R2 read failed: HTTP {status}")
+        return body
     except HTTPError:
         raise
     except (URLError, OSError, TimeoutError) as exc:
@@ -1903,17 +1537,15 @@ def r2_list_object_keys(
     continuation_token: str = "",
 ) -> tuple[list[str], str]:
     """List a bounded page of private R2 object keys using S3 ListObjectsV2."""
-    payload_hash = hashlib.sha256(b"").hexdigest()
-    query_params = {"list-type": "2", "prefix": prefix, "max-keys": str(max_keys)}
-    if continuation_token:
-        query_params["continuation-token"] = continuation_token
     try:
-        with r2_signed_request(
-            "GET", "", payload_hash, timeout=45, query_params=query_params
-        ) as response:
-            if response.status != 200:
-                abort(502, f"R2 list failed: HTTP {response.status}")
-            root = ET.fromstring(response.read())
+        status, keys, next_token = r2_storage.list_object_keys(
+            r2_signed_request,
+            prefix,
+            max_keys=max_keys,
+            continuation_token=continuation_token,
+        )
+        if status != 200:
+            abort(502, f"R2 list failed: HTTP {status}")
     except ET.ParseError as exc:
         logger.warning("R2 list returned invalid XML: %s", exc)
         abort(502, "R2 list returned invalid data")
@@ -1924,10 +1556,7 @@ def r2_list_object_keys(
         logger.warning("R2 list connection failed: %s", exc)
         abort(502, "R2 list failed")
 
-    namespace = "{http://s3.amazonaws.com/doc/2006-03-01/}"
-    keys = [node.text for node in root.findall(f"{namespace}Contents/{namespace}Key") if node.text]
-    next_token = root.findtext(f"{namespace}NextContinuationToken", default="")
-    return keys, next_token or ""
+    return keys, next_token
 
 
 def r2_upload_bytes(
@@ -1940,22 +1569,16 @@ def r2_upload_bytes(
     if not public_base:
         abort(500, "R2_PUBLIC_BASE_URL is not configured")
 
-    payload_hash = hashlib.sha256(data).hexdigest()
-    upload_headers = {
-        "Cache-Control": cache_control,
-        "Content-Type": content_type or "application/octet-stream",
-    }
     try:
-        with r2_signed_request(
-            "PUT",
+        status = r2_storage.put_bytes(
+            r2_signed_request,
+            data,
             object_key,
-            payload_hash,
-            extra_headers=upload_headers,
-            data=data,
-            timeout=120,
-        ) as response:
-            if response.status not in {200, 201}:
-                abort(502, f"R2 upload failed: HTTP {response.status}")
+            content_type,
+            cache_control=cache_control,
+        )
+        if status not in {200, 201}:
+            abort(502, f"R2 upload failed: HTTP {status}")
     except HTTPError as exc:
         detail = exc.read(500).decode("utf-8", errors="replace").strip()
         logger.warning("R2 upload failed: HTTP %s %s", exc.code, detail)
@@ -1971,60 +1594,114 @@ def audit_signing_key() -> bytes:
 
 
 def redact_audit_value(value):
-    secret_words = ("password", "token", "secret", "authorization", "cookie", "api_key", "signature")
-    if isinstance(value, dict):
-        return {str(key): ("[ปกปิด]" if any(word in str(key).lower() for word in secret_words) else redact_audit_value(item)) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [redact_audit_value(item) for item in value]
-    if isinstance(value, bytes):
-        return {"kind": "binary", "byte_size": len(value), "sha256": hashlib.sha256(value).hexdigest()}
-    return value
+    return audit_service.redact(value)
 
 
 def audit_request_context() -> dict:
-    trusted = bool(os.environ.get("VERCEL"))
-    ip = (request.headers.get("x-vercel-forwarded-for", "") if trusted else request.remote_addr or "").split(",")[0].strip()
-    city = request.headers.get("x-vercel-ip-city", "") if trusted else ""
-    return {"source_ip": ip or "ไม่ทราบ IP", "country": request.headers.get("x-vercel-ip-country", "") if trusted else "", "region": request.headers.get("x-vercel-ip-country-region", "") if trusted else "", "city": unquote(city) if city else "", "location_source": "Vercel headers" if trusted else "ไม่ทราบตำแหน่งโดยประมาณ", "user_agent": request.headers.get("User-Agent", ""), "browser_summary": browser_summary(request.headers.get("User-Agent", ""))}
+    return audit_service.request_context(
+        trusted_vercel=bool(os.environ.get("VERCEL")),
+        remote_addr=request.remote_addr or "",
+        headers=request.headers,
+    )
+
+
+def login_rate_limit_identity() -> str:
+    context = audit_request_context()
+    material = str(context["source_ip"]).encode("utf-8")
+    return hmac.new(audit_signing_key(), material, hashlib.sha256).hexdigest()
+
+
+def record_login_attempt(identity: str, outcome: str, now: datetime | None = None) -> bool:
+    now = now or datetime.now(timezone.utc)
+    event = {"timestamp": now.isoformat(), "identity": identity, "outcome": outcome}
+    key = f"{LOGIN_FAILURE_PREFIX}{identity}/{now:%Y/%m/%d}/{now:%Y%m%dT%H%M%S.%fZ}-{uuid.uuid4().hex}.json"
+    payload = json.dumps(event, separators=(",", ":")).encode("utf-8")
+    try:
+        if is_vercel_runtime():
+            r2_upload_bytes(payload, key, "application/json", "private, max-age=0")
+        else:
+            target = LOCAL_LOGIN_RATE_LIMIT_DIR / key
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(payload)
+        return True
+    except Exception:
+        logger.exception("Unable to write login rate-limit event")
+        return False
+
+
+def recent_login_attempts(identity: str, now: datetime | None = None) -> list[dict]:
+    now = now or datetime.now(timezone.utc)
+    earliest = now - LOGIN_FAILURE_WINDOW
+    records: list[dict] = []
+    try:
+        days = {now.date(), earliest.date()}
+        if is_vercel_runtime():
+            sources = ((key, r2_get_bytes(key)) for day in days for key in r2_list_object_keys(f"{LOGIN_FAILURE_PREFIX}{identity}/{day:%Y/%m/%d}/", max_keys=1000)[0])
+        else:
+            sources = ((str(path), path.read_bytes()) for day in days for path in (LOCAL_LOGIN_RATE_LIMIT_DIR / f"{LOGIN_FAILURE_PREFIX}{identity}/{day:%Y/%m/%d}").glob("*.json"))
+        for _, payload in sources:
+            try:
+                event = json.loads(payload)
+                timestamp = datetime.fromisoformat(str(event.get("timestamp") or "").replace("Z", "+00:00"))
+                if event.get("identity") == identity and earliest <= timestamp <= now:
+                    records.append(event)
+            except (ValueError, TypeError, json.JSONDecodeError):
+                continue
+    except Exception:
+        logger.exception("Unable to read login rate-limit events")
+        return []
+    return sorted(records, key=lambda event: event["timestamp"])
+
+
+def login_is_rate_limited(identity: str, now: datetime | None = None) -> bool:
+    attempts = recent_login_attempts(identity, now)
+    last_success = max((index for index, event in enumerate(attempts) if event.get("outcome") == "success"), default=-1)
+    return sum(event.get("outcome") == "failure" for event in attempts[last_success + 1 :]) >= LOGIN_FAILURE_LIMIT
 
 
 def browser_summary(user_agent: str) -> str:
-    ua = user_agent.lower()
-    browser = "Chrome" if "chrome/" in ua and "edg/" not in ua else "Edge" if "edg/" in ua else "Firefox" if "firefox/" in ua else "Safari" if "safari/" in ua else "ไม่ทราบเบราว์เซอร์"
-    os_name = "iPhone" if "iphone" in ua else "Android" if "android" in ua else "Windows" if "windows" in ua else "macOS" if "mac os" in ua else "Linux" if "linux" in ua else ""
-    return f"{browser} บน {os_name}".strip() if os_name else browser
+    return audit_service.browser_summary(user_agent)
 
 
 def audit_changes(before: dict, after: dict, labels: dict[str, str] | None = None) -> list[dict]:
-    labels = labels or {}
-    return [{"field": key, "label_th": labels.get(key, key), "before": redact_audit_value(before.get(key)), "after": redact_audit_value(after.get(key))} for key in sorted(set(before) | set(after)) if before.get(key) != after.get(key)]
+    return audit_service.changes(before, after, labels)
 
 
 def write_audit_event(category: str, action: str, outcome: str, summary_th: str, *, resource_type="", resource_id="", resource_name="", changes=None, metadata=None, severity="info") -> dict | None:
     try:
         now = datetime.now(timezone.utc)
-        event = {"event_id": uuid.uuid4().hex, "timestamp_utc": now.isoformat(), "timestamp_local": now.astimezone(timezone(timedelta(hours=7))).isoformat(), "event_type": f"{category}.{action}", "category": category, "action": action, "outcome": outcome, "severity": severity, "actor": "ผู้ดูแลระบบ", "admin_session_id": session.get("admin_session_id", ""), "request_id": request.headers.get("x-vercel-id", uuid.uuid4().hex), "request_method": request.method, "request_path": request.path, "resource_type": resource_type, "resource_id": resource_id, "resource_name": resource_name, "summary_th": summary_th, "changes": redact_audit_value(changes or []), "metadata": redact_audit_value(metadata or {}), "signature_version": "hmac-sha256-v1", **audit_request_context()}
-        canonical = json.dumps(event, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        event["signature"] = hmac.new(audit_signing_key(), canonical, hashlib.sha256).hexdigest()
-        key = f"{AUDIT_PREFIX}{now:%Y/%m/%d}/{now:%Y%m%dT%H%M%S.%fZ}-{event['event_id']}.json"
-        data = json.dumps(event, ensure_ascii=False, indent=2).encode("utf-8")
+        event = audit_service.build_event(
+            category, action, outcome, summary_th,
+            context=audit_request_context(),
+            admin_session_id=session.get("admin_session_id", ""),
+            request_id=request.headers.get("x-vercel-id", uuid.uuid4().hex),
+            request_method=request.method,
+            request_path=request.path,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            resource_name=resource_name,
+            changes_value=changes,
+            metadata=metadata,
+            severity=severity,
+            now=now,
+        )
+        event = audit_service.sign_event(event, audit_signing_key())
+        key = audit_service.object_key(event, AUDIT_PREFIX)
+        data = audit_service.serialize(event)
         if is_vercel_runtime():
             r2_upload_bytes(data, key, "application/json", "private, max-age=0")
         else:
-            target = LOCAL_AUDIT_LOG_DIR / key
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data)
+            audit_service.write_local(LOCAL_AUDIT_LOG_DIR, key, data)
         return event
     except Exception:
         logger.exception("Unable to write audit event")
+        if session.get("admin") and request.path.startswith("/admin"):
+            flash("บันทึกข้อมูลสำเร็จ แต่ไม่สามารถเขียนบันทึกการใช้งานได้", "warning")
         return None
 
 
 def verify_audit_event(event: dict) -> bool:
-    signature = str(event.get("signature") or "")
-    unsigned = dict(event); unsigned.pop("signature", None)
-    canonical = json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return bool(signature) and hmac.compare_digest(signature, hmac.new(audit_signing_key(), canonical, hashlib.sha256).hexdigest())
+    return audit_service.verify_event(event, audit_signing_key())
 
 
 def list_audit_events(limit: int = AUDIT_PAGE_SIZE) -> list[dict]:
@@ -2053,12 +1730,8 @@ def list_audit_events(limit: int = AUDIT_PAGE_SIZE) -> list[dict]:
                         events.append(json.loads(future.result().decode("utf-8")))
                     except (HTTPError, URLError, OSError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                         logger.warning("Skipping unreadable audit event %s: %s", key, exc)
-    elif LOCAL_AUDIT_LOG_DIR.exists():
-        for path in sorted(LOCAL_AUDIT_LOG_DIR.rglob("*.json"), reverse=True)[:limit]:
-            try:
-                events.append(json.loads(path.read_text(encoding="utf-8")))
-            except (OSError, json.JSONDecodeError):
-                logger.warning("Skipping invalid audit event: %s", path)
+    else:
+        events.extend(audit_service.list_local(LOCAL_AUDIT_LOG_DIR, limit))
     events.sort(key=lambda event: event.get("timestamp_utc", ""), reverse=True)
     for event in events:
         event["signature_valid"] = verify_audit_event(event)
@@ -2119,12 +1792,11 @@ def save_generated_narration_audio(
     return f"audio/{filename}"
 
 
-class NarrationDraftError(RuntimeError):
-    pass
+NarrationDraftError = narration_service.NarrationDraftError
 
 
 def narration_draft_serializer() -> URLSafeTimedSerializer:
-    return URLSafeTimedSerializer(app.secret_key, salt="armodel-narration-draft-v1")
+    return narration_service.serializer(app.secret_key)
 
 
 def narration_draft_token(payload: dict) -> str:
@@ -2132,40 +1804,18 @@ def narration_draft_token(payload: dict) -> str:
 
 
 def load_narration_draft_token(token: str) -> dict:
-    try:
-        payload = narration_draft_serializer().loads(
-            token, max_age=NARRATION_DRAFT_MAX_AGE_SECONDS
-        )
-    except SignatureExpired as exc:
-        raise NarrationDraftError("เสียงรอตรวจสอบหมดอายุแล้ว กรุณาสร้างใหม่") from exc
-    except BadSignature as exc:
-        raise NarrationDraftError("ข้อมูลเสียงรอตรวจสอบไม่ถูกต้อง") from exc
-    if not isinstance(payload, dict):
-        raise NarrationDraftError("ข้อมูลเสียงรอตรวจสอบไม่ถูกต้อง")
-    key = str(payload.get("pending_key") or "")
-    model_id = str(payload.get("model_id") or "")
-    if not model_id or not (
-        key.startswith(NARRATION_PENDING_PREFIX) or key.startswith("local-pending/")
-    ):
-        raise NarrationDraftError("ข้อมูลเสียงรอตรวจสอบไม่ถูกต้อง")
-    return payload
+    return narration_service.load_token(
+        token, app.secret_key, NARRATION_DRAFT_MAX_AGE_SECONDS, NARRATION_PENDING_PREFIX
+    )
 
 
 def local_narration_draft_path(key: str) -> Path:
-    if not key.startswith("local-pending/"):
-        raise NarrationDraftError("ตำแหน่งไฟล์รอตรวจสอบไม่ถูกต้อง")
-    relative = Path(key.removeprefix("local-pending/"))
-    target = (LOCAL_NARRATION_DRAFT_DIR / relative).resolve()
-    root = LOCAL_NARRATION_DRAFT_DIR.resolve()
-    if root not in target.parents:
-        raise NarrationDraftError("ตำแหน่งไฟล์รอตรวจสอบไม่ถูกต้อง")
-    return target
+    return narration_service.local_draft_path(LOCAL_NARRATION_DRAFT_DIR, key)
 
 
 def r2_delete_object(object_key: str) -> None:
-    payload_hash = hashlib.sha256(b"").hexdigest()
     try:
-        with r2_signed_request("DELETE", object_key, payload_hash, timeout=45) as response:
+        with r2_signed_request("DELETE", object_key, hashlib.sha256(b"").hexdigest(), timeout=45) as response:
             if response.status not in {200, 204}:
                 raise NarrationDraftError(f"ลบไฟล์เสียงไม่สำเร็จ (HTTP {response.status})")
     except HTTPError as exc:
@@ -2210,11 +1860,9 @@ def delete_pending_narration_audio(key: str) -> None:
 
 
 def owned_r2_narration_key(audio_url: str) -> str:
-    base = r2_public_base_url().rstrip("/")
-    if not base or not audio_url.startswith(f"{base}/"):
-        return ""
-    key = audio_url.removeprefix(f"{base}/")
-    return key if key.startswith(NARRATION_PERMANENT_PREFIX) else ""
+    return narration_service.owned_r2_key(
+        audio_url, r2_public_base_url(), NARRATION_PERMANENT_PREFIX
+    )
 
 
 def admin_write_blocked_on_vercel() -> bool:
@@ -2944,18 +2592,29 @@ def model_detail(model_id: str):
 
 @app.get("/api/models")
 def api_models():
-    projects = get_projects(include_hidden=True)
-    models = get_models(include_hidden=True)
+    projects = get_projects(include_hidden=False)
+    visible_project_ids = {project.get("id") for project in projects}
+    models = [
+        model
+        for model in get_models(include_hidden=False)
+        if model.get("project_id") in visible_project_ids
+    ]
     return jsonify([api_model_payload(model, projects) for model in models])
 
 
 @app.get("/api/projects")
 def api_projects():
-    models = get_models(include_hidden=True)
+    projects = get_projects(include_hidden=False)
+    visible_project_ids = {project.get("id") for project in projects}
+    models = [
+        model
+        for model in get_models(include_hidden=False)
+        if model.get("project_id") in visible_project_ids
+    ]
     return jsonify(
         [
             project_with_urls(project, models)
-            for project in get_projects(include_hidden=True)
+            for project in projects
         ]
     )
 
@@ -3255,6 +2914,7 @@ def admin_intro():
         return redirect(url_for("admin_intro"))
 
     settings = get_site_settings()
+    before = dict(settings)
     settings["intro_enabled"] = (
         "true" if request.form.get("intro_enabled") in {"1", "true", "on", "yes"} else "false"
     )
@@ -3286,6 +2946,12 @@ def admin_intro():
             )
 
     save_site_settings(settings)
+    write_audit_event(
+        "settings", "edit", "success", "บันทึกการตั้งค่า Intro สำเร็จ",
+        resource_type="site_settings",
+        changes=audit_changes(before, settings),
+        metadata={"section": "intro"},
+    )
     flash("บันทึกการตั้งค่าอินโทรแล้ว", "success")
     return redirect(url_for("admin_intro"))
 
@@ -3369,10 +3035,11 @@ def admin_recommended_models():
         id_order_pairs.sort(key=lambda x: x[1])
         sorted_ids = [pair[0] for pair in id_order_pairs][:MAX_RECOMMENDED_MODELS]
 
+        previous_ids = settings.get("recommended_model_ids", "")
         settings["recommended_model_ids"] = ",".join(sorted_ids)
 
         save_site_settings(settings)
-        write_audit_event("settings", "edit", "success", "บันทึกโมเดลแนะนำสำเร็จ", resource_type="site_settings", changes=[{"field":"recommended_model_ids","label_th":"โมเดลแนะนำ","before":"","after":sorted_ids}])
+        write_audit_event("settings", "edit", "success", "บันทึกโมเดลแนะนำสำเร็จ", resource_type="site_settings", changes=[{"field":"recommended_model_ids","label_th":"โมเดลแนะนำ","before":previous_ids,"after":settings["recommended_model_ids"]}], metadata={"section":"recommended_models"})
 
         flash("บันทึกรายชื่อโมเดลแนะนำแล้ว", "success")
         return redirect(url_for("admin_recommended_models"))
@@ -3404,6 +3071,7 @@ def update_admin_settings():
     ) or admin_write_blocked_on_vercel():
         return redirect(request.form.get("return_to") or url_for("admin"))
     settings = get_site_settings()
+    before = dict(settings)
     section = request.form.get("section", "").strip()
     if section == "landing":
         settings.update(
@@ -3499,6 +3167,13 @@ def update_admin_settings():
     else:
         abort(400, "Unsupported settings section")
     save_site_settings(settings)
+    section_label = "Landing" if section == "landing" else "Branding และ SEO"
+    write_audit_event(
+        "settings", "edit", "success", f"บันทึกการตั้งค่า {section_label} สำเร็จ",
+        resource_type="site_settings",
+        changes=audit_changes(before, settings),
+        metadata={"section": section},
+    )
     flash("บันทึกการตั้งค่าแล้ว", "success")
     return redirect(request.form.get("return_to") or url_for("admin"))
 
@@ -3515,6 +3190,16 @@ def admin_login():
     next_url = safe_redirect_target(request.args.get("next"))
 
     if request.method == "POST":
+        identity = login_rate_limit_identity()
+        if not first_run and login_is_rate_limited(identity):
+            write_audit_event(
+                "auth", "login", "rejected",
+                "มีความพยายามเข้าสู่ระบบเกินจำนวนที่กำหนด",
+                severity="warning",
+                metadata={"reason": "rate_limited"},
+            )
+            flash("ไม่สามารถเข้าสู่ระบบได้ในขณะนี้ โปรดลองใหม่ภายหลัง", "error")
+            return render_template("login.html", first_run=first_run), 429
         password = request.form.get("password", "")
         confirm = request.form.get("confirm_password", "")
 
@@ -3533,11 +3218,13 @@ def admin_login():
                 flash("ตั้งค่ารหัสผ่านผู้ดูแลแล้ว", "success")
                 return redirect(next_url)
         elif verify_admin_password(password):
+            record_login_attempt(identity, "success")
             session["admin"] = True
             session["admin_session_id"] = uuid.uuid4().hex
             write_audit_event("auth", "login", "success", f"ผู้ดูแลเข้าสู่ระบบสำเร็จจาก IP {audit_request_context()['source_ip']} ผ่าน {audit_request_context()['browser_summary']}")
             return redirect(next_url)
         else:
+            record_login_attempt(identity, "failure")
             write_audit_event("auth", "login", "failure", f"มีความพยายามเข้าสู่ระบบไม่สำเร็จจาก IP {audit_request_context()['source_ip']}", severity="warning")
             flash("รหัสผ่านไม่ถูกต้อง", "error")
 

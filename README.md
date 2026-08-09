@@ -1,93 +1,87 @@
 # ARModel
 
-Flask web application for viewing cultural and community 3D models with Google model-viewer AR support.
+ARModel is a Flask application for publishing community and cultural 3D models with Google model-viewer AR support. It includes public Landing/Home, project and model pages, a news slider, narration playback, and an authenticated Admin application.
 
-The admin panel also manages the public Landing Page, site branding, and homepage slider content.
-
-## Local Development
+## Local development
 
 ```bash
-cd ARModel
 pip install -r requirements.txt
 python app.py
 ```
 
-Open `http://127.0.0.1:5000`.
+Development and CI dependencies are installed with `pip install -r requirements-dev.txt`.
 
-For production, set a `SECRET_KEY` environment variable. Local development can run without it, but sessions will reset when the process restarts.
+Open `http://127.0.0.1:5000`. Local metadata is read and written under `data/`; local uploads and runtime analytics use local files. Tests replace these paths with temporary fixtures.
 
-Public canonical URLs and sitemap entries default to `https://phuphan-ar.vercel.app`. Set `SITE_BASE_URL` in the deployment environment to override the public base URL; `PUBLIC_SITE_URL` remains supported for backward compatibility.
+## Production architecture
 
-## Vercel Deployment
-
-1. Push `ARModel` to GitHub.
-2. Import the repository in Vercel.
-3. Add `SECRET_KEY` and `ADMIN_PASSWORD_HASH` in the Vercel project environment variables.
-4. Deploy with the Python runtime.
-5. If this project is inside a larger repository, set the Vercel root directory to `ARModel`.
-
-## Vercel Runtime Limitation
-
-Vercel serverless functions use a read-only project filesystem at runtime. Production metadata is loaded from versioned files under `data/`, and binary assets are served by Cloudflare R2.
-
-On Vercel:
-
-- Public pages and APIs always read committed `data/*.json`.
-- Admin mutation and upload endpoints are read-only and return HTTP 403.
-- Model, image, slider, site, and narration assets use Cloudflare R2 URLs.
-- Production does not require Supabase environment variables.
-
-To publish content:
-
-1. Upload immutable, versioned assets to the R2 bucket.
-2. Update `data/models.json`, `data/projects.json`, `data/site_settings.json`, or `data/slider_items.json`.
-3. Run `python scripts/validate_zero_supabase_data.py`.
-4. Run `python -m pytest`.
-5. Review the diff.
-6. Commit, push, and deploy only after approval.
-
-Local development may still edit JSON/local static files, but those changes are not durable on Vercel.
-
-## Versioned production data
-
-The production-equivalent datasets are:
+Vercel runs `app.py` through the Python runtime. The versioned source of truth is:
 
 - `data/models.json`
 - `data/projects.json`
 - `data/site_settings.json`
 - `data/slider_items.json`
 
-Validate counts, relationships, URLs, HTTP responses, and R2 CORS with:
+When GitHub Contents credentials are configured, Production Admin writes update only these allow-listed files and create a commit on the configured branch. Without GitHub write configuration, Production mutations are blocked safely.
 
-```bash
-python scripts/validate_zero_supabase_data.py
+Cloudflare R2 stores GLB files, thumbnails, gallery and slider images, branding assets, narration audio, analytics events, and Audit Log objects. New Production analytics events are immutable objects under `analytics/events/YYYY/MM/DD/`; the dashboard also reads the legacy `analytics/analytics_events.json` object during transition.
+
+## Admin security
+
+- Prefer `ADMIN_PASSWORD_HASH`; plaintext `ADMIN_PASSWORD` remains a compatibility option.
+- Admin mutations require authentication and a cryptographically random session-bound CSRF token.
+- Login failures are limited to five attempts per trusted client IP within 15 minutes. Production attempts are immutable R2 objects keyed by an HMAC identity; local attempts use the system temporary directory. Storage failures fail open and are logged so an R2 outage does not lock out every administrator.
+- Vercel sessions use Secure, HttpOnly, SameSite=Lax cookies. Responses include baseline content-type, referrer, permissions, framing, and HSTS protections.
+- A strict CSP is not currently enforced: existing templates contain inline scripts/styles, dynamic Admin preview URLs, Google Fonts, jsDelivr, unpkg model-viewer, and administrator-configured model/image/audio origins. Enforcing a useful policy first requires nonce/hash migration and explicit asset-origin controls; a broad `unsafe-inline https:` policy was intentionally not shipped.
+
+## Production Admin writes
+
+Production metadata writes use the GitHub Contents API. Binary uploads use R2. Required variables are:
+
+```text
+SECRET_KEY
+ADMIN_PASSWORD_HASH
+GITHUB_CONTENTS_TOKEN
+GITHUB_REPOSITORY
+R2_ACCOUNT_ID
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
+R2_BUCKET
+R2_PUBLIC_BASE_URL
 ```
 
-Historical Supabase setup and migration documents remain under `docs/` for rollback/audit context; they are not part of the runtime architecture.
+Optional variables include `GITHUB_BRANCH`, `GITHUB_COMMITTER_NAME`, `GITHUB_COMMITTER_EMAIL`, `SITE_BASE_URL`, `PUBLIC_SITE_URL`, `ANALYTICS_R2_OBJECT_KEY` for legacy analytics, `AUDIT_LOG_SIGNING_KEY`, `AUDIT_LOG_RETENTION_DAYS`, `R2_STORAGE_SOFT_LIMIT_GB`, and `GEMINI_API_KEY`.
 
-## Adding Models
+Never commit environment values or credentials.
 
-For production:
+## Narration
 
-1. Upload the GLB and thumbnail to Cloudflare R2.
-2. Add the verified HTTPS URLs to `data/models.json`.
-3. Run the validator and test suite.
-4. Commit and push to GitHub after approval.
+Gemini TTS runs server-side only after an Admin requests generation. A generated draft is stored under `audio/pending/<model-id>/` and represented by a short-lived signed token bound to the model and expected current narration. Confirmation copies it to `audio/narrations/<model-id>/`, updates model metadata through the normal JSON/GitHub path, and then performs safe cleanup. Cancellation deletes only the pending object. External old narration URLs are never deleted.
 
-For local-only development, static files under `static/model/` and `static/pic/` remain supported through the local JSON editing paths.
+Configure an R2 lifecycle rule to remove `audio/pending/` after one day.
 
-## AR Usage
+## Audit Log
 
-Open a model page on a supported mobile device and tap the AR button in the viewer. WebXR, Scene Viewer, and Quick Look support depends on the device, operating system, and browser.
+Meaningful authentication and Admin mutations create one signed immutable JSON object per event under `audit/YYYY/MM/DD/`. Events contain Thai summaries, request/session context, structured changes, recursive secret redaction, and HMAC-SHA256 tamper evidence. Authenticated Admin users can inspect and export CSV/JSON. Set a lifecycle policy for the `audit/` prefix according to the required retention period, commonly 180–365 days.
 
-## Large File Warning
+## Validation and CI
 
-`.glb` files can be large. Keep production model assets in Cloudflare R2 and store their public URLs in `data/models.json`.
+Run the same checks used by `.github/workflows/regression.yml`:
 
-## Narration Draft Cleanup
+```bash
+python -m pytest
+python scripts/validate_zero_supabase_data.py
+node --check static/js/site-carousel.js
+node --check static/js/model-narration.js
+node --check static/js/admin-dashboard.js
+```
 
-The admin narration workflow stores unconfirmed Gemini output under the R2 prefix `audio/pending/`. Configure a Cloudflare R2 Lifecycle Rule to delete objects with this prefix after one day. Confirmed narration files are stored separately under `audio/narrations/` and are not covered by this cleanup rule.
+The validator checks deterministic JSON, required fields, relationships, HTTPS/R2 assets, CORS, and absence of Supabase runtime URLs.
 
-## Admin
+## AR and assets
 
-On local development, visit `/admin/login` and create an admin password if one is not already configured. Production admin pages are viewers only; all content mutation, upload, generation, and delete endpoints are blocked. Configure `ADMIN_PASSWORD_HASH` or `ADMIN_PASSWORD` on Vercel if read-only admin access is required.
+Model pages use Google model-viewer. WebXR, Scene Viewer, and Quick Look depend on the browser and device. Keep large GLB assets in R2 with immutable versioned keys rather than in the Vercel filesystem.
+
+## Historical documents
+
+Supabase setup/schema and migration documents under `docs/`, `STORAGE_MIGRATION_PLAN.md`, and related verification reports are retained only as historical migration/audit context. They do not describe the current runtime architecture.

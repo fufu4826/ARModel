@@ -89,6 +89,17 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(settings["intro_logo_duration_ms_value"], 1400)
         self.assertEqual(settings["intro_display_mode"], "sequence")
 
+    def test_security_headers_are_applied_without_breaking_local_http(self):
+        response = self.client.get("/home")
+        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response.headers["Referrer-Policy"], "strict-origin-when-cross-origin")
+        self.assertEqual(response.headers["X-Frame-Options"], "SAMEORIGIN")
+        self.assertNotIn("Strict-Transport-Security", response.headers)
+
+    def test_https_responses_receive_hsts(self):
+        response = self.client.get("/home", base_url="https://localhost")
+        self.assertIn("max-age=31536000", response.headers["Strict-Transport-Security"])
+
     def test_public_apis_exclude_hidden_content_and_hidden_relationships(self):
         module.save_projects(
             [

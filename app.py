@@ -300,6 +300,7 @@ app = Flask(
 app.config["MAX_CONTENT_LENGTH"] = 250 * 1024 * 1024
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("VERCEL"))
 
 
 def is_vercel_runtime() -> bool:
@@ -806,6 +807,12 @@ def append_analytics_event(event: dict) -> None:
 
 @app.after_request
 def record_local_analytics(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=(self)")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    if is_vercel_runtime() or request.is_secure:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     if not analytics_should_track(response):
         return response
     visitor_id, needs_cookie = analytics_visitor_id()

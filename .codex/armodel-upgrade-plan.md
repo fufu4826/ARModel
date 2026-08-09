@@ -18,8 +18,8 @@ Status values: `TODO`, `IN_PROGRESS`, `PASS`, `BLOCKED_EXTERNAL`, `NOT_APPLICABL
 | 11 | PASS | README/documentation reconciliation |
 | 12 | PASS | Duplicate root JSON cleanup |
 | 13 | PASS | Dependency management |
-| 14A | IN_PROGRESS | Extract R2/GitHub storage services |
-| 14B | TODO | Extract content repositories |
+| 14A | PASS | Extract R2/GitHub storage services |
+| 14B | IN_PROGRESS | Extract content repositories |
 | 14C | TODO | Extract analytics/audit/narration services |
 | 14D | TODO | Organize Flask routes/Blueprints where safe |
 | 15 | TODO | Post-refactor security review |

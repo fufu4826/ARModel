@@ -1,4 +1,6 @@
-# Supabase Setup
+# Supabase Setup (Historical / Deprecated)
+
+> This document is retained for migration history only. Current Production uses versioned JSON, GitHub Contents writes, and Cloudflare R2 as described in `README.md`.
 
 ## Overview
 

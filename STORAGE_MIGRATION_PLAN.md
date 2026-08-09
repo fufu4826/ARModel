@@ -1,4 +1,6 @@
-# Storage Migration Plan
+# Storage Migration Plan (Historical)
+
+> Migration reference only. The current runtime architecture is documented in `README.md`.
 
 ## Why large GLB traffic exhausts Supabase Free
 

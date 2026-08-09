@@ -286,6 +286,7 @@ ANALYTICS_R2_OBJECT_KEY = os.environ.get(
     "ANALYTICS_R2_OBJECT_KEY",
     "analytics/analytics_events.json",
 ).strip("/")
+ANALYTICS_EVENT_PREFIX = "analytics/events/"
 BANGKOK_TZ = ZoneInfo("Asia/Bangkok")
 _DATA_READY = False
 PRODUCTION_DATA_FILES = {
@@ -797,38 +798,74 @@ def read_analytics_events() -> list[dict]:
     if is_vercel_runtime():
         if not r2_upload_configured():
             return []
+        events: list[dict] = []
         try:
             value = json.loads(r2_get_bytes(ANALYTICS_R2_OBJECT_KEY).decode("utf-8"))
         except HTTPError as exc:
             if exc.code != 404:
                 logger.warning("Unable to read analytics R2 object: HTTP %s", exc.code)
-            return []
+            value = []
         except (OSError, TimeoutError, URLError, json.JSONDecodeError) as exc:
             logger.warning("Unable to read analytics R2 object: %s", exc)
-            return []
-        return [event for event in value if isinstance(event, dict)] if isinstance(value, list) else []
+            value = []
+        if isinstance(value, list):
+            events.extend(event for event in value if isinstance(event, dict))
+
+        continuation = ""
+        keys: list[str] = []
+        try:
+            while len(keys) < ANALYTICS_MAX_EVENTS:
+                page, continuation = r2_list_object_keys(
+                    ANALYTICS_EVENT_PREFIX,
+                    max_keys=min(1000, ANALYTICS_MAX_EVENTS - len(keys)),
+                    continuation_token=continuation,
+                )
+                keys.extend(page)
+                if not continuation:
+                    break
+        except Exception as exc:
+            logger.warning("Unable to list immutable analytics events: %s", exc)
+            return events[-ANALYTICS_MAX_EVENTS:]
+
+        for key in keys:
+            try:
+                event = json.loads(r2_get_bytes(key).decode("utf-8"))
+            except Exception as exc:
+                logger.warning("Skipping unreadable analytics event %s: %s", key, exc)
+                continue
+            if isinstance(event, dict):
+                events.append(event)
+        return events[-ANALYTICS_MAX_EVENTS:]
 
     events = read_json(ANALYTICS_FILE, [])
     return [event for event in events if isinstance(event, dict)]
 
 
 def append_analytics_event(event: dict) -> None:
+    if is_vercel_runtime():
+        if not r2_upload_configured():
+            return
+        stored_event = dict(event)
+        stored_event.setdefault("event_id", uuid.uuid4().hex)
+        occurred_at = _analytics_event_datetime(stored_event) or datetime.now(timezone.utc)
+        key = (
+            f"{ANALYTICS_EVENT_PREFIX}{occurred_at:%Y/%m/%d}/"
+            f"{occurred_at:%Y%m%dT%H%M%S.%fZ}-{stored_event['event_id']}.json"
+        )
+        payload = json.dumps(stored_event, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        r2_upload_bytes(
+            payload,
+            key,
+            "application/json; charset=utf-8",
+            cache_control="no-store, max-age=0",
+        )
+        return
+
     with _ANALYTICS_LOCK:
         events = read_analytics_events()
         events.append(event)
         if len(events) > ANALYTICS_MAX_EVENTS:
             events = events[-ANALYTICS_MAX_EVENTS:]
-        if is_vercel_runtime():
-            if not r2_upload_configured():
-                return
-            payload = (json.dumps(events, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-            r2_upload_bytes(
-                payload,
-                ANALYTICS_R2_OBJECT_KEY,
-                "application/json; charset=utf-8",
-                cache_control="no-store, max-age=0",
-            )
-            return
         write_json(ANALYTICS_FILE, events)
 
 

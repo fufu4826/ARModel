@@ -11,9 +11,9 @@ Status values: `TODO`, `IN_PROGRESS`, `PASS`, `BLOCKED_EXTERNAL`, `NOT_APPLICABL
 | 4 | PASS | Validator repair |
 | 5 | PASS | GitHub Actions CI |
 | 6 | PASS | CSRF protection |
-| 7 | IN_PROGRESS | Serverless-safe Admin login rate limiting |
-| 8 | TODO | CSP/security-policy evaluation |
-| 9 | TODO | Serverless-safe analytics event architecture |
+| 7 | PASS | Serverless-safe Admin login rate limiting |
+| 8 | PASS | CSP/security-policy evaluation |
+| 9 | IN_PROGRESS | Serverless-safe analytics event architecture |
 | 10 | TODO | Audit Log completeness and failure visibility |
 | 11 | TODO | README/documentation reconciliation |
 | 12 | TODO | Duplicate root JSON cleanup |

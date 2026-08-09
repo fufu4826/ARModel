@@ -865,7 +865,7 @@ def record_local_analytics(response):
         token = csrf_token()
         html = response.get_data(as_text=True)
         html = re.sub(
-            r"(<form\\b[^>]*method=[\"']post[\"'][^>]*>)",
+            r"(<form\b[^>]*method=[\"']post[\"'][^>]*>)",
             lambda match: match.group(1) + f'<input type="hidden" name="csrf_token" value="{token}">',
             html,
             flags=re.IGNORECASE,

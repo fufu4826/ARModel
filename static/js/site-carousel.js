@@ -189,7 +189,8 @@
       let carousel;
       try {
         carousel = new window.Swiper(element, {
-        loop: isHomeMarquee || (isLandingCarousel && slideCount > 1),
+        loop: isHomeMarquee,
+        rewind: isLandingCarousel && slideCount > 1,
         speed: isHomeMarquee ? 750 : (reduceMotion ? 0 : 600),
         autoplay: isHomeMarquee
           ? { delay: 5000, disableOnInteraction: false, pauseOnMouseEnter: false, waitForTransition: true }

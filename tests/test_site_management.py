@@ -2303,6 +2303,17 @@ class SiteManagementTests(unittest.TestCase):
             self.assertIn('class="preset-btn"', admin_add_html)
             self.assertIn('data-preset-x="3.1416"', admin_add_html)
 
+    def test_authenticated_admin_forms_include_session_csrf_token(self):
+        with self.client.session_transaction() as session:
+            session["admin"] = True
+            session["csrf_token"] = "test-csrf-token"
+        html = self.client.get("/admin").get_data(as_text=True)
+        self.assertIn('name="csrf_token" value="test-csrf-token"', html)
+        self.assertEqual(
+            html.count('name="csrf_token" value="test-csrf-token"'),
+            html.count('method="post"'),
+        )
+
 
 class ZeroSupabaseRuntimeTests(unittest.TestCase):
     def setUp(self):

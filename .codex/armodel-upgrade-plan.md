@@ -20,8 +20,8 @@ Status values: `TODO`, `IN_PROGRESS`, `PASS`, `BLOCKED_EXTERNAL`, `NOT_APPLICABL
 | 13 | PASS | Dependency management |
 | 14A | PASS | Extract R2/GitHub storage services |
 | 14B | PASS | Extract content repositories |
-| 14C | IN_PROGRESS | Extract analytics/audit/narration services |
-| 14D | TODO | Organize Flask routes/Blueprints where safe |
+| 14C | PASS | Extract analytics/audit/narration services |
+| 14D | IN_PROGRESS | Organize Flask routes/Blueprints where safe |
 | 15 | TODO | Post-refactor security review |
 | 16 | TODO | Content/data integrity review |
 | 17 | TODO | Final automated regression |

@@ -2,12 +2,12 @@
 
 Current branch: `codex/armodel-hardening`
 origin/main: `44e3ca3aea333304dd7368dcb8562f3c5a445003`
-Current HEAD: `790d544`
-Working tree: checkpoint update pending after verified analytics service extraction
-Current phase: 14C — Extract analytics/audit/narration services
-Last completed phase: 14B — Extract content repositories
-Last commit: `790d544 Extract analytics service from Flask app`
-Last full pytest: `99 passed, 79 subtests passed`; analytics/dashboard focused `19 passed, 6 subtests passed`
+Current HEAD: `9f22f66`
+Working tree: checkpoint update pending after verified Phase 14C commits
+Current phase: 14D — Organize Flask routes/Blueprints where safe
+Last completed phase: 14C — Extract analytics/audit/narration services
+Last commit: `9f22f66 Extract narration service from Flask app`
+Last full pytest: `107 passed, 79 subtests passed`; audit focused `77 passed, 73 subtests passed`; narration focused `77 passed, 73 subtests passed`
 Last validator: passed; 121 R2 URLs verified
 Last JS checks: passed for carousel, narration, dashboard
 Browser QA: not yet run
@@ -16,7 +16,7 @@ CI status: workflow added locally; remote run not started
 Deployment status: not started
 Production QA: not started
 External blockers: none known
-Next exact action: inventory audit signing, canonical serialization, recursive redaction, request-context collection, immutable write, verification, and bounded listing; extract pure/storage-independent audit logic behind compatibility wrappers and run audit-focused tests before narration extraction.
+Next exact action: inventory all Flask route decorators, endpoint names, template/JavaScript `url_for` dependencies, auth/CSRF decorators, and error/after-request hooks; determine the smallest safe route-module boundary without changing URLs or endpoint names, then implement and regression-test it or document why Blueprint migration is disproportionate.
 
 Completed commits:
 - `6b1df15 Prevent hidden content exposure in public APIs`
@@ -35,3 +35,5 @@ Completed commits:
 - `67127cd Extract storage integrations from Flask app`
 - `17cc479 Extract content repositories from Flask app`
 - `790d544 Extract analytics service from Flask app`
+- `5e5c1ce Extract audit service from Flask app`
+- `9f22f66 Extract narration service from Flask app`

@@ -435,3 +435,7 @@ body.landing-page { background: var(--indigo-950); }
 .site-nav::after { height: 10px; bottom: -10px; background: var(--hem) repeat-x left center / auto 10px; }
 .site-footer-rich strong { color: #fff; }
 .content-section.centre-information { padding: clamp(24px, 4vw, 48px) clamp(20px, 4vw, 52px); }
+
+/* Card text: clamp by whole lines (the Thai looped font needs more line height than the old em cap). */
+.card-body p, .model-card .card-body p, .project-card .card-body p { max-height: none; line-height: 1.75; }
+.card-body h3 a { line-height: 1.45; padding-bottom: 2px; }

@@ -1696,3 +1696,22 @@ h1, h2, h3, legend { line-height: 1.3; }
   .admin-invite-form { grid-template-columns: minmax(0, 1fr); }
   .admin-table .meta--path { display: none; }
 }
+
+/* ---------- API keys page ---------- */
+.api-keys-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 0 0 20px; }
+.api-keys-summary > div { background: #fff; border: 1px solid var(--admin-line, #dfe6df); border-radius: 12px; padding: 14px 16px; }
+.api-keys-summary span { display: block; font-size: 14px; color: #5b6660; }
+.api-keys-summary strong { font-size: 26px; line-height: 1.3; }
+.api-keys-form textarea { width: 100%; font-family: ui-monospace, Consolas, monospace; font-size: 14px; }
+.api-keys-check { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; }
+.api-keys-table-wrap { overflow-x: auto; }
+.api-keys-table { min-width: 0; }
+.api-keys-table code { font-size: 15px; }
+.api-keys-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.api-keys-actions form { margin: 0; }
+.api-status--ok { background: #e3f1e0; color: #24521f; }
+.api-status--quota { background: #fbf0d9; color: #6e4a07; }
+.api-status--invalid { background: #f8e3e1; color: #8a2419; }
+.api-status--unknown { background: #eceff1; color: #3f4a52; }
+.api-keys-error, .api-keys-warn { color: #8a2419; }
+.api-keys-alert { border-color: #e7b9b3; background: #fdf3f2; }

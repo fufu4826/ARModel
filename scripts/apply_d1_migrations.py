@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.prepare_cloud_d1 import cloud_database, schema_statements
 
 EXPECTED_TABLES = ('dataset_versions', 'projects', 'models', 'slider_items', 'site_settings', 'admin_accounts',
-                   'events', 'write_guards', 'admin_users', 'admin_invites')
+                   'events', 'write_guards', 'admin_users', 'admin_invites', 'api_keys')
 
 
 def table_report(database):

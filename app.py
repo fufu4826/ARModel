@@ -39,6 +39,7 @@ from armodel.services import narration as narration_service
 from armodel.repositories import content as content_repository
 from armodel.repositories import database as database_repository
 from armodel.repositories import admin_users as admin_users_repository
+from armodel.repositories import api_keys as api_keys_repository
 
 
 def load_local_env() -> None:
@@ -425,7 +426,7 @@ def admin_page_read_only() -> bool:
     user = current_admin() if has_request_context() and request.path.startswith("/admin") else None
     if not user:
         return False
-    needed = "admin" if request.endpoint in SETTINGS_PAGES else "editor"
+    needed = "admin" if request.endpoint in SETTINGS_PAGES or request.endpoint in API_KEY_ENDPOINTS else "editor"
     return not role_allows(user["role"], needed)
 
 
@@ -1093,9 +1094,39 @@ def convert_to_wav(audio_data: bytes, mime_type: str | None) -> tuple[bytes, str
     return narration_service.convert_to_wav(audio_data, mime_type)
 
 
+def api_keys_secret() -> str:
+    """Encrypts admin-supplied API keys in D1. Set the same API_KEYS_SECRET on every site that
+    shares the database, otherwise each site only reads the keys it stored itself."""
+    return env_value("API_KEYS_SECRET") or str(app.secret_key or "")
+
+
+def narration_key_candidates() -> list[tuple[str, str]]:
+    """Admin keys from D1 (least recently used first), then GEMINI_API_KEY as the last fallback."""
+    keys = []
+    try:
+        keys = api_keys_repository.usable_keys(admin_db(), api_keys_secret())
+    except (database_repository.DatabaseError, api_keys_repository.ApiKeyError):
+        logger.warning("Admin API keys unavailable; using GEMINI_API_KEY only")
+    env_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if env_key:
+        keys.append(("env", env_key))
+    return keys
+
+
+def record_narration_key_result(key_id: str, outcome: str, message: str) -> None:
+    if key_id == "env":
+        if outcome != "ok":
+            logger.warning("GEMINI_API_KEY failed: %s", api_keys_repository.sanitize_error(message))
+        return
+    try:
+        api_keys_repository.record_result(admin_db(), key_id, outcome, message, used=True)
+    except database_repository.DatabaseError:
+        logger.warning("Unable to record API key result")
+
+
 def generate_gemini_tts_audio(text: str) -> tuple[bytes, str]:
-    return narration_service.generate_gemini_tts_audio(
-        text, os.environ.get("GEMINI_API_KEY", "").strip(), opener=urlopen
+    return narration_service.generate_with_keys(
+        text, narration_key_candidates(), on_result=record_narration_key_result, opener=urlopen
     )
 
 
@@ -2038,6 +2069,7 @@ CONTENT_ENDPOINTS = {
 }
 SETTINGS_PAGES = {"admin_branding", "admin_landing", "admin_landing_preview", "admin_intro"}
 AUDIT_ENDPOINTS = {"admin_audit_logs", "export_audit_logs"}
+API_KEY_ENDPOINTS = {"admin_api_keys", "admin_add_api_keys", "admin_test_api_key", "admin_delete_api_key"}
 USER_ENDPOINTS = {"admin_users", "admin_create_invite", "admin_revoke_link", "admin_update_user",
                   "admin_create_reset_link"}
 MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -2047,7 +2079,7 @@ def required_role(endpoint: str | None, method: str) -> str:
     """Least role allowed to call an Admin endpoint; unknown mutations need an administrator."""
     if endpoint in USER_ENDPOINTS:
         return "owner"
-    if endpoint in AUDIT_ENDPOINTS:
+    if endpoint in AUDIT_ENDPOINTS or endpoint in API_KEY_ENDPOINTS:
         return "admin"
     if method in MUTATING_METHODS:
         if endpoint == "admin_logout":
@@ -3291,6 +3323,96 @@ def admin_accept_reset(token: str):
         flash("ตั้งรหัสผ่านใหม่แล้ว กรุณาเข้าสู่ระบบ", "success")
         return redirect(url_for("admin_login"))
     return account_link_page("reset", token)
+
+
+@app.get("/admin/api-keys")
+@admin_required
+def admin_api_keys():
+    keys, error = [], ""
+    try:
+        keys = api_keys_repository.list_keys(admin_db(), api_keys_secret())
+    except (database_repository.DatabaseError, api_keys_repository.ApiKeyError) as exc:
+        logger.warning("Unable to list API keys: %s", exc)
+        error = "อ่านรายการคีย์จากฐานข้อมูลไม่ได้ (ตาราง api_keys อาจยังไม่ได้สร้าง)"
+    summary = {
+        "total": len(keys),
+        "ok": sum(1 for k in keys if k["status"] == "ok"),
+        "quota": sum(1 for k in keys if k["status"] == "quota"),
+        "invalid": sum(1 for k in keys if k["status"] == "invalid"),
+        "unknown": sum(1 for k in keys if k["status"] == "unknown"),
+    }
+    return render_template("admin_api_keys.html", keys=keys, summary=summary, load_error=error,
+                           env_key_set=bool(os.environ.get("GEMINI_API_KEY", "").strip()),
+                           dedicated_secret=bool(env_value("API_KEYS_SECRET")))
+
+
+@app.post("/admin/api-keys")
+@admin_required
+def admin_add_api_keys():
+    actor = (current_admin() or {}).get("username", "")
+    try:
+        result = api_keys_repository.add_keys(admin_db(), request.form.get("keys", ""),
+                                              request.form.get("label", ""), actor, api_keys_secret())
+    except api_keys_repository.ApiKeyError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("admin_api_keys"))
+    except database_repository.DatabaseError:
+        logger.exception("Unable to store API keys")
+        flash("บันทึกคีย์ไม่สำเร็จ กรุณาลองใหม่", "error")
+        return redirect(url_for("admin_api_keys"))
+    added = len(result["added"])
+    parts = [f"เพิ่มคีย์ใหม่ {added} คีย์"]
+    if result["duplicates"]:
+        parts.append(f"ข้ามคีย์ที่มีอยู่แล้ว {result['duplicates']} คีย์")
+    if result["invalid"]:
+        parts.append(f"ข้ามบรรทัดที่ไม่ใช่รูปแบบคีย์ {result['invalid']} บรรทัด")
+    flash(" · ".join(parts), "success" if added else "error")
+    if added:
+        write_audit_event("api_keys", "import", "success", f"นำเข้าคีย์ API เสียงบรรยาย {added} คีย์",
+                          metadata={"added": added, "duplicates": result["duplicates"], "invalid": result["invalid"]})
+        if request.form.get("test_now"):
+            secret = api_keys_secret()
+            for key_id in result["added"]:
+                _test_api_key(key_id, secret)
+    return redirect(url_for("admin_api_keys"))
+
+
+def _test_api_key(key_id: str, secret: str) -> tuple[str, str] | None:
+    found = api_keys_repository.get_plain(admin_db(), key_id, secret)
+    if found is None:
+        return None
+    row, plain = found
+    if not plain:
+        return "error", "ถอดรหัสคีย์ไม่ได้บนเว็บนี้ (บันทึกด้วย API_KEYS_SECRET คนละค่า)"
+    outcome, message = narration_service.check_gemini_key(plain, opener=urlopen)
+    api_keys_repository.record_result(admin_db(), key_id, outcome, "" if outcome == "ok" else message)
+    return outcome, message
+
+
+@app.post("/admin/api-keys/<key_id>/test")
+@admin_required
+def admin_test_api_key(key_id: str):
+    result = _test_api_key(key_id, api_keys_secret())
+    if result is None:
+        abort(404)
+    outcome, message = result
+    labels = {"ok": "คีย์ใช้งานได้", "quota": "คีย์ถูกต้อง แต่โควตาเต็มอยู่", "invalid": "คีย์ใช้ไม่ได้",
+              "error": "ทดสอบไม่สำเร็จ"}
+    flash(f"{labels.get(outcome, outcome)}" + ("" if outcome == "ok" else f": {api_keys_repository.sanitize_error(message)}"),
+          "success" if outcome == "ok" else "error")
+    return redirect(url_for("admin_api_keys"))
+
+
+@app.post("/admin/api-keys/<key_id>/delete")
+@admin_required
+def admin_delete_api_key(key_id: str):
+    deleted = api_keys_repository.delete_key(admin_db(), key_id)
+    if deleted is None:
+        abort(404)
+    write_audit_event("api_keys", "delete", "success", f"ลบคีย์ API เสียงบรรยาย {deleted['hint']}",
+                      resource_type="api_key", resource_id=key_id, resource_name=deleted["hint"])
+    flash(f"ลบคีย์ {deleted['hint']} แล้ว", "success")
+    return redirect(url_for("admin_api_keys"))
 
 
 @app.get("/admin/users")

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>คีย์ API เสียงบรรยาย - Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  {% include "_fonts.html" %}
+</head>
+<body>
+  <div class="admin-container">
+    {% include "_admin_nav.html" %}
+    <main class="admin-main-content">
+      <div class="admin-shell">
+        <header class="admin-heading">
+          <div>
+            <p class="admin-eyebrow">เสียงบรรยาย</p>
+            <h1>คีย์ API เสียงบรรยาย</h1>
+            <p>ผู้ดูแลนำคีย์ Gemini ของตัวเองมาเพิ่มได้หลายคีย์ ระบบจะสลับใช้ให้อัตโนมัติ ถ้าคีย์ไหนโควตาเต็มจะพักไว้ 1 ชั่วโมงแล้วไปใช้คีย์ถัดไป</p>
+          </div>
+        </header>
+
+        {% include "_admin_messages.html" %}
+
+        {% if load_error %}
+        <section class="admin-card api-keys-alert" role="alert"><p>{{ load_error }}</p></section>
+        {% endif %}
+
+        <section class="api-keys-summary" aria-label="สรุปคีย์">
+          <div><span>คีย์ทั้งหมด</span><strong>{{ summary.total }}</strong></div>
+          <div><span>ใช้งานได้</span><strong>{{ summary.ok }}</strong></div>
+          <div><span>ยังไม่ได้ทดสอบ</span><strong>{{ summary.unknown }}</strong></div>
+          <div><span>โควตาเต็ม (พักไว้)</span><strong>{{ summary.quota }}</strong></div>
+          <div><span>ใช้ไม่ได้</span><strong>{{ summary.invalid }}</strong></div>
+        </section>
+
+        <section class="admin-card">
+          <h2 class="admin-card-title">นำเข้าคีย์</h2>
+          <form method="post" action="{{ url_for('admin_add_api_keys') }}" class="api-keys-form" autocomplete="off">
+            <div class="field">
+              <label for="api-keys-input">คีย์ Gemini API (วางได้หลายคีย์ บรรทัดละ 1 คีย์)</label>
+              <textarea id="api-keys-input" name="keys" rows="4" required spellcheck="false" autocomplete="off"
+                        placeholder="AIza..."></textarea>
+              <small>ขอคีย์ได้ที่ Google AI Studio (aistudio.google.com) เมนู Get API key · ระบบเข้ารหัสคีย์ก่อนบันทึก และแสดงแค่ 4 ตัวท้าย</small>
+            </div>
+            <div class="field">
+              <label for="api-keys-label">ชื่อเรียก (ไม่บังคับ เช่น เจ้าของคีย์)</label>
+              <input id="api-keys-label" type="text" name="label" maxlength="80">
+            </div>
+            <label class="api-keys-check"><input type="checkbox" name="test_now" value="1" checked> ทดสอบคีย์ทันทีหลังนำเข้า</label>
+            <button type="submit" class="button">นำเข้าคีย์</button>
+          </form>
+        </section>
+
+        <section class="admin-card">
+          <h2 class="admin-card-title">คีย์ที่บันทึกไว้ ({{ summary.total }})</h2>
+          {% if keys %}
+          <div class="api-keys-table-wrap">
+          <table class="user-table api-keys-table">
+            <thead><tr><th>คีย์</th><th>สถานะ</th><th>การใช้งาน</th><th>เพิ่มเมื่อ</th><th>จัดการ</th></tr></thead>
+            <tbody>
+            {% for key in keys %}
+              <tr>
+                <td><code>{{ key.hint }}</code>{% if key.label %}<br><small>{{ key.label }}</small>{% endif %}
+                  {% if key.readable is sameas false %}<br><small class="api-keys-warn">อ่านไม่ได้บนเว็บนี้</small>{% endif %}</td>
+                <td><span class="role-badge api-status api-status--{{ key.status }}">{{ key.status_label }}</span>
+                  {% if key.status == 'quota' and key.cooldown_until %}<br><small>ใช้ได้อีกครั้งหลัง {{ key.cooldown_until[:16].replace('T', ' ') }} UTC</small>{% endif %}
+                  {% if key.last_error and key.status != 'ok' %}<br><small class="api-keys-error" title="{{ key.last_error }}">{{ key.last_error[:90] }}</small>{% endif %}</td>
+                <td>ใช้แล้ว {{ key.use_count }} ครั้ง{% if key.failure_count %} · พลาด {{ key.failure_count }}{% endif %}
+                  {% if key.last_used_at %}<br><small>ล่าสุด {{ key.last_used_at[:16].replace('T', ' ') }} UTC</small>{% endif %}</td>
+                <td>{{ key.created_at[:10] }}{% if key.created_by %}<br><small>โดย {{ key.created_by }}</small>{% endif %}</td>
+                <td><div class="api-keys-actions">
+                  <form method="post" action="{{ url_for('admin_test_api_key', key_id=key.id) }}">
+                    <button type="submit" class="button secondary small">ทดสอบ</button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin_delete_api_key', key_id=key.id) }}"
+                        onsubmit="return confirm('ลบคีย์ {{ key.hint }} ออกจากระบบ? ลบแล้วกู้คืนไม่ได้');">
+                    <button type="submit" class="button danger small">ลบ</button>
+                  </form>
+                </div></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          </div>
+          {% else %}
+          <p>ยังไม่มีคีย์ในระบบ{% if env_key_set %} ตอนนี้ระบบใช้คีย์จาก GEMINI_API_KEY ของเซิร์ฟเวอร์อยู่{% endif %}</p>
+          {% endif %}
+          <ul class="role-help">
+            <li>ลำดับการใช้: คีย์ที่ถูกใช้ล่าสุดนานที่สุดก่อน{% if env_key_set %} แล้วจึงใช้ GEMINI_API_KEY ของเซิร์ฟเวอร์เป็นตัวสำรองสุดท้าย{% endif %}</li>
+            <li>“ทดสอบ” ตรวจว่าคีย์ใช้ได้โดยไม่สร้างเสียงจริง จึงไม่เปลืองโควตาเสียง</li>
+            {% if not dedicated_secret %}<li>เว็บนี้ยังไม่ได้ตั้ง API_KEYS_SECRET จึงเข้ารหัสด้วย SECRET_KEY เว็บอื่นที่ใช้ฐานข้อมูลเดียวกันจะอ่านคีย์ชุดนี้ไม่ได้</li>{% endif %}
+          </ul>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

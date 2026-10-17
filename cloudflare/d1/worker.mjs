@@ -1,5 +1,5 @@
 const TABLES = new Set(['projects', 'models', 'slider_items', 'site_settings',
-  'admin_accounts', 'admin_users', 'admin_invites', 'dataset_versions', 'write_guards', 'events',
+  'admin_accounts', 'admin_users', 'admin_invites', 'api_keys', 'dataset_versions', 'write_guards', 'events',
   'json_each']);
 
 async function sameToken(a, b) {

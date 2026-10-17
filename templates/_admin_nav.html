@@ -28,6 +28,9 @@
       <a href="{{ url_for('admin_recommended_models') }}" class="{{ 'active' if endpoint == 'admin_recommended_models' else '' }}"><span class="admin-icon admin-icon--recommended" aria-hidden="true"></span> โมเดลแนะนำ</a>
       <a href="{{ url_for('admin_narrations') }}" class="{{ 'active' if endpoint in ['admin_narrations', 'generate_narration_draft', 'confirm_narration_draft', 'cancel_narration_draft'] else '' }}"><span class="admin-icon admin-icon--gemini" aria-hidden="true"></span> เสียงบรรยาย</a>
       <a href="{{ url_for('admin_sliders') }}" class="{{ 'active' if endpoint in ['admin_sliders', 'edit_slider'] else '' }}"><span class="admin-icon admin-icon--sliders" aria-hidden="true"></span> สไลด์หน้าแรก</a>
+      {% if admin_can('admin_api_keys') %}
+      <a href="{{ url_for('admin_api_keys') }}" class="{{ 'active' if endpoint == 'admin_api_keys' else '' }}"><span class="admin-icon admin-icon--settings" aria-hidden="true"></span> คีย์ API เสียงบรรยาย</a>
+      {% endif %}
     </div>
 
     <div class="admin-nav-group">

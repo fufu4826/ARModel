@@ -15,7 +15,22 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 
 class GeminiTTSError(RuntimeError):
-    pass
+    def __init__(self, message: str, status: int | None = None, detail: str = ""):
+        super().__init__(message)
+        self.status = status
+        self.detail = detail
+
+    @property
+    def kind(self) -> str:
+        """quota (try another key later), invalid (key rejected), error (transient / other)."""
+        detail = self.detail.upper()
+        if self.status == 429 or "RESOURCE_EXHAUSTED" in detail or "QUOTA" in detail:
+            return "quota"
+        if self.status in (401, 403) or "API_KEY_INVALID" in detail or "API KEY NOT VALID" in detail                 or "PERMISSION_DENIED" in detail:
+            return "invalid"
+        if self.status == 400 and "API KEY" in detail:
+            return "invalid"
+        return "error"
 
 
 class NarrationDraftError(RuntimeError):
@@ -48,13 +63,56 @@ def convert_to_wav(audio_data: bytes, mime_type: str | None) -> tuple[bytes, str
     return pcm_to_wav(audio_data, *parse_audio_mime_type(mime)), ".wav"
 
 
+TTS_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview"
+
+
+def check_gemini_key(api_key: str, *, opener=urlopen) -> tuple[str, str]:
+    """Ask for the TTS model's metadata: proves the key works without spending audio quota.
+    Returns (outcome, message) with outcome ok / quota / invalid / error."""
+    request_obj = Request(TTS_MODEL_URL, headers={"x-goog-api-key": api_key}, method="GET")
+    try:
+        with opener(request_obj, timeout=20) as response:
+            json.loads(response.read().decode("utf-8") or "{}")
+        return "ok", "ใช้งานได้"
+    except HTTPError as exc:
+        detail = exc.read(500).decode("utf-8", errors="replace").strip()
+        error = GeminiTTSError(f"HTTP {exc.code}", exc.code, detail)
+        return error.kind, f"HTTP {exc.code}: {detail[:200] or exc.reason}"
+    except URLError as exc:
+        return "error", f"เชื่อมต่อ Gemini ไม่ได้: {exc.reason}"
+    except (OSError, json.JSONDecodeError):
+        return "error", "Gemini ตอบกลับไม่ถูกต้อง"
+
+
+def generate_with_keys(text: str, keys, *, on_result=None, opener=urlopen) -> tuple[bytes, str]:
+    """Try each (key_id, api_key) in order. Quota/invalid/transient failures move on to the next
+    key; on_result(key_id, outcome, message) records what happened. Raises the last error."""
+    last_error = None
+    for key_id, api_key in keys:
+        try:
+            audio = generate_gemini_tts_audio(text, api_key, opener=opener)
+        except GeminiTTSError as exc:
+            last_error = exc
+            if on_result:
+                on_result(key_id, exc.kind, str(exc))
+            continue
+        if on_result:
+            on_result(key_id, "ok", "")
+        return audio
+    if last_error is None:
+        raise GeminiTTSError("ยังไม่มีคีย์ Gemini ที่ใช้งานได้ กรุณาเพิ่มคีย์ในหน้า “คีย์ API เสียงบรรยาย”")
+    if last_error.kind == "quota":
+        raise GeminiTTSError(f"โควตาของคีย์ Gemini ทุกคีย์เต็มแล้ว กรุณาเพิ่มคีย์หรือรอให้โควตารีเซ็ต (ล่าสุด: HTTP {last_error.status or 429})", 429, last_error.detail)
+    raise last_error
+
+
 def generate_gemini_tts_audio(text: str, api_key: str, *, opener=urlopen) -> tuple[bytes, str]:
     if not api_key:
         raise GeminiTTSError("GEMINI_API_KEY is not configured")
     prompt = "อ่านคำบรรยายต่อไปนี้เป็นภาษาไทย น้ำเสียงชัดเจน เป็นมิตร เหมาะกับนิทรรศการและแหล่งเรียนรู้ เว้นจังหวะพอดี:\n" + text.strip()
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": "Iapetus"}}}}}
     request_obj = Request(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent",
+        TTS_MODEL_URL + ":generateContent",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={"Content-Type": "application/json", "x-goog-api-key": api_key}, method="POST",
     )
@@ -63,7 +121,7 @@ def generate_gemini_tts_audio(text: str, api_key: str, *, opener=urlopen) -> tup
             response_data = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         detail = exc.read(500).decode("utf-8", errors="replace").strip()
-        raise GeminiTTSError(f"Gemini API returned HTTP {exc.code}: {detail or exc.reason}") from exc
+        raise GeminiTTSError(f"Gemini API returned HTTP {exc.code}: {detail or exc.reason}", exc.code, detail) from exc
     except URLError as exc:
         raise GeminiTTSError(f"Gemini API connection failed: {exc.reason}") from exc
     except (OSError, json.JSONDecodeError) as exc:

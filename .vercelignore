@@ -17,3 +17,7 @@ cloudflare/
 config.json
 config.example.json
 requirements-dev.txt
+# Legacy local 3D files (181 MB). All models are served from R2; D1 references none of these.
+# Kept in Git and on disk, only excluded from the function bundle (Vercel limit 225 MB).
+static/model/
+static/model_original/

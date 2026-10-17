@@ -1,0 +1,6 @@
+{# Shown only when something limits what this account or deployment can do. #}
+{% if admin_read_only %}
+<div class="notice notice--readonly" role="status">บัญชีนี้ดูได้อย่างเดียว ฟอร์มจึงถูกปิดไว้ หากต้องการแก้ไข โปรดติดต่อเจ้าของระบบ</div>
+{% elif uploads_disabled %}
+<div class="notice" role="status">ยังอัปโหลดไฟล์ใหม่ไม่ได้ เพราะยังไม่ได้ตั้งค่าพื้นที่เก็บไฟล์ Cloudflare R2 แต่ยังแก้ข้อความและใส่ลิงก์รูป/ไฟล์ที่มีอยู่แล้วได้ (ข้อมูลบันทึกลงฐานข้อมูล D1)</div>
+{% endif %}

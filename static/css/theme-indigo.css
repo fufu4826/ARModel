@@ -1,0 +1,437 @@
+/* =====================================================================
+   Theme "คราม-ไหม" (Indigo & Silk) for the public site — loaded after style.css.
+   Indigo from Sakon Nakhon's GI-registered indigo dye, silk gold from
+   Phu Phan's sericulture, paper ground like mulberry paper.
+   Text colours meet WCAG 2.2 AA (>= 4.5:1 on their backgrounds).
+   Layout and behaviour of components (incl. the approved desktop hover
+   panel) stay as in style.css; this file only restyles them.
+   ===================================================================== */
+:root {
+  --indigo-950: #121a35;
+  --indigo-900: #1f2f5c;
+  --indigo-800: #283c73;
+  --indigo-700: #33498a;
+  --indigo-100: #e3e8f4;
+  --indigo-50: #f0f3fa;
+  --silk-600: #8a6418;   /* gold for text: 5.0:1 on paper */
+  --silk-500: #b8862b;   /* decorative gold */
+  --silk-200: #ecd9a8;
+  --silk-50: #fbf4e2;
+  --paper: #f7f2e7;
+  --paper-2: #fffdf8;
+
+  /* Re-map the existing tokens so every component picks up the theme. */
+  --green: var(--indigo-900);
+  --green-dark: var(--indigo-950);
+  --green-soft: var(--indigo-50);
+  --gold: var(--silk-500);
+  --gold-soft: var(--silk-50);
+  --page: var(--paper);
+  --surface: var(--paper-2);
+  --line: #e2d9c6;
+  --text: #1c2233;
+  --muted: #535a6b;
+  --shadow: 0 1px 2px rgba(18, 26, 53, 0.06), 0 10px 28px rgba(18, 26, 53, 0.08);
+  --radius: 12px;
+  --font-body: "Noto Sans Thai Looped", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-heading: "Kanit", "Noto Sans Thai", system-ui, sans-serif;
+  --font-primary: var(--font-body);
+
+  /* Woven band: thin indigo/gold weave used under the header and as dividers. */
+  --silk-band: repeating-linear-gradient(135deg, var(--indigo-900) 0 6px, var(--silk-500) 6px 8px, var(--indigo-800) 8px 14px, var(--silk-200) 14px 15px);
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 16.5px;
+  line-height: 1.75;
+  color: var(--text);
+  background-color: var(--paper);
+  background-image: radial-gradient(rgba(138, 100, 24, 0.05) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+h1, h2, h3, .brand-mark strong, .button, .eyebrow, .nav-actions a, .stat-card strong {
+  font-family: var(--font-heading);
+}
+h1, h2, h3 { color: var(--indigo-900); letter-spacing: 0; line-height: 1.3; }
+h1 { font-weight: 600; }
+h2, h3 { font-weight: 600; }
+p, li, dd, address { color: var(--text); }
+a { color: var(--indigo-700); }
+:focus-visible { outline: 3px solid var(--silk-500); outline-offset: 3px; }
+
+/* ---------- Header ---------- */
+.site-nav {
+  background: rgba(255, 253, 248, 0.97);
+  border-bottom: 0;
+  box-shadow: 0 1px 0 var(--line);
+  position: sticky;
+}
+.site-nav::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 4px;
+  background: var(--silk-band);
+  pointer-events: none;
+}
+.brand-mark strong { color: var(--indigo-900); font-weight: 600; }
+.brand-mark small { color: var(--muted); }
+.nav-actions a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--indigo-900);
+  font-weight: 500;
+  border-radius: 999px;
+}
+.nav-actions a:hover, .nav-actions a[aria-current="page"], .nav-actions a.active {
+  background: var(--indigo-50);
+  color: var(--indigo-900);
+}
+.mobile-nav-toggle { min-height: 44px; color: var(--indigo-900); border-color: var(--line); background: var(--paper-2); }
+
+/* ---------- Eyebrows, buttons, chips ---------- */
+.eyebrow {
+  background: var(--silk-50);
+  color: var(--silk-600);
+  border: 1px solid var(--silk-200);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.button {
+  min-height: 46px;
+  border-radius: 999px;
+  background: var(--indigo-900);
+  border-color: var(--indigo-900);
+  color: #fff;
+  font-weight: 500;
+}
+.button:hover { background: var(--indigo-800); border-color: var(--indigo-800); }
+.button.secondary {
+  background: transparent;
+  color: var(--indigo-900);
+  border: 1.5px solid var(--indigo-900);
+}
+.button.secondary:hover { background: var(--indigo-50); }
+.button.small { min-height: 40px; }
+
+/* ---------- Home hero ---------- */
+.hero-copy {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(184, 134, 43, 0.22), transparent 55%),
+    linear-gradient(160deg, var(--indigo-900), var(--indigo-950));
+  border: 0;
+  color: #fff;
+}
+.hero-copy::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
+  background: var(--silk-band);
+}
+.hero-copy h1, .hero-copy h2, .hero-copy p, .hero-copy .lead { color: #fff; }
+.hero-copy h2, .hero-copy .lead { color: #f3e6c4; }
+.hero-copy .eyebrow { background: rgba(255, 255, 255, 0.1); color: #f3d58d; border-color: rgba(243, 213, 141, 0.45); }
+.hero-copy .button { background: #f3d58d; border-color: #f3d58d; color: var(--indigo-950); }
+.hero-copy .button:hover { background: #fff; border-color: #fff; }
+.hero-copy .button.secondary { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.75); }
+.hero-copy .button.secondary:hover { background: rgba(255, 255, 255, 0.12); }
+
+/* ---------- Cards ---------- */
+.project-card, .model-card, .step-card, .stat-card, .info-card, .centre-information,
+.related-card, .info-panel, .viewer-card, .viewer-help, .viewer-instructions, .centre-contact {
+  background: var(--paper-2);
+  border-color: var(--line);
+  border-radius: var(--radius);
+}
+.project-card, .model-card, .related-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.project-card:hover, .model-card:hover, .related-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--silk-200);
+  box-shadow: 0 16px 34px rgba(18, 26, 53, 0.14);
+}
+.stat-card strong { color: var(--indigo-900); }
+.step-card .step-number, .step-number { background: var(--indigo-900); color: #fff; }
+.badge, .count-pill {
+  background: var(--silk-50);
+  color: var(--silk-600);
+  border-color: var(--silk-200);
+}
+
+/* Category colour per learning source (set by data-category on the card). */
+[data-category] { --cat: var(--indigo-900); --cat-soft: var(--indigo-50); }
+[data-category="silk"] { --cat: #1f2f5c; --cat-soft: #e3e8f4; }
+[data-category="mushroom"] { --cat: #6b4426; --cat-soft: #f4ebe2; }
+[data-category="livestock"] { --cat: #8a3b1e; --cat-soft: #f7e9e2; }
+[data-category="rice"] { --cat: #7a5a12; --cat-soft: #f8f0dc; }
+[data-category="fishery"] { --cat: #1d5a6b; --cat-soft: #e1eff2; }
+[data-category="garden"] { --cat: #2f5d2c; --cat-soft: #e6f0e3; }
+[data-category="herb"] { --cat: #5c3a6e; --cat-soft: #efe6f3; }
+[data-category="rubber"] { --cat: #4f4a3c; --cat-soft: #efede6; }
+[data-category="food"] { --cat: #8a4b12; --cat-soft: #f8ecdf; }
+.project-card[data-category], .model-card[data-category] { border-top: 4px solid var(--cat); }
+
+/* ---------- Centre story cards ---------- */
+.centre-story { display: grid; gap: 24px; }
+.centre-story__intro { font-size: 17.5px; max-width: 70ch; }
+.centre-mission {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.centre-mission li {
+  position: relative;
+  padding: 18px 18px 18px 64px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.centre-mission li::before {
+  content: attr(data-icon);
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--indigo-50);
+  font-size: 18px;
+}
+.centre-contact { background: var(--indigo-50); border: 1px solid var(--indigo-100); }
+.centre-contact h3 { margin-top: 0; }
+.content-source, .content-source a { color: var(--muted); font-size: 14px; }
+
+/* ---------- Model list: filter chips & cards ---------- */
+.filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 0; padding: 0; list-style: none; }
+.filter-chip {
+  min-height: 40px;
+  padding: 6px 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.filter-chip:hover { border-color: var(--indigo-700); }
+.filter-chip:focus-visible, .model-tabs__tab:focus-visible { outline: 3px solid var(--silk-500); outline-offset: 2px; }
+.filter-chip-group { grid-column: 1 / -1; }
+.filter-chip-label { display: block; font-weight: 600; margin-bottom: 4px; }
+.model-tabs__list[hidden], .filter-chip-group[hidden] { display: none; }
+.visually-hidden-field {
+  position: absolute !important; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+.filter-chip[aria-pressed="true"] { background: var(--indigo-900); border-color: var(--indigo-900); color: #fff; }
+.model-card .card-image, .model-card img { aspect-ratio: 4 / 3; object-fit: cover; }
+.model-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 0; }
+.model-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: var(--indigo-50);
+  color: var(--indigo-900);
+}
+.model-tag--audio { background: var(--silk-50); color: var(--silk-600); }
+
+/* ---------- Model page: tabs and mobile action bar ---------- */
+.model-tabs { margin-top: 18px; }
+.model-tabs__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px;
+  background: var(--indigo-50);
+  border-radius: var(--radius);
+}
+.model-tabs__tab {
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--indigo-900);
+  font: inherit;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.model-tabs__tab:hover { background: rgba(255, 255, 255, 0.7); }
+.model-tabs__tab[aria-selected="true"] { background: var(--indigo-900); color: #fff; box-shadow: inset 0 -3px 0 var(--silk-500); }
+.model-tabs__panel { padding-top: 16px; }
+.model-tabs__panel > section, .model-tabs__panel > .viewer-instructions, .model-tabs__panel > .viewer-help {
+  margin: 0 0 16px;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  background: transparent;
+}
+.js-tabs .model-tabs__panel[hidden] { display: none; }
+.model-tabs__heading { display: none; }
+.no-js-tabs .model-tabs__heading { display: block; }
+.model-action-bar { display: none; }
+
+.lead#modelDescription { font-size: 17px; line-height: 1.8; white-space: pre-line; }
+
+@media (max-width: 760px) {
+  body { font-size: 16px; }
+  .model-action-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(255, 253, 248, 0.97);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -6px 20px rgba(18, 26, 53, 0.12);
+  }
+  .model-action-bar .button { width: 100%; }
+  .viewer-page { padding-bottom: 76px; }
+  /* Mobile info panel keeps the original reading order: title, audio, gallery, then the tabs. */
+  .info-panel > .model-audio-badge,
+  .info-panel > .model-detail-narration-availability { order: 2; align-self: flex-start; }
+  .info-panel > .model-tabs { order: 5; }
+}
+
+/* ---------- Model viewer, AR button, slider and popup colours ---------- */
+.ar-button { background: var(--indigo-900); box-shadow: 0 10px 24px rgba(31, 47, 92, 0.28); }
+.site-slide-content { background: rgba(31, 47, 92, 0.92); }
+.site-slide-modal__close { background: rgba(31, 47, 92, 0.96); }
+.site-slide-modal__backdrop { background: rgba(18, 26, 53, 0.62); }
+body:not(.landing-page) .site-slider-section .site-slide { background: var(--paper-2); }
+@media (hover: hover) and (pointer: fine) and (min-width: 921px) {
+  body:not(.landing-page) .site-slider-section .site-slide-hover-content,
+  .site-slide-hover-panel--portal .site-slide-hover-content { background: rgba(31, 47, 92, 0.97); }
+  .site-slide-hover-panel--portal { background: var(--paper-2); }
+}
+
+/* ---------- Landing (cover) page ---------- */
+body.landing-page { background: var(--indigo-950); }
+.landing-overlay {
+  background: linear-gradient(90deg, rgba(18, 26, 53, 0.9) 0%, rgba(18, 26, 53, 0.72) 36%, rgba(18, 26, 53, 0.3) 64%, rgba(18, 26, 53, 0.05) 100%);
+}
+.eyebrow.landing-eyebrow { color: #f3d58d; background: rgba(18, 26, 53, 0.4); border-color: rgba(243, 213, 141, 0.5); }
+.landing-button { border-radius: 999px; }
+
+/* ---------- Footer ---------- */
+.site-footer {
+  position: relative;
+  width: 100%;
+  margin: 32px 0 0;
+  padding: 28px max(16px, calc((100% - 1180px) / 2)) 32px;
+  box-sizing: border-box;
+  background: var(--indigo-950);
+  color: #e8e3d4;
+  border-top: 0;
+}
+.site-footer::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 4px;
+  background: var(--silk-band);
+}
+.site-footer a, .site-footer span, .site-footer p, .site-footer li, .site-footer h2, .site-footer h3 { color: #e8e3d4; }
+
+/* ---------- Accessibility fixes (axe: color-contrast, target-size) ---------- */
+.muted, .meta, small, .card-meta, .section-note { color: var(--muted); }
+.swiper-pagination-bullet, .site-slider .swiper-pagination-bullet { width: 12px; height: 12px; margin: 0 8px !important; position: relative; }
+.swiper-pagination-bullet::after { content: ""; position: absolute; inset: -6px; }
+.breadcrumb a { min-height: 24px; display: inline-flex; align-items: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .project-card, .model-card, .related-card { transition: none; }
+  .project-card:hover, .model-card:hover, .related-card:hover { transform: none; }
+}
+
+/* Hero heading: keep Thai place names together, size to the card. */
+.homepage-hero h1 { font-size: clamp(32px, 3.4vw, 46px); line-height: 1.2; text-wrap: balance; }
+.centre-contact { align-self: start; }
+
+/* ---------- Indigo-cloth pattern (ผ้าลายนครธรรม), faded with CSS ----------
+   The tile itself has no fade; each spot sets its own strength and reach. */
+:root { --weave-indigo: url("../img/patterns/nakhontham-indigo.webp"); }
+.weave-fade, .hero-copy, .site-footer { isolation: isolate; }
+.hero-copy::before, .site-footer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: var(--weave-indigo) repeat left bottom / var(--weave-size, 210px auto);
+  opacity: var(--weave-strength, 0.35);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0.45) 40%, transparent var(--weave-reach, 90%));
+  mask-image: linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0.45) 40%, transparent var(--weave-reach, 90%));
+}
+.hero-copy::before { --weave-strength: 0.32; --weave-reach: 85%; }
+.site-footer::after { --weave-strength: 0.3; --weave-reach: 95%; }
+
+/* ---------- Centre information: editorial layout (museum wall-label style) ---------- */
+.ico { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.centre-information-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 48px; align-items: start; }
+.centre-story__intro { font-size: 19px; line-height: 1.85; color: var(--text); max-width: 60ch; margin: 0 0 28px; }
+.centre-story h3 { margin: 0 0 4px; font-size: 15px; letter-spacing: .02em; color: var(--silk-600); font-weight: 600; }
+.centre-information .centre-mission { list-style: none; counter-reset: mission; display: block; padding: 0; margin: 0 0 24px; border-top: 1px solid var(--line); }
+.centre-information .centre-mission li {
+  counter-increment: mission; position: relative; display: grid; grid-template-columns: 56px 1fr; align-items: baseline;
+  padding: 16px 0; margin: 0; border: 0; border-bottom: 1px solid var(--line); background: none; box-shadow: none; border-radius: 0;
+  font-size: 16.5px; line-height: 1.75;
+}
+.centre-information .centre-mission li::before {
+  content: counter(mission, thai); position: static; width: auto; height: auto; margin: 0; display: block; background: none;
+  font-family: var(--font-heading); font-size: 30px; line-height: 1; font-weight: 500; color: var(--indigo-900);
+}
+.centre-information .centre-mission li::after { content: none; }
+.centre-contact { padding: 0; overflow: hidden; background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--radius); }
+.centre-contact__map { position: relative; aspect-ratio: 16 / 9; background: var(--indigo-50); }
+.centre-contact__map iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; filter: saturate(.85); }
+.centre-contact__body { padding: 22px 24px 20px; }
+.centre-contact__kicker { margin: 0 0 4px; font-size: 13.5px; font-weight: 600; color: var(--silk-600); }
+.centre-contact__body h3 { margin: 0 0 16px; font-size: 19px; line-height: 1.45; color: var(--indigo-900); }
+.centre-contact__facts { margin: 0 0 18px; display: grid; gap: 0; }
+.centre-contact__facts > div { display: grid; grid-template-columns: 116px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.centre-contact__facts dt { display: flex; align-items: center; gap: 8px; align-self: start; font-weight: 600; color: var(--indigo-900); font-size: 14.5px; }
+.centre-contact__facts dd { margin: 0; line-height: 1.7; }
+.centre-contact__facts address { font-style: normal; }
+.centre-contact__actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+.centre-contact__actions .button { display: inline-flex; align-items: center; gap: 8px; }
+@media (max-width: 900px) { .centre-information-grid { grid-template-columns: 1fr; gap: 32px; } }
+@media (max-width: 480px) { .centre-contact__facts > div { grid-template-columns: 1fr; gap: 4px; } }
+
+/* Woven hem (ตีนผ้า) instead of the plain striped line. */
+:root { --hem: url("../img/patterns/indigo-border.webp"); }
+.hero-copy::after { height: 22px; background: var(--hem) repeat-x left center / auto 22px; }
+.hero-copy { padding-bottom: calc(var(--hero-pad-bottom, 40px) + 22px); }
+.site-footer::before { height: 22px; background: var(--hem) repeat-x left center / auto 22px; }
+.site-footer { padding-top: 50px; }
+.site-nav::after { height: 10px; bottom: -10px; background: var(--hem) repeat-x left center / auto 10px; }
+.site-footer-rich strong { color: #fff; }
+.content-section.centre-information { padding: clamp(24px, 4vw, 48px) clamp(20px, 4vw, 52px); }

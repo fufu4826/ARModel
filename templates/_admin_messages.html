@@ -3,6 +3,4 @@
   <div class="admin-message {{ category }}" role="status">{{ message }}</div>
   {% endfor %}
 {% endwith %}
-{% if uploads_disabled %}
-<div class="admin-message warning">ระบบ production เป็นโหมดอ่านอย่างเดียว ข้อมูลเผยแพร่จากไฟล์ data/*.json และไฟล์สื่อบน Cloudflare R2 กรุณาแก้ไขผ่าน workflow ภายในเครื่องแล้ว deploy ใหม่</div>
-{% endif %}
+{% include "_admin_storage_notice.html" %}

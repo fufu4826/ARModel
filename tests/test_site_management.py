@@ -9,16 +9,19 @@ from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 import app as module
+from admin_session import grant_admin_session
 from werkzeug.datastructures import FileStorage
 from werkzeug.exceptions import BadRequest, RequestEntityTooLarge
 
 
 class SiteManagementTests(unittest.TestCase):
     def setUp(self):
+        module.app.config["TESTING"] = True
         self.temp_dir = tempfile.TemporaryDirectory()
         data_dir = Path(self.temp_dir.name)
         self.original_paths = {
             "CATALOG_FILE": module.CATALOG_FILE,
+            "CONFIG_FILE": module.CONFIG_FILE,
             "PROJECTS_FILE": module.PROJECTS_FILE,
             "SITE_SETTINGS_FILE": module.SITE_SETTINGS_FILE,
             "SLIDER_ITEMS_FILE": module.SLIDER_ITEMS_FILE,
@@ -26,9 +29,9 @@ class SiteManagementTests(unittest.TestCase):
             "SLIDER_UPLOAD_DIR": module.SLIDER_UPLOAD_DIR,
             "AUDIO_DIR": module.AUDIO_DIR,
             "ANALYTICS_FILE": module.ANALYTICS_FILE,
-            "LOCAL_LOGIN_RATE_LIMIT_DIR": module.LOCAL_LOGIN_RATE_LIMIT_DIR,
         }
         module.CATALOG_FILE = data_dir / "models.json"
+        module.CONFIG_FILE = data_dir / "config.json"
         module.PROJECTS_FILE = data_dir / "projects.json"
         module.SITE_SETTINGS_FILE = data_dir / "site_settings.json"
         module.SLIDER_ITEMS_FILE = data_dir / "slider_items.json"
@@ -36,26 +39,28 @@ class SiteManagementTests(unittest.TestCase):
         module.SLIDER_UPLOAD_DIR = data_dir / "static" / "uploads" / "sliders"
         module.AUDIO_DIR = data_dir / "static" / "audio"
         module.ANALYTICS_FILE = data_dir / "analytics_events.json"
-        module.LOCAL_LOGIN_RATE_LIMIT_DIR = data_dir / "login-rate-limit"
-        module._JSON_CACHE.clear()
-        module._PRODUCTION_JSON_CACHE.clear()
-        module.write_json(module.CATALOG_FILE, module.DEFAULT_MODELS)
-        module.write_json(module.PROJECTS_FILE, module.DEFAULT_PROJECTS)
-        module.write_json(module.SITE_SETTINGS_FILE, module.DEFAULT_SITE_SETTINGS)
-        module.write_json(module.SLIDER_ITEMS_FILE, [])
+        module.write_dataset(module.PROJECTS_FILE, module.DEFAULT_PROJECTS)
+        module.write_dataset(module.CATALOG_FILE, module.DEFAULT_MODELS)
+        module.write_dataset(module.PROJECTS_FILE, module.DEFAULT_PROJECTS)
+        module.write_dataset(module.SITE_SETTINGS_FILE, module.DEFAULT_SITE_SETTINGS)
+        module.write_dataset(module.SLIDER_ITEMS_FILE, [])
         module.app.config.update(TESTING=True, SECRET_KEY="test-only-key")
         self.client = module.app.test_client()
 
     def tearDown(self):
         for name, value in self.original_paths.items():
             setattr(module, name, value)
-        module._JSON_CACHE.clear()
-        module._PRODUCTION_JSON_CACHE.clear()
         self.temp_dir.cleanup()
+
+    def login_post(self, data):
+        """Submit the login form the way a browser does: with the session's CSRF token."""
+        with self.client.session_transaction() as session:
+            token = session.setdefault("csrf_token", "login-csrf-token")
+        return self.client.post("/admin/login", data={**data, "csrf_token": token})
 
     def sign_in(self):
         with self.client.session_transaction() as session:
-            session["admin"] = True
+            grant_admin_session(session)
             session["csrf_token"] = "test-csrf-token"
         self.client.environ_base["HTTP_X_CSRF_TOKEN"] = "test-csrf-token"
 
@@ -100,24 +105,104 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(response.headers["X-Frame-Options"], "SAMEORIGIN")
         self.assertNotIn("Strict-Transport-Security", response.headers)
 
+    def test_admin_login_requires_both_username_and_password(self):
+        module.save_admin_password("review-password", "curator")
+        with (
+            patch.dict(module.os.environ, {"ADMIN_PASSWORD": "review-password", "ADMIN_USERNAME": "curator"}),
+            patch.object(module, "write_audit_event"),
+        ):
+            for data in (
+                {"password": "review-password"},
+                {"username": "someone-else", "password": "review-password"},
+                {"username": "curator", "password": "wrong-password"},
+            ):
+                response = self.login_post(data=data)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", response.get_data(as_text=True))
+                with self.client.session_transaction() as session:
+                    self.assertFalse(session.get("admin"))
+            response = self.login_post(data={"username": "curator", "password": "review-password"})
+            self.assertEqual(response.status_code, 302)
+            with self.client.session_transaction() as session:
+                self.assertTrue(session["admin"])
+                self.assertTrue(session["admin_session_id"])
+
+    def test_admin_username_and_password_hash_come_from_d1_users(self):
+        with patch.dict(module.os.environ, {"ADMIN_USERNAME": "env-user", "ADMIN_PASSWORD": "env-password"}, clear=True):
+            module.save_admin_password("existing-password", "local-curator")
+            self.assertEqual(module.configured_admin_username(), "local-curator")
+            self.assertTrue(module.verify_admin_credentials("local-curator", "existing-password"))
+            self.assertTrue(module.verify_admin_credentials("LOCAL-Curator", "existing-password"))
+            self.assertFalse(module.verify_admin_credentials("env-user", "env-password"))
+            self.assertFalse(module.verify_admin_credentials("", "existing-password"))
+            stored = module.admin_users_repository.owner(module.admin_db())["password_hash"]
+            self.assertNotEqual(stored, "existing-password")
+
+    def test_first_run_saves_username_and_hashed_password_only_in_test_config(self):
+        with (
+            patch.dict(module.os.environ, {}, clear=True),
+            patch.object(module, "write_audit_event"),
+        ):
+            for username in ("", "ab", "invalid name"):
+                response = self.login_post(data={"username": username, "password": "new-password", "confirm_password": "new-password"})
+                self.assertEqual(response.status_code, 200)
+                self.assertFalse(module.admin_password_configured())
+            response = self.login_post(data={"username": "new-curator", "password": "new-password", "confirm_password": "new-password"})
+            self.assertEqual(response.status_code, 302)
+            owner = module.admin_users_repository.owner(module.admin_db())
+            self.assertEqual(owner["username"], "new-curator")
+            self.assertEqual(owner["role"], "owner")
+            self.assertNotEqual(owner["password_hash"], "new-password")
+            self.assertTrue(module.verify_admin_credentials("new-curator", "new-password"))
+
+    def test_first_run_uses_d1_account_instead_of_legacy_environment_username(self):
+        with (
+            patch.dict(module.os.environ, {"ADMIN_USERNAME": "configured-curator"}, clear=True),
+            patch.object(module, "write_audit_event"),
+        ):
+            data = {"username": "chosen-curator", "password": "new-password", "confirm_password": "new-password"}
+            self.assertEqual(self.login_post(data=data).status_code, 302)
+        self.assertEqual(module.configured_admin_username(), "chosen-curator")
+
+    def test_public_centre_information_and_model_instructions(self):
+        home = self.client.get("/home").get_data(as_text=True)
+        self.assertIn('id="phuphan-centre"', home)
+        self.assertIn("ภารกิจและพันธกิจโดยสรุป", home)
+        self.assertIn('href="tel:042747458"', home)
+        self.assertIn("บ้านนานกเค้า", home)
+        model = self.client.get("/models/lychee").get_data(as_text=True)
+        self.assertIn('id="ar-guide-title"', model)
+        self.assertIn('id="model-file-help"', model)
+        self.assertIn("Blender", model)
+        self.assertIn("glTF 2.0 (.glb/.gltf)", model)
+        self.assertIn("Google Play Services for AR", model)
+        self.assertIn('id="arHelpStatus"', model)
+        self.assertIn('id="mainModelViewer"', model)
+        self.assertIn('href="tel:042747459"', model)
+        login = self.client.get("/admin/login").get_data(as_text=True)
+        self.assertIn('name="username"', login)
+        self.assertIn('autocomplete="username"', login)
+        self.assertIn('name="password"', login)
+
     def test_login_rate_limit_records_failures_and_blocks_before_password_check(self):
+        module.save_admin_password("correct-password", "admin")
         audit_events = []
         with (
             patch.dict(module.os.environ, {"ADMIN_PASSWORD": "correct-password"}, clear=False),
             patch.object(module, "write_audit_event", side_effect=lambda *args, **kwargs: audit_events.append((args, kwargs))),
-            patch.object(module, "verify_admin_password", wraps=module.verify_admin_password) as verified,
+            patch.object(module.admin_users_repository, "authenticate", wraps=module.admin_users_repository.authenticate) as verified,
         ):
             for _ in range(module.LOGIN_FAILURE_LIMIT):
-                response = self.client.post("/admin/login", data={"password": "wrong-password"})
+                response = self.login_post(data={"password": "wrong-password"})
                 self.assertEqual(response.status_code, 200)
-            blocked = self.client.post("/admin/login", data={"password": "correct-password"})
+            blocked = self.login_post(data={"password": "correct-password"})
 
         self.assertEqual(blocked.status_code, 429)
         self.assertEqual(verified.call_count, module.LOGIN_FAILURE_LIMIT)
         self.assertNotIn("correct-password", blocked.get_data(as_text=True))
-        self.assertEqual(len(list(module.LOCAL_LOGIN_RATE_LIMIT_DIR.rglob("*.json"))), module.LOGIN_FAILURE_LIMIT)
+        self.assertEqual(len(module.get_database().events("login")), module.LOGIN_FAILURE_LIMIT)
         self.assertTrue(any(args[2] == "rejected" for args, _ in audit_events))
-        persisted = "".join(path.read_text(encoding="utf-8") for path in module.LOCAL_LOGIN_RATE_LIMIT_DIR.rglob("*.json"))
+        persisted = json.dumps(module.get_database().events("login"))
         self.assertNotIn("wrong-password", persisted)
 
     def test_login_rate_limit_expiry_reset_and_separate_clients(self):
@@ -143,27 +228,22 @@ class SiteManagementTests(unittest.TestCase):
                 trusted = module.login_rate_limit_identity()
         self.assertNotEqual(local_one, trusted)
 
-    def test_login_rate_limit_r2_keys_are_unique_and_storage_failures_fail_open(self):
+    def test_login_attempts_use_d1_and_fail_closed_on_storage_outage(self):
         now = module.datetime(2026, 8, 10, 12, tzinfo=module.timezone.utc)
-        uploaded = []
-        with (
-            patch.object(module, "is_vercel_runtime", return_value=True),
-            patch.object(module, "r2_upload_bytes", side_effect=lambda data, key, *args: uploaded.append((data, key))),
-        ):
-            self.assertTrue(module.record_login_attempt("c" * 64, "failure", now))
-            self.assertTrue(module.record_login_attempt("c" * 64, "failure", now))
-        self.assertEqual(len({key for _, key in uploaded}), 2)
-        self.assertNotIn("password", b"".join(data for data, _ in uploaded).decode("utf-8"))
-        with patch.object(module, "is_vercel_runtime", return_value=True), patch.object(module, "r2_upload_bytes", side_effect=OSError("offline")):
-            self.assertFalse(module.record_login_attempt("c" * 64, "failure", now))
-        with patch.object(module, "is_vercel_runtime", return_value=True), patch.object(module, "r2_list_object_keys", side_effect=OSError("offline")):
-            self.assertFalse(module.login_is_rate_limited("c" * 64, now))
+        module.record_login_attempt("c" * 64, "failure", now)
+        module.record_login_attempt("c" * 64, "failure", now)
+        self.assertEqual(len(module.recent_login_attempts("c" * 64, now)), 2)
+        with patch.object(module.database_repository.Database, "batch", side_effect=module.database_repository.DatabaseError("offline")):
+            with self.assertRaises(module.database_repository.DatabaseError):
+                module.login_is_rate_limited("c" * 64, now)
+            self.assertEqual(self.login_post(data={"username": "admin", "password": "anything"}).status_code, 503)
 
     def test_https_responses_receive_hsts(self):
         response = self.client.get("/home", base_url="https://localhost")
         self.assertIn("max-age=31536000", response.headers["Strict-Transport-Security"])
 
     def test_public_apis_exclude_hidden_content_and_hidden_relationships(self):
+        module.save_models([])
         module.save_projects(
             [
                 {"id": "visible-project", "name": "Visible project", "visible": True},
@@ -208,43 +288,12 @@ class SiteManagementTests(unittest.TestCase):
         self.assertNotIn("Hidden model", str(models))
         self.assertNotIn("Hidden project", str(projects))
 
-    def test_vercel_runtime_reads_slider_json_from_github(self):
-        remote_sliders = [
-            {
-                "id": "remote-slider",
-                "title": "Remote Updated Title",
-                "description": "Updated remotely",
-                "image_url": "https://example.com/remote.webp",
-                "active": True,
-            }
-        ]
-
-        def fake_github_request(method, api_path, payload=None):
-            self.assertEqual(method, "GET")
-            self.assertIn("data/slider_items.json", api_path)
-            encoded = base64.b64encode(
-                json.dumps(remote_sliders).encode("utf-8")
-            ).decode("ascii")
-            return {"content": encoded}
-
-        with (
-            patch.dict(
-                module.os.environ,
-                {
-                    "VERCEL": "1",
-                    "GITHUB_CONTENTS_TOKEN": "token",
-                    "GITHUB_REPOSITORY": "fufu4826/ARModel",
-                    "GITHUB_BRANCH": "main",
-                },
-            ),
-            patch.object(module, "github_api_request", side_effect=fake_github_request),
-            patch.object(module, "production_data_relative_path", return_value="data/slider_items.json"),
-        ):
+    def test_slider_reads_d1_rows_without_github(self):
+        module.save_slider_items([{"id": "remote-slider", "title": "D1 Updated Title", "active": True}])
+        with patch.object(module, "is_vercel_runtime", return_value=True):
             response = self.client.get("/api/sliders")
-
         self.assertEqual(response.status_code, 200)
-        payload = response.get_json()
-        self.assertEqual(payload[0]["title"], "Remote Updated Title")
+        self.assertEqual(response.get_json()[0]["title"], "D1 Updated Title")
 
     def test_public_pages_do_not_show_usage_text(self):
         for route in ("/", "/home", "/models", "/models/lychee"):
@@ -302,6 +351,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertNotIn("3D/AR", template)
         self.assertNotIn("R2 + JSON", template)
 
+        module.save_models([])
         module.save_projects(
             [
                 {"id": "project-a", "name": "Project A", "visible": True},
@@ -1074,7 +1124,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertEqual(self.client.get("/admin/audit-logs").status_code, 302)
         with tempfile.TemporaryDirectory() as audit_dir, patch.object(module, "LOCAL_AUDIT_LOG_DIR", Path(audit_dir)):
             with self.client.session_transaction() as audit_session:
-                audit_session["admin"] = True
+                grant_admin_session(audit_session)
                 audit_session["admin_session_id"] = "test-session"
             with self.client:
                 self.client.get("/admin")
@@ -1088,7 +1138,7 @@ class SiteManagementTests(unittest.TestCase):
             self.assertEqual(event["metadata"]["password"], "[ปกปิด]")
             self.assertEqual(event["metadata"]["token"], "[ปกปิด]")
             self.assertEqual(event["metadata"]["bytes"]["kind"], "binary")
-            self.assertTrue(list(Path(audit_dir).rglob("*.json")))
+            self.assertTrue(module.get_database().events("audit"))
             page = self.client.get("/admin/audit-logs").get_data(as_text=True)
             self.assertIn("บันทึกการใช้งาน", page)
             self.assertIn("แก้ไขโมเดลทดสอบสำเร็จ", page)
@@ -1111,7 +1161,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("intro", sections)
         self.assertIn("branding", sections)
 
-        with patch("pathlib.Path.write_bytes", side_effect=OSError("disk full")):
+        with patch.object(module.database_repository.Database, "append_event", side_effect=module.database_repository.DatabaseError("disk full")):
             response = self.client.post(
                 "/admin/intro",
                 data={"intro_enabled": "on", "intro_display_mode": "sequence", "intro_logo_duration_ms": "1400"},
@@ -1120,29 +1170,17 @@ class SiteManagementTests(unittest.TestCase):
         page = response.get_data(as_text=True)
         self.assertIn("บันทึกข้อมูลสำเร็จ แต่ไม่สามารถเขียนบันทึกการใช้งานได้", page)
 
-    def test_production_audit_logs_are_listed_from_r2(self):
-        with self.client.session_transaction() as audit_session:
-            audit_session["admin"] = True
-            audit_session["admin_session_id"] = "r2-session"
+    def test_audit_logs_are_listed_from_d1_without_r2_reads(self):
+        self.sign_in()
         with self.client:
             self.client.get("/admin")
-            first = module.write_audit_event("auth", "login", "success", "เข้าสู่ระบบสำเร็จ")
-            second = module.write_audit_event("model", "edit", "success", "แก้ไขโมเดลสำเร็จ")
-        first["timestamp_utc"] = "2026-07-01T00:00:00+00:00"
-        first["timestamp_local"] = "2026-07-01T07:00:00+07:00"
-        first["signature"] = ""  # Re-sign after making the sort order deterministic.
-        unsigned_first = dict(first); unsigned_first.pop("signature")
-        first["signature"] = module.hmac.new(module.audit_signing_key(), module.json.dumps(unsigned_first, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"), module.hashlib.sha256).hexdigest()
-        objects = {"audit/2026/07/01/first.json": first, "audit/2026/07/01/second.json": second}
-        with (
-            patch.object(module, "is_vercel_runtime", return_value=True),
-            patch.object(module, "r2_list_object_keys", return_value=(list(objects), "")) as listed,
-            patch.object(module, "r2_get_bytes", side_effect=lambda key: module.json.dumps(objects[key]).encode("utf-8")),
-        ):
+            module.write_audit_event("model", "edit", "success", "D1 audit event")
+        with patch.object(module, "r2_list_object_keys") as listed, patch.object(module, "r2_get_bytes") as get:
             events = module.list_audit_events(2)
-        self.assertEqual([event["summary_th"] for event in events], ["แก้ไขโมเดลสำเร็จ", "เข้าสู่ระบบสำเร็จ"])
+        self.assertTrue(any(event["summary_th"] == "D1 audit event" for event in events))
         self.assertTrue(all(event["signature_valid"] for event in events))
-        self.assertEqual(listed.call_args.args[0], f"{module.AUDIT_PREFIX}{module.datetime.now(module.timezone.utc):%Y/%m/%d}/")
+        listed.assert_not_called()
+        get.assert_not_called()
 
     def test_gemini_dependency_and_audio_format_helpers(self):
         requirements = (
@@ -2303,9 +2341,24 @@ class SiteManagementTests(unittest.TestCase):
             self.assertIn('class="preset-btn"', admin_add_html)
             self.assertIn('data-preset-x="3.1416"', admin_add_html)
 
+    def test_stale_browser_form_is_rejected_without_overwriting_new_content(self):
+        import re
+        self.sign_in()
+        html = self.client.get("/admin").get_data(as_text=True)
+        revision = re.search(r'name="revision_models" value="(\d+)"', html).group(1)
+        models = module.get_models(True)
+        models[0]["description"] = "Newer editor content"
+        module.save_models(models)
+        response = self.client.post(f'/admin/models/{models[0]["id"]}/edit', data={
+            "name": models[0]["name"], "project_id": models[0]["project_id"],
+            "description": "Stale form content", "revision_models": revision, "visible": "on",
+        })
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(module.get_models(True)[0]["description"], "Newer editor content")
+
     def test_authenticated_admin_forms_include_session_csrf_token(self):
         with self.client.session_transaction() as session:
-            session["admin"] = True
+            grant_admin_session(session)
             session["csrf_token"] = "test-csrf-token"
         html = self.client.get("/admin").get_data(as_text=True)
         self.assertIn('name="csrf_token" value="test-csrf-token"', html)
@@ -2317,13 +2370,25 @@ class SiteManagementTests(unittest.TestCase):
 
 class ZeroSupabaseRuntimeTests(unittest.TestCase):
     def setUp(self):
-        module._JSON_CACHE.clear()
+        module.app.config["TESTING"] = True
+        from scripts.migrate_to_d1 import import_snapshot
+        self.temp_database = tempfile.TemporaryDirectory()
+        self.old_d1_path = module.app.config.get("D1_LOCAL_PATH")
+        module.app.config["D1_LOCAL_PATH"] = Path(self.temp_database.name) / "test.sqlite3"
+        import_snapshot(module.get_database(), module.DATA_DIR)
         module.app.config.update(TESTING=True, SECRET_KEY="test-only-key")
         self.client = module.app.test_client()
 
+    def tearDown(self):
+        if self.old_d1_path is None:
+            module.app.config.pop("D1_LOCAL_PATH", None)
+        else:
+            module.app.config["D1_LOCAL_PATH"] = self.old_d1_path
+        self.temp_database.cleanup()
+
     def sign_in(self):
         with self.client.session_transaction() as session:
-            session["admin"] = True
+            grant_admin_session(session)
             session["csrf_token"] = "test-csrf-token"
         self.client.environ_base["HTTP_X_CSRF_TOKEN"] = "test-csrf-token"
 

@@ -12,3 +12,7 @@ dist/
 .vercel
 static/uploads/
 data/analytics_events.json
+.wrangler/
+*.sqlite3
+*.sqlite3-*
+cloudflare/d1/.dev.vars*

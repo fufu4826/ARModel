@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Landing Page - Admin</title>
+  <title>หน้าปก - ARModel Admin</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
   {% include "_fonts.html" %}
 </head>
@@ -15,8 +15,8 @@
       <div class="admin-shell">
         <header class="admin-heading">
           <div>
-            <p class="admin-eyebrow">Content Management</p>
-            <h1>Landing Page Settings</h1>
+            <p class="admin-eyebrow">หน้าตาเว็บไซต์</p>
+            <h1>หน้าปก (Landing Page)</h1>
             <p>จัดการภาพหน้าปก ข้อความหลัก และปุ่มเข้าสู่เว็บไซต์</p>
           </div>
           <a class="button secondary" href="{{ url_for('index') }}" target="_blank" rel="noopener">ดูหน้า Landing หน้าเว็บจริง</a>
@@ -40,7 +40,7 @@
               <div class="preview-panel full">
                 <img data-image-preview="landing-cover-file" src="{{ settings.landing_cover_url }}" alt="ตัวอย่างภาพหน้าปก Landing Page" />
                 <div>
-                  <strong>Cover Image (Desktop)</strong>
+                  <strong>ภาพปกสำหรับคอมพิวเตอร์</strong>
                   <span>JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB</span>
                 </div>
               </div>
@@ -76,11 +76,11 @@
               <legend class="admin-section-title">ข้อความหน้าปก</legend>
 
               <div class="field full">
-                <label for="landing-headline">Headline</label>
+                <label for="landing-headline">หัวข้อหลัก (Headline)</label>
                 <input id="landing-headline" name="landing_headline" value="{{ settings.landing_headline }}" required />
               </div>
               <div class="field full">
-                <label for="landing-subheadline">Subheadline</label>
+                <label for="landing-subheadline">หัวข้อรอง (Subheadline)</label>
                 <input id="landing-subheadline" name="landing_subheadline" value="{{ settings.landing_subheadline }}" required />
               </div>
               <div class="field full">
@@ -88,11 +88,11 @@
                 <textarea id="landing-description" name="landing_description" rows="4">{{ settings.landing_description }}</textarea>
               </div>
               <div class="field">
-                <label for="landing-cta-text">CTA Button Text (ข้อความปุ่ม)</label>
+                <label for="landing-cta-text">ข้อความบนปุ่มหลัก</label>
                 <input id="landing-cta-text" name="landing_cta_text" value="{{ settings.landing_cta_text }}" required />
               </div>
               <div class="field">
-                <label for="landing-cta-url">CTA Button URL (ลิงก์ปุ่ม)</label>
+                <label for="landing-cta-url">ลิงก์ของปุ่มหลัก</label>
                 <input id="landing-cta-url" name="landing_cta_url" value="{{ settings.landing_cta_url }}" required />
               </div>
             </fieldset>

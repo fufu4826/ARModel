@@ -24,3 +24,5 @@ jobs:
       - run: node --check static/js/site-carousel.js
       - run: node --check static/js/model-narration.js
       - run: node --check static/js/admin-dashboard.js
+      - run: node --check static/js/ar-viewer.js
+      - run: node --test cloudflare/d1/worker.test.mjs

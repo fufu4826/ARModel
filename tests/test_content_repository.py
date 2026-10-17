@@ -43,7 +43,7 @@ def test_content_lookup_supports_id_and_slug():
     assert lookup["model-slug"] is record
 
 
-def test_load_normalized_filters_visibility_and_falls_back_to_defaults():
+def test_load_normalized_filters_visibility_and_preserves_empty_dataset():
     defaults = [{"id": "default", "visible": True}]
     reader = lambda _path, _defaults: [
         {"id": "shown", "visible": True},
@@ -58,7 +58,7 @@ def test_load_normalized_filters_visibility_and_falls_back_to_defaults():
     fallback = content.load_normalized(
         Path("models.json"), defaults, lambda *_: [], normalizer
     )
-    assert fallback == defaults
+    assert fallback == []
 
 
 def test_slider_and_settings_normalization_and_writer_delegation():

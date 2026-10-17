@@ -1,4 +1,4 @@
-"""Normalization and persistence orchestration for JSON content datasets."""
+"""Normalization and persistence orchestration for content records."""
 
 from __future__ import annotations
 
@@ -170,8 +170,6 @@ def normalize_slider_item(item: dict) -> dict:
 
 def load_normalized(path: Path, defaults, reader: Reader, normalizer: Callable, *, visible_key: str | None = None, include_hidden: bool = True) -> list[dict]:
     items = [normalizer(item) for item in reader(path, defaults)]
-    if not items:
-        items = [normalizer(item) for item in defaults]
     if visible_key and not include_hidden:
         return [item for item in items if item.get(visible_key, True)]
     return items

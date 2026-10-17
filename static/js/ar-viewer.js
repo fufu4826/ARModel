@@ -4,6 +4,7 @@
 
   const loadingState = document.getElementById("modelLoadingState");
   const errorState = document.getElementById("modelErrorState");
+  const arHelpStatus = document.getElementById("arHelpStatus");
   const arButton = viewer.querySelector(".ar-button");
   const modelSource = viewer.dataset.modelSrc || "";
   const shouldAutoActivateAr = viewer.dataset.autoAr === "true";
@@ -100,6 +101,10 @@
     if (!arButton) return;
     if (event.detail && event.detail.status === "failed") {
       arButton.hidden = true;
+      if (arHelpStatus) {
+        arHelpStatus.hidden = false;
+        arHelpStatus.textContent = "เปิด AR ไม่สำเร็จ ลองเปิดด้วยเบราว์เซอร์บนมือถือที่รองรับและตรวจสอบสิทธิ์กล้อง คุณยังหมุนดูโมเดลแบบ 3D ในหน้านี้ได้";
+      }
       return;
     }
     updateArButtonAvailability();

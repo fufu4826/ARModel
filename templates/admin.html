@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Dashboard - ศูนย์ศึกษาการพัฒนาภูพาน</title>
+  <title>โมเดลและแหล่งเรียนรู้ - ARModel Admin</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
   {% include "_fonts.html" %}
 </head>
@@ -15,9 +15,13 @@
       <div class="admin-shell">
         <header class="admin-heading">
           <div>
-            <p class="admin-eyebrow">ระบบผู้ดูแลระบบ</p>
-            <h1>Admin Dashboard</h1>
-            <p>จัดการแหล่งเรียนรู้และโมเดล AR สำหรับหน้าแสดงนิทรรศการ</p>
+            <p class="admin-eyebrow">เนื้อหา</p>
+            <h1>โมเดล 3D และแหล่งเรียนรู้</h1>
+            <p>จัดการแหล่งเรียนรู้และโมเดล 3D ที่แสดงบนเว็บไซต์ เพิ่ม แก้ไข ซ่อน หรือลบได้จากหน้านี้</p>
+          </div>
+          <div class="admin-heading-actions">
+            <a class="button" href="#add-model-section" data-admin-tab-link="add-model-section"><span class="admin-icon admin-icon--add" aria-hidden="true"></span> เพิ่มโมเดล</a>
+            <a class="button secondary" href="#add-project-section" data-admin-tab-link="add-project-section">เพิ่มแหล่งเรียนรู้</a>
           </div>
         </header>
 
@@ -27,54 +31,19 @@
           {% endfor %}
         {% endwith %}
 
-        {% if uploads_disabled %}
-        <div class="notice">Production read-only: uploads and admin writes are disabled until GitHub and Cloudflare R2 settings are configured.</div>
-        {% elif is_vercel %}
-        <div class="notice">Production writable: ไฟล์ที่อัปโหลดจะเก็บบน Cloudflare R2 และข้อมูลจะถูกบันทึกกลับไปยัง GitHub เพื่อ deploy ใหม่</div>
-        {% else %}
-        <div class="notice">โหมดพัฒนาในเครื่อง: การแก้ไขจะบันทึกลงไฟล์ JSON/local static เท่านั้น</div>
-        {% endif %}
+        {% include "_admin_storage_notice.html" %}
 
-        <!-- Dashboard Layout Cards -->
-        <section class="admin-dashboard-overview" aria-label="ส่วนลิงก์ด่วนแอดมิน">
-          <div class="admin-dashboard-card">
-            <h3><span class="admin-icon admin-icon--quick" aria-hidden="true"></span> Quick Actions (ทางลัดจัดการ)</h3>
-            <div class="admin-dashboard-card-links">
-              <a href="#add-project-section"><span class="admin-icon admin-icon--add" aria-hidden="true"></span> เพิ่มแหล่งเรียนรู้ใหม่</a>
-              <a href="#add-model-section"><span class="admin-icon admin-icon--models" aria-hidden="true"></span> เพิ่มโมเดลใหม่</a>
-              <a href="{{ url_for('home') }}" target="_blank"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> ดูหน้าเว็บไซต์สาธารณะ</a>
-            </div>
-          </div>
-
-          <div class="admin-dashboard-card">
-            <h3><span class="admin-icon admin-icon--landing" aria-hidden="true"></span> Content Management (จัดการเนื้อหา)</h3>
-            <div class="admin-dashboard-card-links">
-              <a href="{{ url_for('admin_sliders') }}"><span class="admin-icon admin-icon--sliders" aria-hidden="true"></span> จัดการภาพสไลด์หน้าแรก</a>
-              <a href="{{ url_for('admin_intro') }}"><span class="admin-icon admin-icon--intro" aria-hidden="true"></span> จัดการโลโก้ Intro Splash</a>
-            </div>
-          </div>
-
-          <div class="admin-dashboard-card">
-            <h3><span class="admin-icon admin-icon--models" aria-hidden="true"></span> Model Management (จัดการโมเดล)</h3>
-            <div class="admin-dashboard-card-links">
-              <a href="#models"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> รายการโมเดลทั้งหมด</a>
-              <a href="#projects"><span class="admin-icon admin-icon--projects" aria-hidden="true"></span> รายการแหล่งเรียนรู้ทั้งหมด</a>
-            </div>
-          </div>
-
-          <div class="admin-dashboard-card">
-            <h3><span class="admin-icon admin-icon--branding" aria-hidden="true"></span> Site Appearance (รูปลักษณ์เว็บไซต์)</h3>
-            <div class="admin-dashboard-card-links">
-              <a href="{{ url_for('admin_landing') }}"><span class="admin-icon admin-icon--landing" aria-hidden="true"></span> ตั้งค่าหน้าปก (Landing Page)</a>
-              <a href="{{ url_for('admin_branding') }}"><span class="admin-icon admin-icon--branding" aria-hidden="true"></span> ตั้งค่าแบรนด์ & SEO</a>
-            </div>
-          </div>
-        </section>
+        <nav class="admin-tabs" aria-label="ส่วนของหน้านี้" data-admin-tabs>
+          <a href="#models" data-admin-tab-link="models">รายการโมเดล <span class="admin-tab-count">{{ models|length }}</span></a>
+          <a href="#projects" data-admin-tab-link="projects">รายการแหล่งเรียนรู้ <span class="admin-tab-count">{{ projects|length }}</span></a>
+          <a href="#add-model-section" data-admin-tab-link="add-model-section">+ เพิ่มโมเดล</a>
+          <a href="#add-project-section" data-admin-tab-link="add-project-section">+ เพิ่มแหล่งเรียนรู้</a>
+        </nav>
 
         <!-- Forms Grid layout -->
-        <div class="admin-page-grid">
+        <div class="admin-forms-stack">
           <!-- Left: Add Project Form -->
-          <section id="add-project-section" class="admin-settings-column">
+          <section id="add-project-section" class="admin-settings-column" data-admin-tab-panel>
             <form class="admin-form" action="{{ url_for('add_project') }}" method="post" enctype="multipart/form-data">
               <fieldset class="admin-form-section full">
                 <legend class="admin-section-title">เพิ่มแหล่งเรียนรู้</legend>
@@ -126,7 +95,7 @@
           </section>
 
           <!-- Right: Add Model Form -->
-          <section id="add-model-section" class="admin-settings-column">
+          <section id="add-model-section" class="admin-settings-column" data-admin-tab-panel>
             <form class="admin-form" action="{{ url_for('add_model') }}" method="post" enctype="multipart/form-data">
               <fieldset class="admin-form-section full">
                 <legend class="admin-section-title">เพิ่มโมเดล</legend>
@@ -284,10 +253,13 @@
         </div>
 
         <!-- Projects Table Section -->
-        <section id="projects" class="admin-card">
-          <h2>รายการแหล่งเรียนรู้</h2>
+        <section id="projects" class="admin-card" data-admin-tab-panel>
+          <div class="admin-card-header">
+            <h2>รายการแหล่งเรียนรู้</h2>
+            <input class="admin-table-search" type="search" placeholder="ค้นหาแหล่งเรียนรู้" aria-label="ค้นหาแหล่งเรียนรู้" data-admin-table-filter="projects-table">
+          </div>
           <div class="table-wrap">
-            <table>
+            <table class="admin-table" id="projects-table">
               <thead>
                 <tr>
                   <th>ภาพ</th>
@@ -301,25 +273,25 @@
               <tbody>
                 {% for project in projects %}
                 <tr>
-                  <td>
+                  <td data-label="ภาพ" class="admin-table-media">
                     {% if project.cover_image_url %}
                     <img class="thumb" src="{{ project.cover_image_url }}" alt="{{ project.name }}">
                     {% else %}
-                    <div class="thumb" style="display: flex; align-items: center; justify-content: center; background: #eef1ea; font-size: 20px;">📁</div>
+                    <div class="thumb thumb--empty" aria-hidden="true">📁</div>
                     {% endif %}
                   </td>
-                  <td>
+                  <td data-label="แหล่งเรียนรู้">
                     <strong>{{ project.name }}</strong>
                     <div class="meta">{{ project.description or "-" }}</div>
                   </td>
-                  <td>{{ project.department or "-" }}</td>
-                  <td>{{ model_counts.get(project.id, 0) }}</td>
-                  <td>
+                  <td data-label="หน่วยงาน">{{ project.department or "-" }}</td>
+                  <td data-label="โมเดล">{{ model_counts.get(project.id, 0) }}</td>
+                  <td data-label="สถานะ">
                     <span class="status {{ '' if project.visible else 'off' }}">
                       {{ "เผยแพร่" if project.visible else "ซ่อน" }}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="จัดการ" class="admin-table-actions">
                     <div class="row-actions">
                       <a class="button secondary" href="{{ url_for('edit_project', project_id=project.id) }}">แก้ไข</a>
                       <form action="{{ url_for('delete_project', project_id=project.id) }}" method="post">
@@ -331,14 +303,18 @@
                 {% endfor %}
               </tbody>
             </table>
+            <p class="admin-table-empty" data-admin-table-empty="projects-table" hidden>ไม่พบรายการที่ตรงกับคำค้นหา</p>
           </div>
         </section>
 
         <!-- Models Table Section -->
-        <section id="models" class="admin-card">
-          <h2>รายการโมเดล</h2>
+        <section id="models" class="admin-card" data-admin-tab-panel>
+          <div class="admin-card-header">
+            <h2>รายการโมเดล</h2>
+            <input class="admin-table-search" type="search" placeholder="ค้นหาชื่อ แหล่งเรียนรู้ หรือหน่วยงาน" aria-label="ค้นหาโมเดล" data-admin-table-filter="models-table">
+          </div>
           <div class="table-wrap">
-            <table>
+            <table class="admin-table" id="models-table">
               <thead>
                 <tr>
                   <th>ภาพ</th>
@@ -352,26 +328,26 @@
               <tbody>
                 {% for model in models %}
                 <tr>
-                  <td>
+                  <td data-label="ภาพ" class="admin-table-media">
                     {% if model.thumbnail_resolved_url %}
                     <img class="thumb" src="{{ model.thumbnail_resolved_url }}" alt="{{ model.name }}">
                     {% else %}
-                    <div class="thumb" style="display: flex; align-items: center; justify-content: center; background: #eef1ea; font-size: 20px;">📦</div>
+                    <div class="thumb thumb--empty" aria-hidden="true">📦</div>
                     {% endif %}
                   </td>
-                  <td>
+                  <td data-label="โมเดล">
                     <strong>{{ model.name }}</strong>
                     <div class="meta">{{ model.description or "-" }}</div>
-                    <div class="meta" style="font-family: monospace; font-size: 11px;">{{ model.model }}</div>
+                    <div class="meta meta--path">{{ model.model }}</div>
                   </td>
-                  <td>{{ model.project_name }}</td>
-                  <td>{{ model.department or "-" }}</td>
-                  <td>
+                  <td data-label="แหล่งเรียนรู้">{{ model.project_name }}</td>
+                  <td data-label="หน่วยงาน">{{ model.department or "-" }}</td>
+                  <td data-label="สถานะ">
                     <span class="status {{ '' if model.visible else 'off' }}">
                       {{ "เผยแพร่" if model.visible else "ซ่อน" }}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="จัดการ" class="admin-table-actions">
                     <div class="row-actions">
                       <a class="button secondary" href="{{ url_for('edit_model', model_id=model.id) }}">แก้ไข</a>
                       <form action="{{ url_for('delete_model', model_id=model.id) }}" method="post">
@@ -383,6 +359,7 @@
                 {% endfor %}
               </tbody>
             </table>
+            <p class="admin-table-empty" data-admin-table-empty="models-table" hidden>ไม่พบรายการที่ตรงกับคำค้นหา</p>
           </div>
         </section>
       </div>

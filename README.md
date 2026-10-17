@@ -1,97 +1,145 @@
 # ARModel
 
-ARModel is a Flask application for publishing community and cultural 3D models with Google model-viewer AR support. It includes public Landing/Home, project and model pages, a news slider, narration playback, and an authenticated Admin application.
+Flask application for Thai community learning resources, 3D models, AR, narration,
+and an authenticated administrator interface.
 
-## Local development
+## Persistence Architecture
 
-```bash
-pip install -r requirements.txt
-python app.py
+- **Cloudflare D1**: projects, models, sliders, site settings, administrator account
+  hashes, analytics, signed audit events, and login rate-limit events.
+- **Cloudflare R2**: GLB files, thumbnails, gallery/slider/branding images, narration
+  audio, and temporary narration audio files.
+- **Flask**: rendering, authorization, CSRF protection, validation, and AR pages.
+- **D1 connection**: direct Cloudflare REST API or a private Worker gateway.
+  Both use bound SQL batches. The browser never receives credentials.
+
+GitHub is source control only. Admin saves no longer create GitHub commits.
+Runtime reads/writes no content JSON files. Existing `data/*.json` are retained
+only as migration snapshots and validation fixtures, not a database fallback.
+Gallery/media metadata and event details can use structured JSON columns inside
+D1; this is not file-based persistence.
+
+## Cloud D1 Review (Prepared October 16, 2026)
+
+The separate `armodel-production` D1 database has the complete review snapshot:
+10 projects, 41 models, 31 settings, and 2 slides. Every original field was
+verified against the source. The live site's JSON system has NOT been switched.
+
+On the Windows account holding the encrypted D1 credential:
+
+```powershell
+python scripts/verify_cloud_d1_readonly.py   # SELECT-only field/type/order/FK comparison
+python scripts/run_cloud_d1_review.py         # analytics disabled for this preview
 ```
 
-Development and CI dependencies are installed with `pip install -r requirements-dev.txt`.
+`validate_cloud_d1.py` additionally runs deliberately failing write transactions;
+run it only with explicit approval.
 
-Open `http://127.0.0.1:5000`. Local metadata is read and written under `data/`; local uploads and runtime analytics use local files. Tests replace these paths with temporary fixtures.
+For UI review without any cloud access, `python scripts/run_snapshot_review.py`
+serves http://127.0.0.1:5018 from a throwaway SQLite copy of the snapshot. R2 CORS
+allows only the production origin, so 3D models cannot load from localhost.
 
-## Production architecture
+Open http://127.0.0.1:5017/home. This is loopback Flask with real cloud D1,
+not Wrangler emulation. The launcher decrypts the token in memory using Windows
+DPAPI and reads non-secret target IDs from `~/.armodel-secrets/d1-target.toml`.
+Neither the token nor a plaintext environment file is saved in this repository.
+Do not repeat snapshot import: existing nonempty targets are rejected.
 
-Vercel runs `app.py` through the Python runtime. The versioned source of truth is:
+See [verified cloud migration](docs/D1_CLOUD_VERIFICATION.md) for exact scope,
+fingerprints, remaining R2 upload/account checks, and the approval boundary.
 
-- `data/models.json`
-- `data/projects.json`
-- `data/site_settings.json`
-- `data/slider_items.json`
+## Local Review With Real D1 Emulation
 
-When GitHub Contents credentials are configured, Production Admin writes update only these allow-listed files and create a commit on the configured branch. Without GitHub write configuration, Production mutations are blocked safely.
+Install Python dependencies in the project root:
 
-Cloudflare R2 stores GLB files, thumbnails, gallery and slider images, branding assets, narration audio, analytics events, and Audit Log objects. New Production analytics events are immutable objects under `analytics/events/YYYY/MM/DD/<timestamp>-<uuid>.json`; the dashboard also reads the legacy `analytics/analytics_events.json` object during transition.
-
-## Admin security
-
-- Prefer `ADMIN_PASSWORD_HASH`; plaintext `ADMIN_PASSWORD` remains a compatibility option.
-- Admin mutations require authentication and a cryptographically random session-bound CSRF token.
-- Login failures are limited to five attempts per trusted client IP within 15 minutes. Production attempts are immutable R2 objects keyed by an HMAC identity; local attempts use the system temporary directory. Storage failures fail open and are logged so an R2 outage does not lock out every administrator.
-- Vercel sessions use Secure, HttpOnly, SameSite=Lax cookies. Responses include baseline content-type, referrer, permissions, framing, and HSTS protections.
-- A strict CSP is not currently enforced: existing templates contain inline scripts/styles, dynamic Admin preview URLs, Google Fonts, jsDelivr, unpkg model-viewer, and administrator-configured model/image/audio origins. Enforcing a useful policy first requires nonce/hash migration and explicit asset-origin controls; a broad `unsafe-inline https:` policy was intentionally not shipped.
-
-## Production Admin writes
-
-Production metadata writes use the GitHub Contents API. Binary uploads use R2. Required variables are:
-
-```text
-SECRET_KEY
-ADMIN_PASSWORD_HASH
-GITHUB_CONTENTS_TOKEN
-GITHUB_REPOSITORY
-R2_ACCOUNT_ID
-R2_ACCESS_KEY_ID
-R2_SECRET_ACCESS_KEY
-R2_BUCKET
-R2_PUBLIC_BASE_URL
+```powershell
+python -m pip install -r requirements-dev.txt
 ```
 
-Optional variables include `GITHUB_BRANCH`, `GITHUB_COMMITTER_NAME`, `GITHUB_COMMITTER_EMAIL`, `SITE_BASE_URL`, `PUBLIC_SITE_URL`, `ANALYTICS_R2_OBJECT_KEY` for legacy analytics, `AUDIT_LOG_SIGNING_KEY`, `AUDIT_LOG_RETENTION_DAYS`, `R2_STORAGE_SOFT_LIMIT_GB`, and `GEMINI_API_KEY`.
+In `cloudflare/d1`:
 
-Never commit environment values or credentials.
+```powershell
+npm ci
+npm run migrate:local
+npm run dev
+```
 
-## Narration
+The Worker listens on loopback port 8787 and uses Wrangler's local D1 runtime.
+The all-zero database ID is a local placeholder, not a production database.
+Do not add `--remote` or deploy this configuration during local review.
 
-Gemini TTS runs server-side only after an Admin requests generation. A generated draft is stored under `audio/pending/<model-id>/` and represented by a short-lived signed token bound to the model and expected current narration. Confirmation copies it to `audio/narrations/<model-id>/`, updates model metadata through the normal JSON/GitHub path, and then performs safe cleanup. Cancellation deletes only the pending object. External old narration URLs are never deleted.
+In the project root, import the snapshot **once into an empty database**, then run:
 
-Configure an R2 lifecycle rule to remove `audio/pending/` after one day.
+```powershell
+python scripts/migrate_to_d1.py --gateway http://127.0.0.1:8787
+python scripts/run_d1_review.py
+```
 
-## Audit Log
+Review http://127.0.0.1:5016/home and http://127.0.0.1:5016/admin/login.
+The migration preserves original files and refuses to overwrite a nonempty D1.
+It verifies every original field and reports source SHA-256 fingerprints.
+Do not rerun an import to refresh existing content; use the Admin interface.
 
-Meaningful authentication and Admin mutations create one signed immutable JSON object per event under `audit/YYYY/MM/DD/`. Events contain Thai summaries, request/session context, structured changes, recursive secret redaction, and HMAC-SHA256 tamper evidence. Authenticated Admin users can inspect and export CSV/JSON. Set a lifecycle policy for the `audit/` prefix according to the required retention period, commonly 180–365 days.
+The Python repository also has an isolated SQLite adapter for fast tests.
+Flask only enables it in TESTING mode. A normal runtime without a D1 gateway
+fails instead of creating a local database or falling back after gateway failure.
 
-## Production rollback
+## Security and Concurrent Changes
 
-A historical Git commit is a source baseline, not automatically the previous known-good Vercel deployment. Before a rollback:
+Admin accounts live in D1 and use Werkzeug password hashes. Legacy
+`ADMIN_PASSWORD`, `ADMIN_PASSWORD_HASH`, and private JSON configuration are not
+read by runtime authentication. Preserve and import an existing hash before a
+production cutover; no password needs to be printed or changed.
+Browser first-run setup exists only in isolated tests: every real runtime (local
+review, cloud review, production) shows that no account exists and refuses web setup.
+Import an existing hash with `python scripts/import_admin_to_d1.py --cloud --username <name>
+--source <private config>` (refuses to replace an existing account; never prints the hash).
+The login form is CSRF-protected. Server deployment requires a stable `SECRET_KEY`.
 
-1. Record the commit and deployment currently serving Production.
-2. Identify and verify the previous known-good Vercel deployment in Vercel's deployment history.
-3. Review newer Production Admin commits, especially changes to `data/*.json`.
-4. Prefer Vercel rollback/redeploy controls for an application-only rollback, or use a reviewed Git revert/fix-forward change when source history must change.
-5. Never replace newer Production content files with stale copies from an older commit.
+Normal Admin forms carry dataset revisions. Stale saves return HTTP 409 rather
+than overwrite newer data. Each collection write and linked project/model
+deletion uses one D1 transaction, with foreign keys and unique IDs/slugs.
+D1 failure returns HTTP 503; stale JSON is never served as a fallback.
+Authentication rate-limit storage failures fail closed.
 
-## Validation and CI
+The gateway requires a shared server-side token over HTTPS. The local auth
+bypass is limited to explicit local development on loopback. Browser-origin
+requests and unsupported SQL/table access are rejected.
 
-Run the same checks used by `.github/workflows/regression.yml`:
+## Configuration For A Reviewed Cloud Deployment
 
-```bash
+These names describe future configuration; this branch does not change actual
+environment variables, credentials, or production deployment settings.
+
+Flask: either `D1_ACCOUNT_ID`, `D1_DATABASE_ID`, `D1_API_TOKEN` for direct API,
+or `D1_GATEWAY_URL`, `D1_GATEWAY_TOKEN` for a Worker (not both).
+Also required: stable `SECRET_KEY`, and existing R2
+credentials (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`,
+`R2_BUCKET`, `R2_PUBLIC_BASE_URL`). Worker: a D1 binding named `DB` and
+`GATEWAY_TOKEN` matching Flask's gateway token. Gemini narration still uses the
+existing server-side `GEMINI_API_KEY` when requested.
+
+See [D1/R2 migration and acceptance](docs/D1_R2_MIGRATION.md) before any cutover.
+Do not delete historical JSON or R2 event archives until the migration has been
+validated and explicitly approved.
+
+## Validation
+
+```powershell
 python -m pytest
 python scripts/validate_zero_supabase_data.py
+python scripts/validate_d1_review.py
 node --check static/js/site-carousel.js
-node --check static/js/model-narration.js
+node --check static/js/ar-viewer.js
 node --check static/js/admin-dashboard.js
 ```
 
-The validator checks deterministic JSON, required fields, relationships, HTTPS/R2 assets, CORS, and absence of Supabase runtime URLs.
+Worker authentication/validation tests: `npm test` in `cloudflare/d1`.
+The local D1 integration script tests Flask CRUD, a mocked R2 upload, conflict
+rejection, foreign-key rollback, and restoration of original content IDs.
+Cloud D1 source parity and transaction checks have passed. Real R2 writes,
+actual administrator credentials, live cutover, and physical-device AR still
+require separate acceptance.
 
-## AR and assets
-
-Model pages use Google model-viewer. WebXR, Scene Viewer, and Quick Look depend on the browser and device. Keep large GLB assets in R2 with immutable versioned keys rather than in the Vercel filesystem.
-
-## Historical documents
-
-Supabase setup/schema and migration documents under `docs/`, `STORAGE_MIGRATION_PLAN.md`, and related verification reports are retained only as historical migration/audit context. They do not describe the current runtime architecture.
+Earlier production documents describe the retired JSON/GitHub storage design.
+They are historical evidence, not deployment instructions for this branch.

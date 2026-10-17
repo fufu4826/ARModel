@@ -26,7 +26,7 @@
     glb_models: "โมเดล 3D / GLB",
     thumbnails: "ภาพปกโมเดล",
     narration_audio: "ไฟล์เสียงบรรยาย",
-    project_images: "ภาพโครงการ",
+    project_images: "ภาพแหล่งเรียนรู้",
     site_settings_images: "ภาพตั้งค่าเว็บไซต์",
     slider_images: "ภาพสไลด์",
     other: "ไฟล์อื่น ๆ",
@@ -53,14 +53,13 @@
     cards.replaceChildren();
     [
       ["โมเดล 3D", data.content.models],
-      ["โครงการ", data.content.projects],
+      ["แหล่งเรียนรู้", data.content.projects],
       ["รายการตั้งค่าเว็บไซต์", data.content.site_settings],
       ["สไลด์", data.content.sliders],
       ["URL ไฟล์ที่ติดตาม", data.assets.tracked_urls],
       ["URL บน Cloudflare R2", data.assets.r2_urls],
-      ["URL ของ Supabase", data.assets.supabase_urls],
-      ["ไฟล์ที่ไม่ทราบขนาด", data.storage.unknown_size_count],
-    ].forEach(([title, value]) => addMetric(cards, title, formatInteger(value)));
+      ["ไฟล์ที่ไม่ทราบขนาด", data.storage.checks_complete === false ? null : data.storage.unknown_size_count],
+    ].forEach(([title, value]) => addMetric(cards, title, value === null ? "กำลังตรวจ…" : formatInteger(value)));
 
     const strip = document.getElementById("runtime-strip");
     strip.replaceChildren();
@@ -68,7 +67,7 @@
       `แหล่งข้อมูล Runtime: ${data.runtime.source}`,
       `พื้นที่จัดเก็บไฟล์: ${data.runtime.asset_storage}`,
       `โหมดแอดมิน: ${data.runtime.admin_mode === "read-only" ? "อ่านอย่างเดียว" : "พัฒนาในเครื่อง"}`,
-      "รายการไฟล์: เฉพาะ URL ใน JSON ที่ระบบติดตาม",
+      "รายการไฟล์: เฉพาะไฟล์ที่มีข้อมูลอ้างอิงในระบบ",
     ].forEach((text) => {
       const item = document.createElement("span");
       item.className = "dashboard-runtime-item";
@@ -78,6 +77,14 @@
   }
 
   function renderStorage(storage) {
+    if (storage.checks_complete === false) {
+      // Summary answered from cache; real sizes arrive from loadStorage().
+      document.getElementById("storage-used").textContent = "กำลังตรวจ…";
+      document.getElementById("storage-remaining").textContent = "กำลังตรวจ…";
+      document.getElementById("storage-note").textContent =
+        `กำลังตรวจไฟล์บน Cloudflare R2 ${formatInteger(storage.pending_count)} ไฟล์ ข้อมูลส่วนอื่นของแดชบอร์ดใช้งานได้แล้ว`;
+      return;
+    }
     document.getElementById("storage-used").textContent = formatBytes(storage.known_size_bytes);
     document.getElementById("storage-remaining").textContent = formatBytes(storage.remaining_bytes);
     const progress = document.getElementById("storage-progress");
@@ -111,9 +118,8 @@
 
   function renderHealth(health) {
     const names = {
-      json_data_integrity: "ความถูกต้องของข้อมูล JSON",
+      json_data_integrity: "ความถูกต้องของฐานข้อมูล D1",
       r2_asset_reachability: "การเข้าถึงไฟล์ R2",
-      supabase_url_cleanliness: "การตรวจว่าไม่มี URL ของ Supabase",
       admin_read_only_protection: "การป้องกันโหมดอ่านอย่างเดียวของแอดมิน",
       public_runtime_status: "สถานะ Runtime ฝั่ง Public",
     };
@@ -127,11 +133,11 @@
       const track = document.createElement("div");
       track.className = "dashboard-health-bar";
       const bar = document.createElement("span");
-      bar.style.width = `${Math.max(0, Math.min(100, item.score))}%`;
+      bar.style.width = `${Math.max(0, Math.min(100, item.score ?? 0))}%`;
       track.append(bar);
       const score = document.createElement("span");
       score.className = "dashboard-health-score";
-      score.textContent = `${item.score}%`;
+      score.textContent = item.status === "pending" ? "กำลังตรวจ…" : `${item.score}%`;
       row.append(name, track, score);
       list.append(row);
     });
@@ -352,10 +358,41 @@
     }
   }
 
+  let latestData = null;
+  let storageController = null;
+
+  async function loadStorage() {
+    if (!config.storageUrl) return;
+    if (storageController) storageController.abort();
+    storageController = new AbortController();
+    try {
+      const response = await fetch(config.storageUrl, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        signal: storageController.signal,
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
+      if (!latestData) return;
+      latestData.storage = data.storage;
+      latestData.assets = data.assets;
+      latestData.health = { ...latestData.health, ...data.health };
+      renderOverview(latestData);
+      renderStorage(latestData.storage);
+      renderHealth(latestData.health);
+    } catch (storageError) {
+      if (storageError.name === "AbortError") return;
+      document.getElementById("storage-note").textContent =
+        `ยังตรวจไฟล์บน R2 ไม่สำเร็จ (${storageError.message}) ข้อมูลส่วนอื่นยังใช้งานได้`;
+    }
+  }
+
   function render(data) {
+    latestData = data;
     renderOverview(data);
     renderStorage(data.storage);
     renderHealth(data.health);
+    if (data.storage && data.storage.checks_complete === false) loadStorage();
     renderAnalytics(data.analytics);
     if (data.analytics?.selected_date && dateInput) {
       dateInput.value = data.analytics.selected_date;

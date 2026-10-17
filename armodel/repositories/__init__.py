@@ -1,1 +1,1 @@
-"""Content repositories for ARModel's JSON-backed datasets."""
+"""Content normalization and D1 persistence repositories for ARModel."""

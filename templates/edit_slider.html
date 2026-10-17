@@ -15,7 +15,7 @@
       <div class="admin-shell">
         <header class="admin-heading">
           <div>
-            <p class="admin-eyebrow">Homepage Slider</p>
+            <p class="admin-eyebrow">เนื้อหา / สไลด์หน้าแรก</p>
             <h1>แก้ไขสไลด์</h1>
             <p>แก้ไขข้อมูลและรูปภาพของสไลด์หน้าแรก: {{ slider.title }}</p>
           </div>
@@ -32,15 +32,15 @@
             <legend class="admin-section-title">ข้อมูลสไลด์</legend>
 
             <div class="field">
-              <label for="slider-title">Title (หัวข้อสไลด์)</label>
+              <label for="slider-title">หัวข้อสไลด์</label>
               <input id="slider-title" name="title" value="{{ slider.title }}" required />
             </div>
             <div class="field">
-              <label for="slider-sort-order">Sort Order (ลำดับการแสดงผล)</label>
+              <label for="slider-sort-order">ลำดับการแสดง (เลขน้อยแสดงก่อน)</label>
               <input id="slider-sort-order" name="sort_order" type="number" value="{{ slider.sort_order }}" step="1" />
             </div>
             <div class="field full">
-              <label for="slider-description">Description (รายละเอียดคำอธิบาย)</label>
+              <label for="slider-description">คำอธิบาย</label>
               <textarea id="slider-description" name="description" rows="4">{{ slider.description }}</textarea>
             </div>
           </fieldset>
@@ -64,11 +64,11 @@
             <legend class="admin-section-title">ปุ่มและลิงก์เชื่อมโยง (CTA Button)</legend>
 
             <div class="field">
-              <label for="slider-button-text">Button Text (ข้อความบนปุ่ม)</label>
+              <label for="slider-button-text">ข้อความบนปุ่ม</label>
               <input id="slider-button-text" name="button_text" value="{{ slider.button_text }}" />
             </div>
             <div class="field">
-              <label for="slider-button-url">Button URL (ลิงก์ปลายทาง)</label>
+              <label for="slider-button-url">ลิงก์ปลายทางของปุ่ม</label>
               <input id="slider-button-url" name="button_url" value="{{ slider.button_url }}" />
             </div>
           </fieldset>

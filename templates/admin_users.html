@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>ผู้ใช้และสิทธิ์ - Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  {% include "_fonts.html" %}
+</head>
+<body>
+  <div class="admin-container">
+    {% include "_admin_nav.html" %}
+    <main class="admin-main-content">
+      <div class="admin-shell">
+        <header class="admin-heading">
+          <div>
+            <p class="admin-eyebrow">ความปลอดภัย</p>
+            <h1>ผู้ใช้และสิทธิ์</h1>
+            <p>เฉพาะเจ้าของระบบ: เชิญผู้ร่วมงานด้วยลิงก์ใช้ครั้งเดียว ไม่มีการสมัครสมาชิกเอง</p>
+          </div>
+        </header>
+
+        {% include "_admin_messages.html" %}
+
+        {% if new_link %}
+        <section class="new-link" aria-live="polite">
+          <strong>{{ new_link.title }}</strong>
+          <input type="text" readonly value="{{ new_link.url }}" aria-label="ลิงก์" onclick="this.select()">
+          <small>ลิงก์นี้แสดงเพียงครั้งเดียว ใช้ได้ครั้งเดียว หมดอายุใน 48 ชั่วโมง ส่งให้ผู้รับทางช่องทางส่วนตัวเท่านั้น</small>
+        </section>
+        {% endif %}
+
+        <section class="admin-card">
+          <h2 class="admin-card-title">เชิญผู้ร่วมงาน</h2>
+          <form method="post" action="{{ url_for('admin_create_invite') }}" class="admin-invite-form">
+            <div class="field">
+              <label for="invite-role">สิทธิ์ที่จะให้</label>
+              <select id="invite-role" name="role" required>
+                {% for role in invitable_roles %}<option value="{{ role }}">{{ role_labels[role] }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="invite-note">หมายเหตุ (ไม่บังคับ เช่น ชื่อผู้รับ)</label>
+              <input id="invite-note" type="text" name="note" maxlength="120">
+            </div>
+            <button type="submit" class="button">สร้างลิงก์เชิญ</button>
+          </form>
+          <ul class="role-help">
+            <li><strong>ผู้ดูแล</strong> ทำได้ทุกอย่าง ยกเว้นจัดการผู้ใช้</li>
+            <li><strong>ผู้แก้ไขเนื้อหา</strong> แก้แหล่งเรียนรู้ โมเดล สไลด์ โมเดลแนะนำ และเสียงบรรยาย</li>
+            <li><strong>ผู้ตรวจ</strong> ดูหน้าผู้ดูแลได้อย่างเดียว บันทึกไม่ได้</li>
+          </ul>
+        </section>
+
+        <section class="admin-card">
+          <h2 class="admin-card-title">ผู้ใช้ทั้งหมด ({{ users|length }})</h2>
+          <table class="user-table">
+            <thead><tr><th>ผู้ใช้</th><th>สิทธิ์</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+            <tbody>
+            {% for user in users %}
+              <tr>
+                <td><strong>{{ user.display_name or user.username }}</strong><br><small>{{ user.username }}</small></td>
+                <td><span class="role-badge">{{ user.role_label }}</span></td>
+                <td><span class="role-badge {{ '' if user.active else 'off' }}">{{ 'ใช้งาน' if user.active else 'ระงับ' }}</span></td>
+                <td>
+                  {% if user.role != 'owner' %}
+                  <form method="post" action="{{ url_for('admin_update_user', user_id=user.id) }}">
+                    <select name="role" aria-label="สิทธิ์ของ {{ user.username }}">
+                      {% for role in invitable_roles %}<option value="{{ role }}" {{ 'selected' if role == user.role }}>{{ role_labels[role] }}</option>{% endfor %}
+                    </select>
+                    <select name="active" aria-label="สถานะของ {{ user.username }}">
+                      <option value="1" {{ 'selected' if user.active }}>ใช้งาน</option>
+                      <option value="0" {{ 'selected' if not user.active }}>ระงับ</option>
+                    </select>
+                    <button type="submit" class="button secondary small">บันทึก</button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin_create_reset_link', user_id=user.id) }}">
+                    <button type="submit" class="button secondary small">สร้างลิงก์ตั้งรหัสใหม่</button>
+                  </form>
+                  {% else %}
+                  <small>เจ้าของระบบ (เปลี่ยนได้ผ่านสคริปต์ผู้ดูแลระบบเท่านั้น)</small>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="admin-card">
+          <h2 class="admin-card-title">ลิงก์ที่ยังไม่ถูกใช้ ({{ links|length }})</h2>
+          {% if links %}
+          <table class="user-table">
+            <thead><tr><th>ชนิด</th><th>สำหรับ</th><th>หมดอายุ (UTC)</th><th></th></tr></thead>
+            <tbody>
+            {% for link in links %}
+              <tr>
+                <td>{{ 'เชิญ' if link.kind == 'invite' else 'ตั้งรหัสใหม่' }}</td>
+                <td>{{ role_labels.get(link.role, '') if link.kind == 'invite' else link.target_username }}{% if link.note %} · {{ link.note }}{% endif %}</td>
+                <td>{{ link.expires_at[:16].replace('T', ' ') }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('admin_revoke_link', link_hash=link.token_hash) }}">
+                    <button type="submit" class="button secondary small">ยกเลิกลิงก์</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p>ไม่มีลิงก์ค้างอยู่</p>
+          {% endif %}
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

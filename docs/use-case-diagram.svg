@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1360" viewBox="0 0 1900 1360" font-family="Sarabun, Tahoma, 'Leelawadee UI', sans-serif">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="11" markerHeight="11" orient="auto"><path d="M1 1 L11 6 L1 11" fill="none" stroke="#7a4a00" stroke-width="1.6"/></marker><marker id="gen" viewBox="0 0 16 16" refX="15" refY="8" markerWidth="16" markerHeight="16" orient="auto"><path d="M1 1 L15 8 L1 15 Z" fill="#fff" stroke="#1d2a22" stroke-width="1.6"/></marker></defs>
+<rect width="1900" height="1360" fill="#fbfaf5"/>
+<text x="950.0" y="40" font-size="24" font-weight="700" text-anchor="middle" fill="#1f5f3b">Use Case Diagram — ระบบ Puparn-AR (ศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ)</text>
+<rect x="280" y="70" width="1300" height="1250" fill="#ffffff" stroke="#1d2a22" stroke-width="2.4" rx="6"/>
+<text x="300" y="100" font-size="20" font-weight="700" text-anchor="start" fill="#1d2a22">ระบบ Puparn-AR</text>
+<rect x="310" y="120" width="580" height="1180" fill="#f4f8f2" stroke="#9fb5a5" stroke-width="1.4" stroke-dasharray="6 4" rx="8"/>
+<text x="324" y="146" font-size="16" font-weight="700" text-anchor="start" fill="#1f5f3b">เว็บไซต์สาธารณะ</text>
+<rect x="950" y="120" width="600" height="330" fill="#f4f8f2" stroke="#9fb5a5" stroke-width="1.4" stroke-dasharray="6 4" rx="8"/>
+<text x="964" y="146" font-size="16" font-weight="700" text-anchor="start" fill="#1f5f3b">บัญชีผู้ใช้</text>
+<rect x="950" y="470" width="600" height="830" fill="#f4f8f2" stroke="#9fb5a5" stroke-width="1.4" stroke-dasharray="6 4" rx="8"/>
+<text x="964" y="496" font-size="16" font-weight="700" text-anchor="start" fill="#1f5f3b">หลังบ้าน (ต้องเข้าสู่ระบบ)</text>
+<ellipse cx="590" cy="190" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="590" y="196" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-01 เข้าหน้าแรก / ชมอินโทร</text>
+<ellipse cx="590" cy="312" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="590" y="318" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-02 ดูหน้าหลักและสไลด์</text>
+<ellipse cx="590" cy="434" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="590" y="440" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-03 ค้นหาและกรองโมเดล</text>
+<ellipse cx="590" cy="556" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="590" y="562" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-04 ชมโมเดล 3D</text>
+<ellipse cx="590" cy="678" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="590" y="684" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-05 ดูโมเดลด้วย AR</text>
+<ellipse cx="590" cy="800" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="590" y="806" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-06 ฟังเสียงบรรยาย</text>
+<ellipse cx="590" cy="922" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="590" y="928" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-07 ดูแหล่งเรียนรู้</text>
+<ellipse cx="590" cy="1044" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="590" y="1050" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-08 ดูข้อมูลศูนย์และการติดต่อ</text>
+<ellipse cx="590" cy="1166" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="590" y="1172" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-09 เปิด / ดาวน์โหลดไฟล์โมเดล</text>
+<ellipse cx="1250" cy="185" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="191" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-11 รับคำเชิญและตั้งบัญชี</text>
+<ellipse cx="1250" cy="277" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="283" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-12 ตั้งรหัสผ่านใหม่จากลิงก์</text>
+<ellipse cx="1250" cy="369" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="375" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-10 เข้าสู่ระบบ / ออกจากระบบ</text>
+<ellipse cx="1250" cy="540" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="546" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-13 ดูแดชบอร์ดและสถิติ</text>
+<ellipse cx="1250" cy="628" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="634" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-14 จัดการโมเดล</text>
+<ellipse cx="1250" cy="716" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="722" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-15 จัดการแหล่งเรียนรู้</text>
+<ellipse cx="1250" cy="804" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="810" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-16 จัดการสไลด์หน้าแรก</text>
+<ellipse cx="1250" cy="892" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="898" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-17 จัดการโมเดลแนะนำ</text>
+<ellipse cx="1250" cy="980" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="986" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-18 จัดการเสียงบรรยาย</text>
+<ellipse cx="1250" cy="1068" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="1074" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-19 ตั้งค่าหน้าปก แบรนด์ SEO อินโทร</text>
+<ellipse cx="1250" cy="1156" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="1162" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-20 ดู / ส่งออกบันทึกการใช้งาน</text>
+<ellipse cx="1250" cy="1244" rx="220.0" ry="31.0" fill="#ffffff" stroke="#1f5f3b" stroke-width="2"/>
+<text x="1250" y="1250" font-size="17" font-weight="400" text-anchor="middle" fill="#1d2a22">UC-21 จัดการผู้ใช้และสิทธิ์ (ลิงก์เชิญ)</text>
+<path d="M 810.0 678.0 L 852.0 678.0 L 852.0 568.0 L 792.8 568.0" fill="none" stroke="#7a4a00" stroke-width="1.6" stroke-dasharray="7 5" marker-end="url(#open)"/>
+<path d="M 810.0 800.0 L 878.0 800.0 L 878.0 544.0 L 792.8 544.0" fill="none" stroke="#7a4a00" stroke-width="1.6" stroke-dasharray="7 5" marker-end="url(#open)"/>
+<text x="846" y="617.0" font-size="13" font-weight="600" fill="#7a4a00" text-anchor="middle" transform="rotate(-90 846 617.0)">«extend»</text>
+<text x="872" y="739.0" font-size="13" font-weight="600" fill="#7a4a00" text-anchor="middle" transform="rotate(-90 872 739.0)">«extend»</text>
+<path d="M 1250.0 509.0 L 1250.0 400.0" fill="none" stroke="#7a4a00" stroke-width="1.6" stroke-dasharray="7 5" marker-end="url(#open)"/>
+<text x="1335" y="464" font-size="14" font-weight="600" text-anchor="middle" fill="#7a4a00">«include»</text>
+<text x="1335" y="482" font-size="13" font-weight="400" text-anchor="middle" fill="#7a4a00">ทุก use case หลังบ้าน</text>
+<g stroke="#1d2a22" stroke-width="2.2" fill="none"><circle cx="150" cy="644" r="14" fill="#fff"/><line x1="150" y1="658" x2="150" y2="694"/><line x1="126" y1="672" x2="174" y2="672"/><line x1="150" y1="694" x2="130" y2="724"/><line x1="150" y1="694" x2="170" y2="724"/></g>
+<text x="150" y="748" font-size="18" font-weight="700" text-anchor="middle" fill="#1d2a22">ผู้เยี่ยมชม</text>
+<text x="150" y="770" font-size="14" font-weight="400" text-anchor="middle" fill="#55665b">ประชาชน / นักเรียน</text>
+<text x="150" y="792" font-size="14" font-weight="400" text-anchor="middle" fill="#55665b">นักท่องเที่ยว</text>
+<line x1="176" y1="672" x2="370.0" y2="190.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="176" y1="672" x2="370.0" y2="312.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="176" y1="672" x2="370.0" y2="434.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="176" y1="672" x2="370.0" y2="556.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="176" y1="672" x2="370.0" y2="678.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="176" y1="672" x2="370.0" y2="800.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="176" y1="672" x2="370.0" y2="922.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="176" y1="672" x2="370.0" y2="1044.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="176" y1="672" x2="370.0" y2="1166.0" stroke="#4a5a50" stroke-width="1.6"/>
+<g stroke="#1d2a22" stroke-width="2.2" fill="none"><circle cx="1745" cy="139" r="14" fill="#fff"/><line x1="1745" y1="153" x2="1745" y2="189"/><line x1="1721" y1="167" x2="1769" y2="167"/><line x1="1745" y1="189" x2="1725" y2="219"/><line x1="1745" y1="189" x2="1765" y2="219"/></g>
+<text x="1745" y="243" font-size="18" font-weight="700" text-anchor="middle" fill="#1d2a22">ผู้ได้รับคำเชิญ</text>
+<text x="1745" y="265" font-size="14" font-weight="400" text-anchor="middle" fill="#55665b">ยังไม่มีบัญชี</text>
+<line x1="1719" y1="175" x2="1470.0" y2="185.0" stroke="#4a5a50" stroke-width="1.6"/>
+<g stroke="#1d2a22" stroke-width="2.2" fill="none"><circle cx="1745" cy="384" r="14" fill="#fff"/><line x1="1745" y1="398" x2="1745" y2="434"/><line x1="1721" y1="412" x2="1769" y2="412"/><line x1="1745" y1="434" x2="1725" y2="464"/><line x1="1745" y1="434" x2="1765" y2="464"/></g>
+<text x="1745" y="488" font-size="18" font-weight="700" text-anchor="middle" fill="#1d2a22">ผู้ตรวจ</text>
+<text x="1745" y="510" font-size="14" font-weight="400" text-anchor="middle" fill="#55665b">ดูอย่างเดียว</text>
+<line x1="1719" y1="420" x2="1470.0" y2="277.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="1719" y1="420" x2="1470.0" y2="369.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="1719" y1="420" x2="1470.0" y2="540.0" stroke="#4a5a50" stroke-width="1.6"/>
+<g stroke="#1d2a22" stroke-width="2.2" fill="none"><circle cx="1745" cy="654" r="14" fill="#fff"/><line x1="1745" y1="668" x2="1745" y2="704"/><line x1="1721" y1="682" x2="1769" y2="682"/><line x1="1745" y1="704" x2="1725" y2="734"/><line x1="1745" y1="704" x2="1765" y2="734"/></g>
+<text x="1745" y="758" font-size="18" font-weight="700" text-anchor="middle" fill="#1d2a22">ผู้แก้ไขเนื้อหา</text>
+<line x1="1719" y1="690" x2="1470.0" y2="628.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="1719" y1="690" x2="1470.0" y2="716.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="1719" y1="690" x2="1470.0" y2="804.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="1719" y1="690" x2="1470.0" y2="892.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="1719" y1="690" x2="1470.0" y2="980.0" stroke="#4a5a50" stroke-width="1.6"/>
+<g stroke="#1d2a22" stroke-width="2.2" fill="none"><circle cx="1745" cy="919" r="14" fill="#fff"/><line x1="1745" y1="933" x2="1745" y2="969"/><line x1="1721" y1="947" x2="1769" y2="947"/><line x1="1745" y1="969" x2="1725" y2="999"/><line x1="1745" y1="969" x2="1765" y2="999"/></g>
+<text x="1745" y="1023" font-size="18" font-weight="700" text-anchor="middle" fill="#1d2a22">ผู้ดูแล</text>
+<line x1="1719" y1="955" x2="1470.0" y2="1068.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="1719" y1="955" x2="1470.0" y2="1156.0" stroke="#4a5a50" stroke-width="1.6"/>
+<g stroke="#1d2a22" stroke-width="2.2" fill="none"><circle cx="1745" cy="1159" r="14" fill="#fff"/><line x1="1745" y1="1173" x2="1745" y2="1209"/><line x1="1721" y1="1187" x2="1769" y2="1187"/><line x1="1745" y1="1209" x2="1725" y2="1239"/><line x1="1745" y1="1209" x2="1765" y2="1239"/></g>
+<text x="1745" y="1263" font-size="18" font-weight="700" text-anchor="middle" fill="#1d2a22">เจ้าของระบบ</text>
+<text x="1745" y="1285" font-size="14" font-weight="400" text-anchor="middle" fill="#55665b">มีได้ 1 คน</text>
+<line x1="1719" y1="1195" x2="1470.0" y2="1244.0" stroke="#4a5a50" stroke-width="1.6"/>
+<line x1="1807" y1="650" x2="1807" y2="520" stroke="#1d2a22" stroke-width="1.8" marker-end="url(#gen)"/>
+<line x1="1807" y1="915" x2="1807" y2="790" stroke="#1d2a22" stroke-width="1.8" marker-end="url(#gen)"/>
+<line x1="1807" y1="1155" x2="1807" y2="1055" stroke="#1d2a22" stroke-width="1.8" marker-end="url(#gen)"/>
+<text x="1815" y="590" font-size="13" font-weight="400" text-anchor="start" fill="#55665b">สืบทอดสิทธิ์</text>
+<g transform="translate(300,1290)"></g>
+<text x="950.0" y="1345" font-size="14" font-weight="400" text-anchor="middle" fill="#55665b">เส้นทึบ = ผู้ใช้ทำ use case นั้นได้ · ลูกศรหัวสามเหลี่ยม = สืบทอดสิทธิ์จากระดับที่ต่ำกว่า · เส้นประ «extend»/«include» = ความสัมพันธ์ระหว่าง use case</text>
+</svg>

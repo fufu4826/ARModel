@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{% from "_category.html" import category_of %}<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
@@ -7,6 +7,7 @@
   {% include "_public_meta.html" %}
   {% include "_structured_data.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  {% include "_theme_head.html" %}
   {% if sliders %}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
   {% endif %}
@@ -25,6 +26,7 @@
       <a href="{{ url_for('home') }}" aria-current="page">หน้าแรก</a>
       <a href="#projects">แหล่งเรียนรู้</a>
       <a href="{{ url_for('models_index') }}">รายการโมเดล</a>
+      <a href="#phuphan-centre">รู้จักศูนย์ภูพาน / ติดต่อ</a>
     </nav>
   </header>
 
@@ -66,6 +68,8 @@
         </div>
       </div>
     </section>
+
+    {% include "_centre_information.html" %}
 
     {% include "_slider.html" %}
 
@@ -118,7 +122,7 @@
       {% if projects %}
       <div class="card-grid project-grid">
         {% for project in projects %}
-        <article class="project-card">
+        <article class="project-card" data-category="{{ category_of(project.name) }}">
           <a class="card-media" href="{{ url_for('project_detail', project_id=project.id) }}" aria-label="ดูแหล่งเรียนรู้ {{ project.name }}">
             {% if project.cover_image_url %}
             <img src="{{ project.cover_image_url }}" alt="{{ project.name }} แหล่งเรียนรู้สกลนคร ภูพาน" loading="{{ 'eager' if loop.first else 'lazy' }}" onerror="this.hidden=true; this.nextElementSibling.hidden=false;" />
@@ -163,7 +167,7 @@
       {% if featured_models %}
       <div class="card-grid model-grid">
         {% for model in featured_models %}
-        <article class="model-card">
+        <article class="model-card" data-category="{{ category_of(model.project_name) }}">
           {% set card_thumbnail_url = model.thumbnail_url or model.thumbnail_resolved_url %}
           <a class="card-media square" href="{{ url_for('model_detail', model_id=model.id) }}" aria-label="ดูโมเดล 3D {{ model.name }}">
             {% if card_thumbnail_url %}
@@ -228,5 +232,6 @@
   {% endif %}
   <script src="{{ url_for('static', filename='js/mobile-nav.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/project-hero-slideshow.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/public-ui.js') }}" defer></script>
 </body>
 </html>

@@ -37,7 +37,12 @@
               <span class="admin-selected-count">เลือกแล้ว {{ models|selectattr("is_recommended")|list|length }} / 10</span>
             </div>
 
-            <div class="admin-recommended-list full">
+            <div class="admin-list-toolbar full">
+              <input class="admin-table-search" type="search" placeholder="ค้นหาชื่อโมเดลหรือแหล่งเรียนรู้" aria-label="ค้นหาโมเดล" data-admin-list-search="recommended">
+              <label class="check-field"><input type="checkbox" data-admin-list-selected="recommended"> แสดงเฉพาะที่เลือกไว้</label>
+            </div>
+
+            <div class="admin-recommended-list full" data-admin-list="recommended">
               {% for model in models %}
               <article class="admin-recommended-model">
                 <label class="admin-recommended-select">
@@ -84,6 +89,7 @@
                 <p>เพิ่มโมเดลก่อน แล้วกลับมาจัดรายการแนะนำอีกครั้ง</p>
               </div>
               {% endfor %}
+              <p class="admin-table-empty" data-admin-list-empty="recommended" hidden>ไม่พบโมเดลที่ตรงกับเงื่อนไข</p>
             </div>
 
             <div class="admin-action-row admin-recommended-actions">

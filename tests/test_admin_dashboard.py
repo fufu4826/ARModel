@@ -7,6 +7,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 
 import app as module
+from admin_session import grant_admin_session
 
 
 R2_BASE = "https://pub-b7cd49a1aa5b4bb1ba339dfd78d4ec75.r2.dev"
@@ -14,6 +15,7 @@ R2_BASE = "https://pub-b7cd49a1aa5b4bb1ba339dfd78d4ec75.r2.dev"
 
 class AdminDashboardTests(unittest.TestCase):
     def setUp(self):
+        module.app.config["TESTING"] = True
         self.temp_dir = tempfile.TemporaryDirectory()
         data_dir = Path(self.temp_dir.name)
         self.original_paths = {
@@ -28,11 +30,10 @@ class AdminDashboardTests(unittest.TestCase):
         module.SITE_SETTINGS_FILE = data_dir / "site_settings.json"
         module.SLIDER_ITEMS_FILE = data_dir / "slider_items.json"
         module.ANALYTICS_FILE = data_dir / "analytics_events.json"
-        module._JSON_CACHE.clear()
-        module._PRODUCTION_JSON_CACHE.clear()
         module._DASHBOARD_ASSET_CACHE.clear()
 
-        module.write_json(
+        module.write_dataset(module.PROJECTS_FILE, [{"id": "project-1", "name": "Project 1", "image_url": f"{R2_BASE}/projects/project-1.webp"}])
+        module.write_dataset(
             module.CATALOG_FILE,
             [
                 {
@@ -55,15 +56,15 @@ class AdminDashboardTests(unittest.TestCase):
                 },
             ],
         )
-        module.write_json(
+        module.write_dataset(
             module.PROJECTS_FILE,
             [{"id": "project-1", "name": "Project 1", "image_url": f"{R2_BASE}/projects/project-1.webp"}],
         )
-        module.write_json(
+        module.write_dataset(
             module.SITE_SETTINGS_FILE,
             {"site_logo": f"{R2_BASE}/site/logo.webp", "site_name": "Test"},
         )
-        module.write_json(
+        module.write_dataset(
             module.SLIDER_ITEMS_FILE,
             [{"id": "slider-1", "image_url": f"{R2_BASE}/sliders/slider-1.webp"}],
         )
@@ -73,14 +74,12 @@ class AdminDashboardTests(unittest.TestCase):
     def tearDown(self):
         for name, value in self.original_paths.items():
             setattr(module, name, value)
-        module._JSON_CACHE.clear()
-        module._PRODUCTION_JSON_CACHE.clear()
         module._DASHBOARD_ASSET_CACHE.clear()
         self.temp_dir.cleanup()
 
     def sign_in(self):
         with self.client.session_transaction() as session:
-            session["admin"] = True
+            grant_admin_session(session)
             session["csrf_token"] = "test-csrf-token"
         self.client.environ_base["HTTP_X_CSRF_TOKEN"] = "test-csrf-token"
 
@@ -106,7 +105,7 @@ class AdminDashboardTests(unittest.TestCase):
         self.assertIn("แดชบอร์ดผู้ดูแลระบบ", page.get_data(as_text=True))
         self.assertIn("admin-dashboard.js", page.get_data(as_text=True))
 
-    def test_summary_reports_json_counts_supabase_and_ready_analytics(self):
+    def test_summary_reports_counts_without_supabase_metric_and_ready_analytics(self):
         self.sign_in()
         with patch.object(module, "dashboard_asset_head", side_effect=self.successful_head):
             response = self.client.get("/admin/api/dashboard/summary")
@@ -116,10 +115,11 @@ class AdminDashboardTests(unittest.TestCase):
             payload["content"],
             {"models": 2, "projects": 1, "site_settings": 2, "sliders": 1},
         )
-        self.assertEqual(payload["assets"]["supabase_urls"], 1)
-        self.assertEqual(payload["runtime"]["source"], "JSON")
+        self.assertNotIn("supabase_urls", payload["assets"])
+        self.assertNotIn("supabase_url_cleanliness", payload["health"])
+        self.assertEqual(payload["runtime"]["source"], "D1")
         self.assertFalse(payload["analytics"]["enabled"])
-        self.assertEqual(payload["analytics"]["provider"], "local-json")
+        self.assertEqual(payload["analytics"]["provider"], "cloudflare-d1")
         self.assertEqual(payload["analytics"]["metrics"]["total_events"], 0)
         self.assertEqual(len(payload["analytics"]["trend"]), 30)
         self.assertEqual(
@@ -140,7 +140,7 @@ class AdminDashboardTests(unittest.TestCase):
 
         analytics = payload["analytics"]
         self.assertTrue(analytics["enabled"])
-        self.assertEqual(analytics["provider"], "local-json")
+        self.assertEqual(analytics["provider"], "cloudflare-d1")
         self.assertEqual(analytics["metrics"]["pageviews_today"], 2)
         self.assertEqual(analytics["metrics"]["visitors_today"], 1)
         self.assertEqual(analytics["metrics"]["visitors_7d"], 1)
@@ -159,8 +159,8 @@ class AdminDashboardTests(unittest.TestCase):
             {"timestamp": "2026-08-06T17:00:00+00:00", "visitor_id": "after", "path": "/", "page": "Landing", "referrer": "Direct", "country": "JP"},
             {"timestamp": "2026-07-31T17:00:00+00:00", "visitor_id": "week", "path": "/models", "page": "Models", "referrer": "Internal", "country": "TH"},
         ]
-        module.write_json(module.ANALYTICS_FILE, events)
-        before = module.ANALYTICS_FILE.read_bytes()
+        module.write_dataset(module.ANALYTICS_FILE, events)
+        before = module.read_analytics_events()
 
         analytics = module.dashboard_analytics_status(date(2026, 8, 6))
 
@@ -177,7 +177,7 @@ class AdminDashboardTests(unittest.TestCase):
         self.assertEqual(analytics["top_countries"], [{"label": "US", "value": 2}, {"label": "TH", "value": 1}])
         self.assertEqual(analytics["top_referrers"], [{"label": "Direct", "value": 2}, {"label": "google.com", "value": 1}])
         self.assertIn({"label": "Model: Model 1", "value": 2}, analytics["top_pages"])
-        self.assertEqual(module.ANALYTICS_FILE.read_bytes(), before)
+        self.assertEqual(module.read_analytics_events(), before)
 
     def test_dashboard_selected_date_api_validation_and_empty_day(self):
         self.sign_in()
@@ -201,7 +201,8 @@ class AdminDashboardTests(unittest.TestCase):
         self.assertIn('id="analytics-today"', page)
 
     def test_project_and_model_routes_resolve_current_names_by_id_and_slug(self):
-        module.write_json(
+        module.save_models([])
+        module.write_dataset(
             module.PROJECTS_FILE,
             [
                 {
@@ -212,7 +213,7 @@ class AdminDashboardTests(unittest.TestCase):
                 }
             ],
         )
-        module.write_json(
+        module.write_dataset(
             module.CATALOG_FILE,
             [
                 {
@@ -238,7 +239,8 @@ class AdminDashboardTests(unittest.TestCase):
                     self.assertIn(expected_name, response.get_data(as_text=True))
 
     def test_dashboard_relabels_historical_paths_without_mutating_events(self):
-        module.write_json(
+        module.save_models([])
+        module.write_dataset(
             module.PROJECTS_FILE,
             [
                 {
@@ -249,7 +251,7 @@ class AdminDashboardTests(unittest.TestCase):
                 }
             ],
         )
-        module.write_json(
+        module.write_dataset(
             module.CATALOG_FILE,
             [
                 {
@@ -296,8 +298,8 @@ class AdminDashboardTests(unittest.TestCase):
                 "country": "TH",
             },
         ]
-        module.write_json(module.ANALYTICS_FILE, events)
-        before = module.ANALYTICS_FILE.read_bytes()
+        module.write_dataset(module.ANALYTICS_FILE, events)
+        before = module.read_analytics_events()
 
         analytics = module.dashboard_analytics_status()
 
@@ -312,7 +314,7 @@ class AdminDashboardTests(unittest.TestCase):
                 {"label": "โมเดลที่ไม่พบ", "value": 1},
             ],
         )
-        self.assertEqual(module.ANALYTICS_FILE.read_bytes(), before)
+        self.assertEqual(module.read_analytics_events(), before)
 
         self.assertEqual(
             module.analytics_page_label("/projects/project-current-slug"),
@@ -324,7 +326,8 @@ class AdminDashboardTests(unittest.TestCase):
         )
 
     def test_new_analytics_events_store_human_readable_content_names(self):
-        module.write_json(
+        module.save_models([])
+        module.write_dataset(
             module.PROJECTS_FILE,
             [
                 {
@@ -335,7 +338,7 @@ class AdminDashboardTests(unittest.TestCase):
                 }
             ],
         )
-        module.write_json(
+        module.write_dataset(
             module.CATALOG_FILE,
             [
                 {
@@ -364,116 +367,33 @@ class AdminDashboardTests(unittest.TestCase):
             "Model: New Model Name",
         )
 
-    def test_production_analytics_uses_r2_when_configured(self):
-        r2_env = {
-            "VERCEL": "1",
-            "R2_ACCOUNT_ID": "account",
-            "R2_ACCESS_KEY_ID": "access",
-            "R2_SECRET_ACCESS_KEY": "secret",
-            "R2_BUCKET": "bucket",
-            "R2_PUBLIC_BASE_URL": "https://example-r2.test",
-        }
-        not_found = HTTPError("https://example-r2.test/analytics/analytics_events.json", 404, "Not Found", {}, None)
-        self.sign_in()
-        with (
-            patch.dict(module.os.environ, r2_env),
-            patch.object(module, "dashboard_asset_head", side_effect=self.successful_head),
-            patch.object(module, "urlopen", side_effect=not_found),
-        ):
-            payload = self.client.get("/admin/api/dashboard/summary").get_json()
-
-        self.assertFalse(payload["analytics"]["enabled"])
-        self.assertEqual(payload["analytics"]["provider"], "cloudflare-r2-json")
-
-        event = {
-            "timestamp": "2026-07-11T00:00:00+00:00",
-            "visitor_id": "visitor",
-            "path": "/",
-            "page": "Landing",
-            "referrer": "Direct",
-            "country": "TH",
-        }
-        with (
-            patch.dict(module.os.environ, r2_env),
-            patch.object(module, "urlopen", side_effect=not_found),
-            patch.object(module, "r2_upload_bytes") as upload,
-        ):
+    def test_production_analytics_uses_d1_without_r2_writes(self):
+        event = {"timestamp": "2026-07-11T00:00:00+00:00", "visitor_id": "visitor", "path": "/"}
+        with patch.object(module, "is_vercel_runtime", return_value=True), patch.object(module, "r2_upload_bytes") as upload:
             module.append_analytics_event(event)
+            self.assertEqual(module.read_analytics_events(), [event])
+        upload.assert_not_called()
+        self.assertEqual(module.analytics_provider_name(), "cloudflare-d1")
 
-        upload.assert_called_once()
-        self.assertTrue(upload.call_args.args[1].startswith("analytics/events/2026/07/11/"))
-        self.assertEqual(upload.call_args.args[2], "application/json; charset=utf-8")
-        self.assertEqual(upload.call_args.kwargs["cache_control"], "no-store, max-age=0")
+    def test_production_analytics_writes_independent_rows(self):
+        event = {"timestamp": "2026-07-11T00:00:00+00:00", "path": "/models"}
+        module.append_analytics_event(event)
+        module.append_analytics_event(event)
+        rows = module.get_database().batch([("SELECT id FROM events WHERE kind=?", ["analytics"])])[0]
+        self.assertEqual(len({row["id"] for row in rows}), 2)
 
-    def test_production_analytics_writes_unique_immutable_events(self):
-        r2_env = {
-            "VERCEL": "1",
-            "R2_ACCOUNT_ID": "account",
-            "R2_ACCESS_KEY_ID": "access",
-            "R2_SECRET_ACCESS_KEY": "secret",
-            "R2_BUCKET": "bucket",
-            "R2_PUBLIC_BASE_URL": "https://example-r2.test",
-        }
-        new_event = {
-            "timestamp": "2026-07-11T00:00:00+00:00",
-            "visitor_id": "new",
-            "path": "/models",
-            "page": "Models",
-            "referrer": "Internal",
-            "country": "TH",
-        }
-        with (
-            patch.dict(module.os.environ, r2_env),
-            patch.object(module, "r2_upload_bytes") as upload,
-        ):
-            module.append_analytics_event(new_event)
-            module.append_analytics_event(new_event)
+    def test_production_analytics_never_reads_legacy_r2_json(self):
+        event = {"timestamp": "2026-07-11T00:00:00+00:00", "path": "/models"}
+        module.append_analytics_event(event)
+        with patch.object(module, "r2_get_bytes") as get, patch.object(module, "r2_list_object_keys") as listed:
+            self.assertEqual(module.read_analytics_events(), [event])
+        get.assert_not_called()
+        listed.assert_not_called()
 
-        self.assertEqual(upload.call_count, 2)
-        keys = [call.args[1] for call in upload.call_args_list]
-        self.assertEqual(len(set(keys)), 2)
-        self.assertTrue(all(key.startswith("analytics/events/2026/07/11/") for key in keys))
-        self.assertTrue(all(json.loads(call.args[0])["path"] == "/models" for call in upload.call_args_list))
-
-    def test_production_analytics_combines_legacy_and_immutable_events(self):
-        r2_env = {
-            "VERCEL": "1", "R2_ACCOUNT_ID": "account", "R2_ACCESS_KEY_ID": "access",
-            "R2_SECRET_ACCESS_KEY": "secret", "R2_BUCKET": "bucket",
-            "R2_PUBLIC_BASE_URL": "https://example-r2.test",
-        }
-        legacy = [{"timestamp": "2026-07-10T00:00:00+00:00", "visitor_id": "old", "path": "/home"}]
-        immutable = {"event_id": "new-event", "timestamp": "2026-07-11T00:00:00+00:00", "visitor_id": "new", "path": "/models"}
-        event_key = "analytics/events/2026/07/11/new-event.json"
-
-        def read_object(key):
-            if key == module.ANALYTICS_R2_OBJECT_KEY:
-                return json.dumps(legacy).encode("utf-8")
-            if key == event_key:
-                return json.dumps(immutable).encode("utf-8")
-            raise AssertionError(key)
-
-        with (
-            patch.dict(module.os.environ, r2_env),
-            patch.object(module, "r2_list_object_keys", return_value=([event_key], "")),
-            patch.object(module, "r2_get_bytes", side_effect=read_object),
-        ):
-            events = module.read_analytics_events()
-
-        self.assertEqual([event["visitor_id"] for event in events], ["old", "new"])
-
-    def test_production_analytics_skips_malformed_events_and_list_failures(self):
-        r2_env = {
-            "VERCEL": "1", "R2_ACCOUNT_ID": "account", "R2_ACCESS_KEY_ID": "access",
-            "R2_SECRET_ACCESS_KEY": "secret", "R2_BUCKET": "bucket",
-            "R2_PUBLIC_BASE_URL": "https://example-r2.test",
-        }
-        legacy = [{"timestamp": "2026-07-10T00:00:00+00:00", "visitor_id": "old", "path": "/home"}]
-        with (
-            patch.dict(module.os.environ, r2_env),
-            patch.object(module, "r2_get_bytes", return_value=json.dumps(legacy).encode("utf-8")),
-            patch.object(module, "r2_list_object_keys", side_effect=OSError("offline")),
-        ):
-            self.assertEqual(module.read_analytics_events(), legacy)
+    def test_database_outage_does_not_fall_back_to_stale_json(self):
+        with patch.object(module.database_repository.Database, "batch", side_effect=module.database_repository.DatabaseError("offline")):
+            response = self.client.get("/home")
+        self.assertEqual(response.status_code, 503)
 
     def test_storage_soft_limit_uses_default_and_environment_override(self):
         with patch.dict(module.os.environ, {}, clear=False):
@@ -500,12 +420,54 @@ class AdminDashboardTests(unittest.TestCase):
             return self.successful_head(url)
 
         with patch.object(module, "dashboard_asset_head", side_effect=mixed_head):
-            response = self.client.get("/admin/api/dashboard/summary")
+            response = self.client.get("/admin/api/dashboard/storage")
         self.assertEqual(response.status_code, 200)
         storage = response.get_json()["storage"]
         self.assertEqual(storage["unknown_size_count"], 1)
         self.assertEqual(storage["failed_count"], 1)
         self.assertFalse(storage["is_complete_bucket_inventory"])
+
+    def test_summary_never_waits_on_r2_and_storage_endpoint_fills_cache(self):
+        self.sign_in()
+        with patch.object(module, "dashboard_asset_head", side_effect=self.successful_head) as head:
+            first = self.client.get("/admin/api/dashboard/summary").get_json()
+            head.assert_not_called()
+            self.assertFalse(first["storage"]["checks_complete"])
+            self.assertEqual(first["storage"]["pending_count"], first["assets"]["r2_urls"])
+            self.assertEqual(first["health"]["r2_asset_reachability"]["status"], "pending")
+
+            storage = self.client.get("/admin/api/dashboard/storage").get_json()
+            self.assertEqual(head.call_count, first["assets"]["r2_urls"])
+            self.assertTrue(storage["storage"]["checks_complete"])
+            self.assertEqual(storage["health"]["r2_asset_reachability"]["status"], "healthy")
+
+        # The real cache is filled by dashboard_asset_head; simulate it for the follow-up summary.
+        with patch.object(module, "dashboard_asset_cached", side_effect=lambda url: self.successful_head(url)), \
+                patch.object(module, "dashboard_asset_head") as head:
+            again = self.client.get("/admin/api/dashboard/summary").get_json()
+            head.assert_not_called()
+        self.assertTrue(again["storage"]["checks_complete"])
+        self.assertEqual(again["storage"]["known_size_bytes"], storage["storage"]["known_size_bytes"])
+
+    def test_asset_cache_lasts_thirty_minutes_and_checks_run_in_parallel(self):
+        self.assertEqual(module.DASHBOARD_ASSET_CACHE_TTL_SECONDS, 1800)
+        self.assertGreaterEqual(module.DASHBOARD_ASSET_MAX_WORKERS, 20)
+        url = f"https://{module.R2_PUBLIC_HOST}/models/cached.glb"
+        result = {"reachable": True, "size_bytes": 10, "status_code": 200, "error": None}
+        with patch.object(module, "monotonic", return_value=1000.0):
+            module._DASHBOARD_ASSET_CACHE[url] = (1000.0, result)
+        with patch.object(module, "monotonic", return_value=1000.0 + 1799):
+            self.assertEqual(module.dashboard_asset_cached(url), result)
+        with patch.object(module, "monotonic", return_value=1000.0 + 1801):
+            self.assertIsNone(module.dashboard_asset_cached(url))
+
+    def test_dashboard_page_points_at_storage_endpoint(self):
+        self.sign_in()
+        page = self.client.get("/admin/dashboard").get_data(as_text=True)
+        self.assertIn("/admin/api/dashboard/storage", page)
+        script = (module.BASE_DIR / "static" / "js" / "admin-dashboard.js").read_text(encoding="utf-8")
+        self.assertNotIn("supabase", script.lower())
+        self.assertIn("loadStorage", script)
 
     def test_production_dashboard_reports_read_only_without_mutation(self):
         self.sign_in()

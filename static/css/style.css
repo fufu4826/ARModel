@@ -1520,6 +1520,30 @@ model-viewer {
   }
 }
 
+/* Public centre information and model instructions. */
+.centre-information-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 32px;
+}
+.centre-information h2 { font-size: 26px; overflow-wrap: anywhere; }
+.centre-information h3, .centre-contact h3 { font-size: 19px; line-height: 1.4; }
+.centre-information p, .centre-information li,
+.centre-contact p, .centre-contact address,
+.viewer-instructions p, .viewer-instructions li { line-height: 1.7; overflow-wrap: anywhere; }
+.centre-contact { min-width: 0; }
+.centre-contact address { font-style: normal; }
+.centre-information ul, .viewer-instructions ol { padding-left: 24px; }
+.viewer-instructions { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line, #dfe7dc); }
+.viewer-instructions h2 { font-size: 20px; line-height: 1.4; }
+.viewer-instructions li + li { margin-top: 10px; }
+.viewer-page .info-panel > .centre-contact { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line, #dfe7dc); }
+.content-source { font-size: 13px; color: var(--muted, #66756b); }
+@media (max-width: 768px) {
+  .centre-information-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .centre-information h2 { font-size: 22px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .model-detail-narration__button {
     animation: none;
@@ -2075,6 +2099,12 @@ body:not(.landing-page) .site-slider-section .site-slide-content .button {
   }
 
   .viewer-help {
+    order: 7;
+    margin-top: 16px;
+  }
+
+  /* AR guide follows the 3D viewer and its quick help instead of pushing them down. */
+  .viewer-stage > .viewer-instructions {
     order: 7;
     margin-top: 16px;
   }
@@ -2969,5 +2999,23 @@ body:not(.landing-page) .site-slider-section .site-slider--marquee .swiper-butto
 
   body:not(.landing-page) .site-slider-section .site-slider--marquee .site-slide {
     scroll-snap-align: start;
+  }
+}
+
+/* Mobile header: a long site name must not turn the sticky header into a third of the screen.
+   The full name stays in the link's aria-label; desktop (>768px) is unchanged. */
+@media (max-width: 768px) {
+  .site-nav .brand-mark strong {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: break-word;
+    font-size: 15px;
+  }
+
+  .site-nav .brand-mark small {
+    display: none;
   }
 }

@@ -27,16 +27,18 @@ from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsp
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
-from flask import abort, flash, Flask, jsonify, redirect, render_template, request, session, url_for, send_file, Response
+from flask import abort, flash, Flask, g, has_request_context, jsonify, redirect, render_template, request, session, url_for, send_file, Response
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 from armodel.services import analytics as analytics_service
 from armodel.services import audit as audit_service
-from armodel.services import github_storage, r2_storage
+from armodel.services import r2_storage
 from armodel.services import narration as narration_service
 from armodel.repositories import content as content_repository
+from armodel.repositories import database as database_repository
+from armodel.repositories import admin_users as admin_users_repository
 
 
 def load_local_env() -> None:
@@ -73,16 +75,14 @@ NARRATION_PENDING_PREFIX = "audio/pending/"
 NARRATION_PERMANENT_PREFIX = "audio/narrations/"
 LOCAL_NARRATION_DRAFT_DIR = Path(tempfile.gettempdir()) / "armodel-narration-drafts"
 LOCAL_AUDIT_LOG_DIR = Path(tempfile.gettempdir()) / "armodel-audit-logs"
-LOCAL_LOGIN_RATE_LIMIT_DIR = Path(tempfile.gettempdir()) / "armodel-login-rate-limit"
-AUDIT_PREFIX = "audit/"
 LOGIN_FAILURE_PREFIX = "auth/login-failures/"
 LOGIN_FAILURE_LIMIT = 5
 LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
 AUDIT_PAGE_SIZE = 50
 MAX_MODEL_FILE_SIZE_MB = 50
 MAX_MODEL_FILE_SIZE_BYTES = MAX_MODEL_FILE_SIZE_MB * 1024 * 1024
-VERCEL_UPLOAD_MESSAGE = "ระบบ production เป็นโหมดอ่านอย่างเดียว กรุณาอัปโหลดไฟล์ไปยัง R2 และแก้ไขไฟล์ data/*.json ผ่านขั้นตอนเผยแพร่ที่กำหนด"
-VERCEL_EDIT_MESSAGE = "ระบบแอดมิน production เป็นโหมดอ่านอย่างเดียว กรุณาแก้ไขไฟล์ data/*.json ภายในเครื่อง ตรวจสอบความถูกต้อง แล้ว Commit และ Deploy ใหม่"
+VERCEL_UPLOAD_MESSAGE = "ยังไม่ได้ตั้งค่าพื้นที่จัดเก็บไฟล์ R2 สำหรับระบบ"
+VERCEL_EDIT_MESSAGE = "ยังไม่ได้ตั้งค่าการเชื่อมต่อฐานข้อมูล D1 สำหรับระบบ"
 UNASSIGNED_PROJECT_LABEL = "ยังไม่ได้จัดอยู่ในแหล่งเรียนรู้"
 PUBLIC_SITE_URL = (
     os.environ.get("SITE_BASE_URL")
@@ -277,30 +277,16 @@ SLIDER_ITEMS_FILE = DATA_DIR / "slider_items.json"
 ANALYTICS_FILE = DATA_DIR / "analytics_events.json"
 SITE_UPLOAD_DIR = STATIC_DIR / "uploads" / "site"
 SLIDER_UPLOAD_DIR = STATIC_DIR / "uploads" / "sliders"
-_JSON_CACHE: dict[Path, tuple[float | None, object]] = {}
-_PRODUCTION_JSON_CACHE: dict[str, tuple[float, object]] = {}
-PRODUCTION_JSON_CACHE_TTL_SECONDS = 30
 R2_PUBLIC_HOST = "pub-b7cd49a1aa5b4bb1ba339dfd78d4ec75.r2.dev"
-DASHBOARD_ASSET_CACHE_TTL_SECONDS = 300
+DASHBOARD_ASSET_CACHE_TTL_SECONDS = 1800
+DASHBOARD_ASSET_MAX_WORKERS = 24
 DASHBOARD_ASSET_HEAD_TIMEOUT_SECONDS = 5
 DEFAULT_R2_STORAGE_SOFT_LIMIT_GB = 10.0
 _DASHBOARD_ASSET_CACHE: dict[str, tuple[float, dict]] = {}
 _DASHBOARD_ASSET_CACHE_LOCK = Lock()
-_ANALYTICS_LOCK = Lock()
 ANALYTICS_MAX_EVENTS = 10000
-ANALYTICS_R2_OBJECT_KEY = os.environ.get(
-    "ANALYTICS_R2_OBJECT_KEY",
-    "analytics/analytics_events.json",
-).strip("/")
-ANALYTICS_EVENT_PREFIX = "analytics/events/"
 BANGKOK_TZ = ZoneInfo("Asia/Bangkok")
 _DATA_READY = False
-PRODUCTION_DATA_FILES = {
-    "models.json",
-    "projects.json",
-    "site_settings.json",
-    "slider_items.json",
-}
 
 app = Flask(
     __name__,
@@ -335,6 +321,33 @@ def protect_admin_mutations_with_csrf():
     expected = session.get("csrf_token", "")
     if not expected or not supplied or not hmac.compare_digest(str(expected), str(supplied)):
         abort(400, "Invalid CSRF token")
+    for name in database_repository.COLLECTIONS:
+        raw_revision = request.form.get(f"revision_{name}")
+        if raw_revision is not None:
+            try:
+                revision = int(raw_revision)
+                if revision < 0:
+                    raise ValueError
+            except ValueError:
+                abort(400, "Invalid data revision")
+            g.setdefault("dataset_revisions", {})[name] = revision
+            g.setdefault("submitted_revisions", set()).add(name)
+
+
+def require_submitted_revision(name: str) -> None:
+    """An Admin save must carry the revision its page was rendered with; otherwise it could
+    silently overwrite a newer change made by someone else."""
+    if not has_request_context() or request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return
+    if not request.path.startswith("/admin/") or request.path == "/admin/login":
+        return
+    if name not in g.get("submitted_revisions", ()):
+        raise database_repository.ConflictError("Missing data revision")
+
+
+def staging_site() -> bool:
+    """A review copy for the team: never indexed by search engines."""
+    return os.environ.get("ARMODEL_STAGING", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def is_vercel_runtime() -> bool:
@@ -349,11 +362,10 @@ def env_value(*names: str) -> str:
     return ""
 
 
-def github_content_configured() -> bool:
-    return bool(
-        env_value("GITHUB_CONTENTS_TOKEN", "GITHUB_TOKEN", "GH_TOKEN")
-        and env_value("GITHUB_REPOSITORY", "GITHUB_REPO")
-    )
+def d1_configured() -> bool:
+    gateway = d1_setting("D1_GATEWAY_URL") and d1_setting("D1_GATEWAY_TOKEN")
+    direct = all(d1_setting(name) for name in ("D1_ACCOUNT_ID", "D1_DATABASE_ID", "D1_API_TOKEN"))
+    return bool(gateway or direct)
 
 
 def r2_upload_configured() -> bool:
@@ -367,11 +379,16 @@ def r2_upload_configured() -> bool:
 
 
 def production_admin_writes_enabled() -> bool:
-    return (not is_vercel_runtime()) or github_content_configured()
+    return (not is_vercel_runtime()) or d1_configured()
 
 
 def production_uploads_enabled() -> bool:
-    return (not is_vercel_runtime()) or r2_upload_configured()
+    return r2_upload_configured() or bool(app.config.get("TESTING") and not is_vercel_runtime())
+
+
+def media_storage_uses_r2() -> bool:
+    """Filesystem media adapters are restricted to isolated tests."""
+    return is_vercel_runtime() or r2_upload_configured() or not app.config.get("TESTING")
 
 
 def public_absolute_url(path_or_url: str | None) -> str:
@@ -396,14 +413,33 @@ def public_meta_image_url(path_or_url: str | None) -> str:
     return public_absolute_url(value)
 
 
+def admin_can(endpoint: str, method: str = "GET") -> bool:
+    user = current_admin()
+    return bool(user and role_allows(user["role"], required_role(endpoint, method)))
+
+
+def admin_page_read_only() -> bool:
+    """Disable a page's forms when the deployment or the signed-in role cannot save them."""
+    if is_vercel_runtime() and not production_admin_writes_enabled():
+        return True
+    user = current_admin() if has_request_context() and request.path.startswith("/admin") else None
+    if not user:
+        return False
+    needed = "admin" if request.endpoint in SETTINGS_PAGES else "editor"
+    return not role_allows(user["role"], needed)
+
+
 @app.context_processor
 def inject_runtime_flags():
     settings = get_site_settings()
     public_settings = site_settings_with_urls(settings)
     return {
         "is_vercel": is_vercel_runtime(),
-        "admin_read_only": is_vercel_runtime() and not production_admin_writes_enabled(),
-        "uploads_disabled": is_vercel_runtime() and not production_uploads_enabled(),
+        "noindex": staging_site(),
+        "admin_read_only": admin_page_read_only(),
+        "admin_user": current_admin() if request.path.startswith("/admin") else None,
+        "admin_can": admin_can,
+        "uploads_disabled": not production_uploads_enabled(),
         "default_meta_title": DEFAULT_META_TITLE,
         "default_meta_description": settings["meta_description"],
         "default_meta_keywords": DEFAULT_META_KEYWORDS,
@@ -547,137 +583,121 @@ def ensure_data_files() -> None:
     _DATA_READY = True
 
 
-def read_json(path: Path, default):
-    path = path.resolve()
-    if is_vercel_runtime() and github_content_configured():
-        relative_path = production_data_relative_path(path)
-        if relative_path:
-            cached = _PRODUCTION_JSON_CACHE.get(relative_path)
-            if cached and monotonic() - cached[0] < PRODUCTION_JSON_CACHE_TTL_SECONDS:
-                return deepcopy(cached[1])
-            try:
-                branch = env_value("GITHUB_BRANCH", "GIT_BRANCH") or "main"
-                current = github_api_request(
-                    "GET",
-                    f"/repos/{env_value('GITHUB_REPOSITORY', 'GITHUB_REPO')}/contents/{quote(relative_path, safe='/')}?ref={quote(branch, safe='')}",
-                )
-                raw_content = base64.b64decode(current.get("content", "")).decode("utf-8")
-                value = json.loads(raw_content)
-                if isinstance(value, type(default)):
-                    _PRODUCTION_JSON_CACHE[relative_path] = (monotonic(), deepcopy(value))
-                    return deepcopy(value)
-                logger.warning("Unexpected production JSON shape for %s", relative_path)
-            except Exception as exc:
-                logger.warning("Unable to read production JSON from GitHub for %s: %s", relative_path, exc)
-
-    try:
-        mtime = path.stat().st_mtime
-    except OSError:
-        logger.warning("JSON file is missing or unreadable, using defaults: %s", path)
-        return deepcopy(default)
-
-    cached = _JSON_CACHE.get(path)
-    if cached and cached[0] == mtime:
-        return deepcopy(cached[1])
-
-    try:
-        with path.open("r", encoding="utf-8") as file:
-            value = json.load(file)
-    except json.JSONDecodeError as exc:
-        logger.warning("Invalid JSON in %s, using defaults: %s", path, exc)
-        return deepcopy(default)
-    except OSError as exc:
-        logger.warning("Unable to read JSON file %s, using defaults: %s", path, exc)
-        return deepcopy(default)
-
-    if not isinstance(value, type(default)):
-        logger.warning("Unexpected JSON shape in %s, using defaults", path)
-        return deepcopy(default)
-
-    _JSON_CACHE[path] = (mtime, deepcopy(value))
-    return deepcopy(value)
+def d1_setting(name: str) -> str:
+    # Tests never inherit D1 credentials from the shell or .env; they must opt in via app.config.
+    if app.config.get("TESTING"):
+        return app.config.get(name) or ""
+    return app.config.get(name) or env_value(name)
 
 
-def production_data_relative_path(path: Path) -> str | None:
-    try:
-        relative_path = path.resolve().relative_to(DATA_DIR.resolve())
-    except ValueError:
-        return None
-    if relative_path.name not in PRODUCTION_DATA_FILES or len(relative_path.parts) != 1:
-        return None
-    return f"data/{relative_path.name}"
+def get_database(path: Path | None = None):
+    gateway = d1_setting("D1_GATEWAY_URL")
+    token = d1_setting("D1_GATEWAY_TOKEN")
+    direct = {key: d1_setting(name) for key, name in
+              (("account_id", "D1_ACCOUNT_ID"), ("database_id", "D1_DATABASE_ID"),
+               ("api_token", "D1_API_TOKEN"))}
+    local = None
+    if not gateway and app.config.get("TESTING"):
+        local = app.config.get("D1_LOCAL_PATH") or (path or CATALOG_FILE).parent / "armodel.sqlite3"
+    return database_repository.Database(local_path=local, gateway_url=gateway, token=token, **direct)
 
 
-def github_api_request(method: str, api_path: str, payload: dict | None = None) -> dict:
-    token = env_value("GITHUB_CONTENTS_TOKEN", "GITHUB_TOKEN", "GH_TOKEN")
-    if not token:
-        abort(500, "GITHUB_CONTENTS_TOKEN is not configured")
-    try:
-        return github_storage.request_json(method, api_path, token, payload, opener=urlopen)
-    except HTTPError as exc:
-        detail = exc.read(500).decode("utf-8", errors="replace").strip()
-        logger.warning("GitHub content API failed: HTTP %s %s", exc.code, detail)
-        abort(502, f"GitHub content update failed: HTTP {exc.code}")
-    except (URLError, OSError, TimeoutError) as exc:
-        logger.warning("GitHub content API connection failed: %s", exc)
-        abort(502, "GitHub content update failed")
+@app.errorhandler(database_repository.DatabaseError)
+def handle_database_error(error):
+    logger.error("Database operation failed: %s", type(error).__name__)
+    if isinstance(error, database_repository.ConflictError):
+        return "ข้อมูลมีการเปลี่ยนแปลง กรุณาโหลดหน้าใหม่ก่อนบันทึก", 409
+    return "ระบบฐานข้อมูลไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง", 503
 
 
-def github_commit_json(relative_path: str, value) -> None:
-    repo = env_value("GITHUB_REPOSITORY", "GITHUB_REPO")
-    branch = env_value("GITHUB_BRANCH", "GIT_BRANCH") or "main"
-    if not repo:
-        abort(500, "GITHUB_REPOSITORY is not configured")
-    committer_name = env_value("GITHUB_COMMITTER_NAME")
-    committer_email = env_value("GITHUB_COMMITTER_EMAIL")
-    github_storage.commit_json(
-        relative_path,
-        value,
-        repository=repo,
-        branch=branch,
-        requester=lambda method, path, payload=None: github_api_request(method, path, payload),
-        committer_name=committer_name,
-        committer_email=committer_email,
-    )
+CONTENT_DATASETS = ("projects", "models", "site_settings", "slider_items")
 
 
-def write_json(path: Path, value) -> None:
-    if is_vercel_runtime():
-        relative_path = production_data_relative_path(path)
-        if relative_path and github_content_configured():
-            github_commit_json(relative_path, value)
-            _JSON_CACHE.pop(path.resolve(), None)
-            _PRODUCTION_JSON_CACHE.pop(relative_path, None)
-            return
-        logger.warning("Blocked JSON write on Vercel runtime: %s", path)
-        abort(403, VERCEL_EDIT_MESSAGE)
+def dataset_name(path: Path) -> str:
+    names = {"models.json": "models", "projects.json": "projects",
+             "site_settings.json": "site_settings", "slider_items.json": "slider_items",
+             "config.json": "admin_accounts"}
+    if path.name not in names:
+        raise database_repository.DatabaseError("Unknown dataset")
+    return names[path.name]
 
-    path = path.resolve()
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8") as file:
-            json.dump(value, file, ensure_ascii=False, indent=2)
-        _JSON_CACHE.pop(path, None)
-    except OSError as exc:
-        logger.exception("Unable to write JSON file %s", path)
-        abort(500, f"Unable to save data: {exc}")
+
+def read_dataset(path: Path, default=None):
+    """Compatibility path identifies a D1 table; no JSON file is read."""
+    if path.name == "analytics_events.json":
+        return get_database(path).events("analytics")[::-1]
+    name = dataset_name(path)
+    if has_request_context() and name in g.get("dataset_values", {}):
+        return deepcopy(g.dataset_values[name])
+    if has_request_context() and name in CONTENT_DATASETS:
+        # Pages use several content tables; fetch the missing ones in one D1 round trip.
+        cached = g.setdefault("dataset_values", {})
+        revisions = g.setdefault("dataset_revisions", {})
+        missing = [item for item in CONTENT_DATASETS if item not in cached]
+        for item, (value, revision) in get_database(path).read_many(missing).items():
+            revisions.setdefault(item, revision)
+            cached[item] = value
+        return deepcopy(cached[name])
+    value, revision = get_database(path).read(name)
+    if has_request_context():
+        revisions = g.setdefault("dataset_revisions", {})
+        revisions.setdefault(name, revision)
+        g.setdefault("dataset_values", {})[name] = deepcopy(value)
+    return value
+
+
+
+
+
+
+
+
+
+
+
+def write_dataset(path: Path, value) -> None:
+    """Persist rows transactionally, rejecting stale writes in the same request."""
+    db = get_database(path)
+    if path.name == "analytics_events.json":
+        # Test/import compatibility; runtime appends individual analytics rows.
+        for event in value:
+            db.append_event("analytics", event)
+        return
+    name = dataset_name(path)
+    require_submitted_revision(name)
+    revisions = g.setdefault("dataset_revisions", {}) if has_request_context() else {}
+    revision = db.save(name, value, revisions.get(name))
+    if has_request_context():
+        revisions[name] = revision
+        g.setdefault("dataset_values", {})[name] = deepcopy(value)
+
+
+def write_datasets(values) -> None:
+    """Save linked collections in one D1 transaction."""
+    db = get_database()
+    statements = []
+    revisions = g.setdefault("dataset_revisions", {})
+    updates = []
+    for path, value in values:
+        name = dataset_name(path)
+        require_submitted_revision(name)
+        batch, revision = db.save_statements(name, value, revisions.get(name))
+        statements.extend(batch)
+        updates.append((name, value, revision))
+    db.batch(statements)
+    for name, value, revision in updates:
+        revisions[name] = revision
+        g.setdefault("dataset_values", {})[name] = deepcopy(value)
 
 
 def analytics_tracking_enabled() -> bool:
-    if os.environ.get("ARMODEL_ANALYTICS_ENABLED", "1").strip().lower() in {
-        "0",
-        "false",
-        "no",
-        "off",
-    }:
-        return False
-    return (not is_vercel_runtime()) or r2_upload_configured()
+    return os.environ.get("ARMODEL_ANALYTICS_ENABLED", "1").strip().lower() not in {
+        "0", "false", "no", "off"
+    }
 
 
 def analytics_provider_name() -> str | None:
-    if not analytics_tracking_enabled():
-        return None
-    return "cloudflare-r2-json" if is_vercel_runtime() else "local-json"
+    return "cloudflare-d1" if analytics_tracking_enabled() else None
 
 
 def analytics_should_track(response) -> bool:
@@ -774,78 +794,15 @@ def analytics_page_label(
 
 
 def read_analytics_events() -> list[dict]:
-    if is_vercel_runtime():
-        if not r2_upload_configured():
-            return []
-        events: list[dict] = []
-        try:
-            value = json.loads(r2_get_bytes(ANALYTICS_R2_OBJECT_KEY).decode("utf-8"))
-        except HTTPError as exc:
-            if exc.code != 404:
-                logger.warning("Unable to read analytics R2 object: HTTP %s", exc.code)
-            value = []
-        except (OSError, TimeoutError, URLError, json.JSONDecodeError) as exc:
-            logger.warning("Unable to read analytics R2 object: %s", exc)
-            value = []
-        if isinstance(value, list):
-            events.extend(event for event in value if isinstance(event, dict))
+    return get_database().events("analytics", limit=ANALYTICS_MAX_EVENTS)[::-1]
 
-        continuation = ""
-        keys: list[str] = []
-        try:
-            while len(keys) < ANALYTICS_MAX_EVENTS:
-                page, continuation = r2_list_object_keys(
-                    ANALYTICS_EVENT_PREFIX,
-                    max_keys=min(1000, ANALYTICS_MAX_EVENTS - len(keys)),
-                    continuation_token=continuation,
-                )
-                keys.extend(page)
-                if not continuation:
-                    break
-        except Exception as exc:
-            logger.warning("Unable to list immutable analytics events: %s", exc)
-            return events[-ANALYTICS_MAX_EVENTS:]
 
-        for key in keys:
-            try:
-                event = json.loads(r2_get_bytes(key).decode("utf-8"))
-            except Exception as exc:
-                logger.warning("Skipping unreadable analytics event %s: %s", key, exc)
-                continue
-            if isinstance(event, dict):
-                events.append(event)
-        return events[-ANALYTICS_MAX_EVENTS:]
-
-    events = read_json(ANALYTICS_FILE, [])
-    return [event for event in events if isinstance(event, dict)]
+# Page views are recorded synchronously; a slow D1 must not hold a public page for long.
+ANALYTICS_WRITE_TIMEOUT_SECONDS = 3
 
 
 def append_analytics_event(event: dict) -> None:
-    if is_vercel_runtime():
-        if not r2_upload_configured():
-            return
-        stored_event = dict(event)
-        stored_event.setdefault("event_id", uuid.uuid4().hex)
-        occurred_at = _analytics_event_datetime(stored_event) or datetime.now(timezone.utc)
-        key = (
-            f"{ANALYTICS_EVENT_PREFIX}{occurred_at:%Y/%m/%d}/"
-            f"{occurred_at:%Y%m%dT%H%M%S.%fZ}-{stored_event['event_id']}.json"
-        )
-        payload = json.dumps(stored_event, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        r2_upload_bytes(
-            payload,
-            key,
-            "application/json; charset=utf-8",
-            cache_control="no-store, max-age=0",
-        )
-        return
-
-    with _ANALYTICS_LOCK:
-        events = read_analytics_events()
-        events.append(event)
-        if len(events) > ANALYTICS_MAX_EVENTS:
-            events = events[-ANALYTICS_MAX_EVENTS:]
-        write_json(ANALYTICS_FILE, events)
+    get_database().append_event("analytics", event, timeout=ANALYTICS_WRITE_TIMEOUT_SECONDS)
 
 
 @app.after_request
@@ -854,6 +811,8 @@ def record_local_analytics(response):
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=(self)")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    if staging_site():
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
     if is_vercel_runtime() or request.is_secure:
         response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     if (
@@ -864,9 +823,22 @@ def record_local_analytics(response):
     ):
         token = csrf_token()
         html = response.get_data(as_text=True)
+        revision_fields = ""
+        if "<form" in html:
+            try:
+                current = get_database().batch([("SELECT name,version FROM dataset_versions", [])])[0]
+            except database_repository.DatabaseError as error:
+                body, status = handle_database_error(error)
+                return Response(body, status=status, mimetype="text/plain")
+            versions = {row["name"]: row["version"] for row in current}
+            versions.update(g.get("dataset_revisions", {}))
+            revision_fields = "".join(
+                f'<input type="hidden" name="revision_{name}" value="{version}">'
+                for name, version in versions.items()
+            )
         html = re.sub(
             r"(<form\b[^>]*method=[\"']post[\"'][^>]*>)",
-            lambda match: match.group(1) + f'<input type="hidden" name="csrf_token" value="{token}">',
+            lambda match: match.group(1) + f'<input type="hidden" name="csrf_token" value="{token}">' + revision_fields,
             html,
             flags=re.IGNORECASE,
         )
@@ -933,11 +905,11 @@ def dashboard_analytics_status(selected_date: date | None = None) -> dict:
 
 
 def save_projects(projects: list[dict]) -> None:
-    write_json(PROJECTS_FILE, projects)
+    write_dataset(PROJECTS_FILE, projects)
 
 
 def save_models(models: list[dict]) -> None:
-    write_json(CATALOG_FILE, models)
+    write_dataset(CATALOG_FILE, models)
 
 
 def normalize_project(project: dict) -> dict:
@@ -949,7 +921,7 @@ def load_projects(include_hidden: bool = True) -> list[dict]:
     return content_repository.load_normalized(
         PROJECTS_FILE,
         DEFAULT_PROJECTS,
-        read_json,
+        read_dataset,
         normalize_project,
         visible_key="visible",
         include_hidden=include_hidden,
@@ -1002,7 +974,7 @@ def load_models(include_hidden: bool = True) -> list[dict]:
     return content_repository.load_normalized(
         CATALOG_FILE,
         DEFAULT_MODELS,
-        read_json,
+        read_dataset,
         lambda model: normalize_model(model, projects),
         visible_key="visible",
         include_hidden=include_hidden,
@@ -1046,11 +1018,11 @@ def find_model(model_id: str, include_hidden: bool = False) -> dict | None:
 
 
 def load_config() -> dict:
-    return read_json(CONFIG_FILE, {})
+    return read_dataset(CONFIG_FILE, {})
 
 
 def save_config(config: dict) -> None:
-    write_json(CONFIG_FILE, config)
+    write_dataset(CONFIG_FILE, config)
 
 
 def normalize_site_settings(settings: dict | None) -> dict:
@@ -1066,11 +1038,11 @@ def normalize_landing_typography_value(key: str, value) -> str:
 
 
 def load_site_settings() -> dict:
-    return normalize_site_settings(read_json(SITE_SETTINGS_FILE, DEFAULT_SITE_SETTINGS))
+    return normalize_site_settings(read_dataset(SITE_SETTINGS_FILE, DEFAULT_SITE_SETTINGS))
 
 
 def save_site_settings(settings: dict) -> None:
-    write_json(SITE_SETTINGS_FILE, normalize_site_settings(settings))
+    write_dataset(SITE_SETTINGS_FILE, normalize_site_settings(settings))
 
 
 def normalize_slider_item(item: dict) -> dict:
@@ -1079,7 +1051,7 @@ def normalize_slider_item(item: dict) -> dict:
 
 def load_slider_items(include_inactive: bool = True) -> list[dict]:
     items = content_repository.load_normalized(
-        SLIDER_ITEMS_FILE, DEFAULT_SLIDER_ITEMS, read_json, normalize_slider_item
+        SLIDER_ITEMS_FILE, DEFAULT_SLIDER_ITEMS, read_dataset, normalize_slider_item
     )
     items.sort(key=lambda item: (item["sort_order"], item["id"]))
     if include_inactive:
@@ -1091,15 +1063,13 @@ def save_slider_items(items: list[dict]) -> None:
     content_repository.save_normalized(
         SLIDER_ITEMS_FILE,
         items,
-        write_json,
+        write_dataset,
         normalize_slider_item,
         sort_key=lambda item: (item["sort_order"], item["id"]),
     )
 
 
 def slider_save_flash_message(action: str) -> str:
-    if is_vercel_runtime() and production_admin_writes_enabled():
-        return f"{action} saved. Production may take up to {PRODUCTION_JSON_CACHE_TTL_SECONDS} seconds to show the latest data."
     return f"{action} saved."
 
 
@@ -1245,6 +1215,89 @@ def dashboard_asset_head(url: str) -> dict:
     return result
 
 
+def dashboard_asset_cached(url: str) -> dict | None:
+    """A still-fresh earlier HEAD result, without any network request."""
+    with _DASHBOARD_ASSET_CACHE_LOCK:
+        cached = _DASHBOARD_ASSET_CACHE.get(url)
+    if cached and monotonic() - cached[0] < DASHBOARD_ASSET_CACHE_TTL_SECONDS:
+        return deepcopy(cached[1])
+    return None
+
+
+def dashboard_asset_checks(r2_assets: dict[str, str]) -> dict[str, dict]:
+    checks: dict[str, dict] = {}
+    if not r2_assets:
+        return checks
+    with ThreadPoolExecutor(max_workers=min(DASHBOARD_ASSET_MAX_WORKERS, len(r2_assets))) as executor:
+        future_map = {executor.submit(dashboard_asset_head, url): url for url in r2_assets}
+        for future in as_completed(future_map):
+            url = future_map[future]
+            try:
+                checks[url] = future.result()
+            except Exception as exc:  # Keep one failed check from breaking the summary.
+                logger.warning("Dashboard asset check failed for %s: %s", url, exc)
+                checks[url] = {"reachable": False, "size_bytes": None, "status_code": None,
+                               "error": type(exc).__name__}
+    return checks
+
+
+def dashboard_tracked_assets() -> tuple[dict, dict[str, str], dict[str, str]]:
+    sources, _ = dashboard_source_data()
+    assets = dashboard_assets_from_sources(
+        sources["models"], sources["projects"], sources["site_settings"], sources["sliders"],
+    )
+    r2_assets = {url: category for url, category in assets.items() if urlsplit(url).hostname == R2_PUBLIC_HOST}
+    return sources, assets, r2_assets
+
+
+def dashboard_storage_report(assets: dict[str, str], r2_assets: dict[str, str], checks: dict[str, dict]) -> dict:
+    """Storage panel, asset counts and reachability from whichever checks are available."""
+    categories = ("glb_models", "thumbnails", "narration_audio", "project_images",
+                  "site_settings_images", "slider_images", "other")
+    breakdown = []
+    for category in categories:
+        urls = [url for url, item_category in r2_assets.items() if item_category == category]
+        known_sizes = [checks[url]["size_bytes"] for url in urls
+                       if checks.get(url, {}).get("size_bytes") is not None]
+        breakdown.append({"category": category, "asset_count": len(urls), "known_size_count": len(known_sizes),
+                          "unknown_size_count": len(urls) - len(known_sizes), "size_bytes": sum(known_sizes)})
+    known_size_bytes = sum(item["size_bytes"] for item in breakdown)
+    checked = [url for url in r2_assets if url in checks]
+    pending_count = len(r2_assets) - len(checked)
+    reachable_count = sum(1 for url in checked if checks[url]["reachable"])
+    unknown_size_count = sum(item["unknown_size_count"] for item in breakdown)
+    soft_limit_gb, soft_limit_source = dashboard_storage_soft_limit()
+    soft_limit_bytes = int(soft_limit_gb * 1024**3)
+    usage_percent = min(100.0, known_size_bytes / soft_limit_bytes * 100) if soft_limit_bytes else 0.0
+    if pending_count:
+        reachability = {"score": None, "status": "pending",
+                        "details": {"reachable": reachable_count, "checked": len(checked), "pending": pending_count}}
+    else:
+        score = round(reachable_count / len(r2_assets) * 100) if r2_assets else 100
+        reachability = {"score": score, "status": "healthy" if score == 100 else "warning",
+                        "details": {"reachable": reachable_count, "checked": len(checked)}}
+    asset_counts = {item["category"]: item["asset_count"] for item in breakdown}
+    asset_counts.update({"tracked_urls": len(assets), "r2_urls": len(r2_assets)})
+    storage = {
+        "label": "พื้นที่ของไฟล์ public ที่ระบบติดตาม",
+        "known_size_bytes": known_size_bytes,
+        "unknown_size_count": unknown_size_count,
+        "reachable_count": reachable_count,
+        "failed_count": len(checked) - reachable_count,
+        "checked_count": len(checked),
+        "pending_count": pending_count,
+        "checks_complete": pending_count == 0,
+        "soft_limit_gb": soft_limit_gb,
+        "soft_limit_bytes": soft_limit_bytes,
+        "soft_limit_source": soft_limit_source,
+        "remaining_bytes": max(0, soft_limit_bytes - known_size_bytes),
+        "usage_percent": round(usage_percent, 2),
+        "is_complete_bucket_inventory": False,
+        "breakdown": breakdown,
+    }
+    return {"storage": storage, "assets": asset_counts, "reachability": reachability}
+
+
 def dashboard_storage_soft_limit() -> tuple[float, str]:
     raw_value = os.environ.get("R2_STORAGE_SOFT_LIMIT_GB", "").strip()
     if raw_value:
@@ -1273,130 +1326,26 @@ def dashboard_analytics_status_disabled_placeholder() -> dict:
 
 
 def dashboard_source_data() -> tuple[dict, list[str]]:
-    specs = (
-        ("models", CATALOG_FILE, list),
-        ("projects", PROJECTS_FILE, list),
-        ("site_settings", SITE_SETTINGS_FILE, dict),
-        ("sliders", SLIDER_ITEMS_FILE, list),
-    )
     sources = {}
-    errors = []
-    for name, path, expected_type in specs:
-        try:
-            with path.open("r", encoding="utf-8") as source_file:
-                value = json.load(source_file)
-            if not isinstance(value, expected_type):
-                raise ValueError(f"expected {expected_type.__name__}")
-            sources[name] = value
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
-            sources[name] = expected_type()
-            errors.append(f"{name}: {type(exc).__name__}")
-
-    project_ids = {
-        str(project.get("id"))
-        for project in sources["projects"]
-        if isinstance(project, dict) and project.get("id") is not None
-    }
-    if any(
-        not isinstance(model, dict) or str(model.get("project_id")) not in project_ids
-        for model in sources["models"]
+    for name, path, default in (
+        ("models", CATALOG_FILE, []), ("projects", PROJECTS_FILE, []),
+        ("site_settings", SITE_SETTINGS_FILE, {}), ("sliders", SLIDER_ITEMS_FILE, []),
     ):
-        errors.append("models: invalid project relationship")
-    return sources, errors
+        sources[name] = read_dataset(path, default)
+    return sources, []
 
 
 def build_admin_dashboard_summary(selected_date: date | None = None) -> dict:
-    sources, data_errors = dashboard_source_data()
-    assets = dashboard_assets_from_sources(
-        sources["models"],
-        sources["projects"],
-        sources["site_settings"],
-        sources["sliders"],
-    )
-    r2_assets = {
-        url: category
-        for url, category in assets.items()
-        if urlsplit(url).hostname == R2_PUBLIC_HOST
-    }
-    supabase_count = sum(
-        1
-        for url in assets
-        if "supabase.co" in (urlsplit(url).hostname or "").lower()
-    )
-
-    checks: dict[str, dict] = {}
-    if r2_assets:
-        with ThreadPoolExecutor(max_workers=min(10, len(r2_assets))) as executor:
-            future_map = {
-                executor.submit(dashboard_asset_head, url): url for url in r2_assets
-            }
-            for future in as_completed(future_map):
-                url = future_map[future]
-                try:
-                    checks[url] = future.result()
-                except Exception as exc:  # Keep one failed check from breaking the summary.
-                    logger.warning("Dashboard asset check failed for %s: %s", url, exc)
-                    checks[url] = {
-                        "reachable": False,
-                        "size_bytes": None,
-                        "status_code": None,
-                        "error": type(exc).__name__,
-                    }
-
-    categories = (
-        "glb_models",
-        "thumbnails",
-        "narration_audio",
-        "project_images",
-        "site_settings_images",
-        "slider_images",
-        "other",
-    )
-    breakdown = []
-    for category in categories:
-        urls = [url for url, item_category in r2_assets.items() if item_category == category]
-        known_sizes = [
-            checks[url]["size_bytes"]
-            for url in urls
-            if checks.get(url, {}).get("size_bytes") is not None
-        ]
-        breakdown.append(
-            {
-                "category": category,
-                "asset_count": len(urls),
-                "known_size_count": len(known_sizes),
-                "unknown_size_count": len(urls) - len(known_sizes),
-                "size_bytes": sum(known_sizes),
-            }
-        )
-
-    known_size_bytes = sum(item["size_bytes"] for item in breakdown)
-    reachable_count = sum(1 for result in checks.values() if result["reachable"])
-    unknown_size_count = sum(item["unknown_size_count"] for item in breakdown)
-    soft_limit_gb, soft_limit_source = dashboard_storage_soft_limit()
-    soft_limit_bytes = int(soft_limit_gb * 1024**3)
-    remaining_bytes = max(0, soft_limit_bytes - known_size_bytes)
-    usage_percent = (
-        min(100.0, known_size_bytes / soft_limit_bytes * 100)
-        if soft_limit_bytes
-        else 0.0
-    )
-    reachability_score = (
-        round(reachable_count / len(r2_assets) * 100) if r2_assets else 100
-    )
+    """Fast summary: never waits on R2. Asset checks come from the cache; the dashboard
+    fetches /admin/api/dashboard/storage afterwards to fill in anything still pending."""
+    sources, assets, r2_assets = dashboard_tracked_assets()
+    data_errors: list[str] = []
+    checks = {url: result for url in r2_assets if (result := dashboard_asset_cached(url)) is not None}
+    report = dashboard_storage_report(assets, r2_assets, checks)
     integrity_score = 100 if not data_errors else 0
-
-    asset_counts = {item["category"]: item["asset_count"] for item in breakdown}
-    asset_counts.update(
-        {
-            "tracked_urls": len(assets),
-            "r2_urls": len(r2_assets),
-            "supabase_urls": supabase_count,
-        }
-    )
     return {
         "runtime": {
-            "source": "JSON",
+            "source": "D1",
             "asset_storage": "Cloudflare R2",
             "production": is_vercel_runtime(),
             "admin_mode": (
@@ -1412,41 +1361,15 @@ def build_admin_dashboard_summary(selected_date: date | None = None) -> dict:
             "site_settings": len(sources["site_settings"]),
             "sliders": len(sources["sliders"]),
         },
-        "assets": asset_counts,
-        "storage": {
-            "label": "พื้นที่ของไฟล์ public ที่ระบบติดตาม",
-            "known_size_bytes": known_size_bytes,
-            "unknown_size_count": unknown_size_count,
-            "reachable_count": reachable_count,
-            "failed_count": len(r2_assets) - reachable_count,
-            "checked_count": len(r2_assets),
-            "soft_limit_gb": soft_limit_gb,
-            "soft_limit_bytes": soft_limit_bytes,
-            "soft_limit_source": soft_limit_source,
-            "remaining_bytes": remaining_bytes,
-            "usage_percent": round(usage_percent, 2),
-            "is_complete_bucket_inventory": False,
-            "breakdown": breakdown,
-        },
+        "assets": report["assets"],
+        "storage": report["storage"],
         "health": {
             "json_data_integrity": {
                 "score": integrity_score,
                 "status": "healthy" if integrity_score == 100 else "error",
                 "details": data_errors,
             },
-            "r2_asset_reachability": {
-                "score": reachability_score,
-                "status": "healthy" if reachability_score == 100 else "warning",
-                "details": {
-                    "reachable": reachable_count,
-                    "checked": len(r2_assets),
-                },
-            },
-            "supabase_url_cleanliness": {
-                "score": 100 if supabase_count == 0 else 0,
-                "status": "healthy" if supabase_count == 0 else "error",
-                "details": {"supabase_urls": supabase_count},
-            },
+            "r2_asset_reachability": report["reachability"],
             "admin_read_only_protection": {
                 "score": 100,
                 "status": (
@@ -1462,7 +1385,7 @@ def build_admin_dashboard_summary(selected_date: date | None = None) -> dict:
             "public_runtime_status": {
                 "score": integrity_score,
                 "status": "operational" if integrity_score == 100 else "degraded",
-                "details": {"source": "JSON"},
+                "details": {"source": "D1"},
             },
         },
         "analytics": dashboard_analytics_status(selected_date),
@@ -1613,44 +1536,18 @@ def login_rate_limit_identity() -> str:
 
 def record_login_attempt(identity: str, outcome: str, now: datetime | None = None) -> bool:
     now = now or datetime.now(timezone.utc)
-    event = {"timestamp": now.isoformat(), "identity": identity, "outcome": outcome}
-    key = f"{LOGIN_FAILURE_PREFIX}{identity}/{now:%Y/%m/%d}/{now:%Y%m%dT%H%M%S.%fZ}-{uuid.uuid4().hex}.json"
-    payload = json.dumps(event, separators=(",", ":")).encode("utf-8")
-    try:
-        if is_vercel_runtime():
-            r2_upload_bytes(payload, key, "application/json", "private, max-age=0")
-        else:
-            target = LOCAL_LOGIN_RATE_LIMIT_DIR / key
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(payload)
-        return True
-    except Exception:
-        logger.exception("Unable to write login rate-limit event")
-        return False
+    get_database().append_event("login", {
+        "timestamp": now.isoformat(), "identity": identity, "outcome": outcome
+    })
+    return True
 
 
 def recent_login_attempts(identity: str, now: datetime | None = None) -> list[dict]:
     now = now or datetime.now(timezone.utc)
     earliest = now - LOGIN_FAILURE_WINDOW
-    records: list[dict] = []
-    try:
-        days = {now.date(), earliest.date()}
-        if is_vercel_runtime():
-            sources = ((key, r2_get_bytes(key)) for day in days for key in r2_list_object_keys(f"{LOGIN_FAILURE_PREFIX}{identity}/{day:%Y/%m/%d}/", max_keys=1000)[0])
-        else:
-            sources = ((str(path), path.read_bytes()) for day in days for path in (LOCAL_LOGIN_RATE_LIMIT_DIR / f"{LOGIN_FAILURE_PREFIX}{identity}/{day:%Y/%m/%d}").glob("*.json"))
-        for _, payload in sources:
-            try:
-                event = json.loads(payload)
-                timestamp = datetime.fromisoformat(str(event.get("timestamp") or "").replace("Z", "+00:00"))
-                if event.get("identity") == identity and earliest <= timestamp <= now:
-                    records.append(event)
-            except (ValueError, TypeError, json.JSONDecodeError):
-                continue
-    except Exception:
-        logger.exception("Unable to read login rate-limit events")
-        return []
-    return sorted(records, key=lambda event: event["timestamp"])
+    events = get_database().events("login", identity=identity, since=earliest.isoformat())
+    return sorted((event for event in events if event["timestamp"] <= now.isoformat()),
+                  key=lambda event: event["timestamp"])
 
 
 def login_is_rate_limited(identity: str, now: datetime | None = None) -> bool:
@@ -1670,6 +1567,10 @@ def audit_changes(before: dict, after: dict, labels: dict[str, str] | None = Non
 def write_audit_event(category: str, action: str, outcome: str, summary_th: str, *, resource_type="", resource_id="", resource_name="", changes=None, metadata=None, severity="info") -> dict | None:
     try:
         now = datetime.now(timezone.utc)
+        actor = current_admin()
+        if actor:
+            # Who did it, so each team member's changes are traceable.
+            metadata = {**(metadata or {}), "actor": actor["username"], "actor_role": actor["role"]}
         event = audit_service.build_event(
             category, action, outcome, summary_th,
             context=audit_request_context(),
@@ -1686,12 +1587,7 @@ def write_audit_event(category: str, action: str, outcome: str, summary_th: str,
             now=now,
         )
         event = audit_service.sign_event(event, audit_signing_key())
-        key = audit_service.object_key(event, AUDIT_PREFIX)
-        data = audit_service.serialize(event)
-        if is_vercel_runtime():
-            r2_upload_bytes(data, key, "application/json", "private, max-age=0")
-        else:
-            audit_service.write_local(LOCAL_AUDIT_LOG_DIR, key, data)
+        get_database().append_event("audit", event)
         return event
     except Exception:
         logger.exception("Unable to write audit event")
@@ -1705,34 +1601,7 @@ def verify_audit_event(event: dict) -> bool:
 
 
 def list_audit_events(limit: int = AUDIT_PAGE_SIZE) -> list[dict]:
-    """Read a bounded recent page of immutable audit events from local storage or R2."""
-    events: list[dict] = []
-    if is_vercel_runtime():
-        # Object listings are lexicographic, so use daily prefixes from newest to oldest.
-        # This keeps normal Admin views bounded instead of scanning the entire audit archive.
-        keys: list[str] = []
-        today = datetime.now(timezone.utc).date()
-        for days_ago in range(31):
-            prefix_date = today - timedelta(days=days_ago)
-            day_keys, _ = r2_list_object_keys(
-                f"{AUDIT_PREFIX}{prefix_date:%Y/%m/%d}/", max_keys=1000
-            )
-            keys.extend(day_keys)
-            if len(keys) >= limit:
-                break
-        keys = sorted(keys, reverse=True)[:limit]
-        if keys:
-            with ThreadPoolExecutor(max_workers=min(10, len(keys))) as executor:
-                futures = {executor.submit(r2_get_bytes, key): key for key in keys}
-                for future in as_completed(futures):
-                    key = futures[future]
-                    try:
-                        events.append(json.loads(future.result().decode("utf-8")))
-                    except (HTTPError, URLError, OSError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-                        logger.warning("Skipping unreadable audit event %s: %s", key, exc)
-    else:
-        events.extend(audit_service.list_local(LOCAL_AUDIT_LOG_DIR, limit))
-    events.sort(key=lambda event: event.get("timestamp_utc", ""), reverse=True)
+    events = get_database().events("audit", limit=limit)
     for event in events:
         event["signature_valid"] = verify_audit_event(event)
     return events
@@ -1746,6 +1615,8 @@ def save_r2_upload(
 ) -> str:
     if not file_storage or not file_storage.filename:
         return ""
+    if not r2_upload_configured():
+        abort(503, "ยังไม่ได้ตั้งค่าพื้นที่จัดเก็บไฟล์ R2")
     extension = Path(file_storage.filename).suffix.lower()
     if extension not in allowed_extensions:
         abort(400, f"Unsupported file type: {extension}")
@@ -1782,7 +1653,7 @@ def save_generated_narration_audio(
     filename = (
         f"{slugify(model_id, 'model')}-gemini-{uuid.uuid4().hex[:10]}{extension}"
     )
-    if is_vercel_runtime():
+    if media_storage_uses_r2():
         if not r2_upload_configured():
             raise GeminiTTSError("R2 upload environment variables are not configured")
         content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
@@ -1828,7 +1699,7 @@ def save_pending_narration_audio(model_id: str, audio_data: bytes, extension: st
     if extension not in AUDIO_EXTENSIONS or not audio_data or len(audio_data) > NARRATION_AUDIO_MAX_BYTES:
         raise NarrationDraftError("ไฟล์เสียงรอตรวจสอบไม่ถูกต้อง")
     filename = f"{uuid.uuid4().hex}{extension}"
-    if is_vercel_runtime():
+    if media_storage_uses_r2():
         if not r2_upload_configured():
             raise NarrationDraftError("ยังไม่ได้ตั้งค่า R2 สำหรับจัดเก็บเสียง")
         key = f"{NARRATION_PENDING_PREFIX}{slugify(model_id, 'model')}/{filename}"
@@ -1844,6 +1715,8 @@ def save_pending_narration_audio(model_id: str, audio_data: bytes, extension: st
 def read_pending_narration_audio(key: str) -> bytes:
     if key.startswith(NARRATION_PENDING_PREFIX):
         return r2_get_bytes(key)
+    if not app.config.get("TESTING"):
+        raise NarrationDraftError("ไฟล์เสียง local ใช้ได้เฉพาะการทดสอบ")
     target = local_narration_draft_path(key)
     if not target.is_file():
         raise NarrationDraftError("ไม่พบไฟล์เสียงรอตรวจสอบ")
@@ -1854,21 +1727,17 @@ def delete_pending_narration_audio(key: str) -> None:
     if key.startswith(NARRATION_PENDING_PREFIX):
         r2_delete_object(key)
         return
+    if not app.config.get("TESTING"):
+        raise NarrationDraftError("ไฟล์เสียง local ใช้ได้เฉพาะการทดสอบ")
     target = local_narration_draft_path(key)
     if target.exists():
         target.unlink()
 
 
-def owned_r2_narration_key(audio_url: str) -> str:
-    return narration_service.owned_r2_key(
-        audio_url, r2_public_base_url(), NARRATION_PERMANENT_PREFIX
-    )
-
-
 def admin_write_blocked_on_vercel() -> bool:
     if not is_vercel_runtime():
         return False
-    if github_content_configured():
+    if d1_configured():
         return False
     abort(403, VERCEL_EDIT_MESSAGE)
 
@@ -1892,12 +1761,10 @@ def ensure_secret_key() -> str:
     if env_secret:
         return env_secret
 
-    config = load_config()
-    secret_key = str(config.get("secret_key") or "").strip()
-    if not secret_key:
-        secret_key = secrets.token_urlsafe(32)
-        logger.warning("No SECRET_KEY configured; using an ephemeral runtime secret.")
-    return secret_key
+    if is_vercel_runtime():
+        raise RuntimeError("SECRET_KEY must be configured for production")
+    logger.warning("No SECRET_KEY configured; using an ephemeral runtime secret.")
+    return secrets.token_urlsafe(32)
 
 
 def strip_static_prefix(path_value: str | None) -> str:
@@ -2162,38 +2029,101 @@ def api_model_payload(model: dict, projects: list[dict]) -> dict:
 app.secret_key = ensure_secret_key()
 
 
+ROLE_RANK = {"reviewer": 0, "editor": 1, "admin": 2, "owner": 3}
+# Saves to models, projects, sliders, recommendations and narration (editor and above).
+CONTENT_ENDPOINTS = {
+    "add_model", "delete_model", "edit_model", "generate_model_narration", "generate_narration_draft",
+    "cancel_narration_draft", "confirm_narration_draft", "add_project", "delete_project", "edit_project",
+    "admin_sliders", "delete_slider", "edit_slider", "admin_recommended_models",
+}
+SETTINGS_PAGES = {"admin_branding", "admin_landing", "admin_landing_preview", "admin_intro"}
+AUDIT_ENDPOINTS = {"admin_audit_logs", "export_audit_logs"}
+USER_ENDPOINTS = {"admin_users", "admin_create_invite", "admin_revoke_link", "admin_update_user",
+                  "admin_create_reset_link"}
+MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def required_role(endpoint: str | None, method: str) -> str:
+    """Least role allowed to call an Admin endpoint; unknown mutations need an administrator."""
+    if endpoint in USER_ENDPOINTS:
+        return "owner"
+    if endpoint in AUDIT_ENDPOINTS:
+        return "admin"
+    if method in MUTATING_METHODS:
+        if endpoint == "admin_logout":
+            return "reviewer"
+        return "editor" if endpoint in CONTENT_ENDPOINTS else "admin"
+    return "reviewer"
+
+
+def role_allows(role: str | None, needed: str) -> bool:
+    return ROLE_RANK.get(role or "", -1) >= ROLE_RANK[needed]
+
+
+def admin_db():
+    return get_database(CONFIG_FILE)
+
+
+def current_admin() -> dict | None:
+    """The signed-in user, re-read from D1 every request so role changes and suspension apply at once."""
+    if not has_request_context() or not session.get("admin"):
+        return None
+    if "current_admin" in g:
+        return g.current_admin
+    user = admin_users_repository.get_user(admin_db(), str(session.get("admin_user_id") or ""))
+    if not user or not user["active"] or user["session_version"] != session.get("admin_session_version"):
+        user = None
+    g.current_admin = user
+    return user
+
+
+def start_admin_session(user: dict) -> None:
+    session.pop("csrf_token", None)
+    session["admin"] = True
+    session["admin_user_id"] = user["id"]
+    session["admin_session_version"] = user["session_version"]
+    session["admin_session_id"] = uuid.uuid4().hex
+    g.current_admin = user
+
+
+def end_admin_session() -> None:
+    for key in ("admin", "admin_user_id", "admin_session_version", "admin_session_id", "csrf_token"):
+        session.pop(key, None)
+    g.pop("current_admin", None)
+
+
 def admin_password_configured() -> bool:
-    config = load_config()
-    return bool(
-        os.environ.get("ADMIN_PASSWORD")
-        or os.environ.get("ADMIN_PASSWORD_HASH")
-        or config.get("admin_password_hash")
-    )
+    return admin_users_repository.has_users(admin_db())
 
 
-def verify_admin_password(password: str) -> bool:
-    config = load_config()
-    env_password = os.environ.get("ADMIN_PASSWORD")
-    if env_password is not None:
-        return secrets.compare_digest(password, env_password)
-
-    password_hash = os.environ.get("ADMIN_PASSWORD_HASH") or config.get("admin_password_hash")
-    return bool(password_hash and check_password_hash(password_hash, password))
+def configured_admin_username() -> str:
+    user = admin_users_repository.owner(admin_db())
+    return user["username"] if user else ""
 
 
-def save_admin_password(password: str) -> None:
-    if is_vercel_runtime():
+def verify_admin_credentials(username: str, password: str) -> bool:
+    return admin_users_repository.authenticate(admin_db(), username, password) is not None
+
+
+def save_admin_password(password: str, username: str = "admin") -> None:
+    """Create (or, in tests, replace) the owner account; real owners are imported by script."""
+    if is_vercel_runtime() and not d1_configured():
         abort(400, VERCEL_EDIT_MESSAGE)
-    config = load_config()
-    config["admin_password_hash"] = generate_password_hash(password)
-    save_config(config)
+    db = admin_db()
+    current = admin_users_repository.owner(db)
+    admin_users_repository.create_owner(db, username, generate_password_hash(password),
+                                        replace_username=current["username"] if current else "")
 
 
 def admin_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if not session.get("admin"):
+        user = current_admin()
+        if not user:
+            end_admin_session()
             return redirect(url_for("admin_login", next=request.path))
+        if not role_allows(user["role"], required_role(request.endpoint, request.method)):
+            abort(403, "บัญชีนี้ไม่มีสิทธิ์ใช้งานส่วนนี้")
         return view(*args, **kwargs)
 
     return wrapped
@@ -2214,6 +2144,8 @@ def unique_asset_name(original_name: str, allowed_extensions: set[str]) -> str:
 
 
 def delete_static_file(relative_path: str | None) -> None:
+    if not app.config.get("TESTING"):
+        return
     if not relative_path:
         return
     if is_external_url(relative_path):
@@ -2234,7 +2166,7 @@ def delete_static_file(relative_path: str | None) -> None:
 def save_upload(file_storage, directory: Path, relative_folder: str, allowed_extensions: set[str]) -> str:
     if not file_storage or not file_storage.filename:
         return ""
-    if is_vercel_runtime():
+    if media_storage_uses_r2():
         max_bytes = (
             MAX_MODEL_FILE_SIZE_BYTES
             if MODEL_EXTENSIONS & allowed_extensions
@@ -2260,7 +2192,7 @@ def save_limited_upload(
 ) -> str:
     if not file_storage or not file_storage.filename:
         return ""
-    if is_vercel_runtime():
+    if media_storage_uses_r2():
         return save_r2_upload(file_storage, relative_folder, allowed_extensions, max_bytes)
     extension = Path(file_storage.filename).suffix.lower()
     if extension not in allowed_extensions:
@@ -2285,7 +2217,7 @@ def save_limited_upload(
 def save_site_upload(file_storage, directory: Path, relative_folder: str, allowed_extensions: set[str]) -> str:
     if not file_storage or not file_storage.filename:
         return ""
-    if is_vercel_runtime():
+    if media_storage_uses_r2():
         return save_r2_upload(file_storage, relative_folder, allowed_extensions, SITE_ASSET_MAX_BYTES)
     extension = Path(file_storage.filename).suffix.lower()
     if extension not in allowed_extensions:
@@ -2653,6 +2585,8 @@ def sitemap():
 
 @app.get("/robots.txt")
 def robots():
+    if staging_site():
+        return "User-agent: *\nDisallow: /\n", 200, {"Content-Type": "text/plain; charset=utf-8"}
     return render_template("robots.txt", sitemap_url=public_url_for("sitemap")), 200, {
         "Content-Type": "text/plain; charset=utf-8"
     }
@@ -2667,7 +2601,11 @@ def google_site_verification():
 
 @app.get("/health")
 def health():
-    return jsonify({"status": "ok"})
+    db = get_database()
+    rows = db.batch([("SELECT version FROM dataset_versions WHERE name=?", ["models"])])[0]
+    if not rows:
+        raise database_repository.DatabaseError("Database migrations are missing")
+    return jsonify({"status": "ok", "database": "d1" if db.gateway_url or db.api_url else "sqlite-local-test-adapter", "media_storage": "r2"})
 
 
 @app.route("/admin")
@@ -2714,6 +2652,21 @@ def export_audit_logs(format: str):
         output = io.StringIO(); writer = csv.DictWriter(output, fieldnames=["timestamp_local", "category", "action", "outcome", "summary_th", "source_ip", "resource_type", "resource_name"]); writer.writeheader(); writer.writerows([{key: event.get(key, "") for key in writer.fieldnames} for event in events])
         return Response(output.getvalue(), mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=audit-logs.csv"})
     abort(404)
+
+
+@app.get("/admin/api/dashboard/storage")
+@admin_required
+def admin_dashboard_storage():
+    """Check R2 assets (cached for DASHBOARD_ASSET_CACHE_TTL_SECONDS) for the storage panel."""
+    try:
+        _, assets, r2_assets = dashboard_tracked_assets()
+        report = dashboard_storage_report(assets, r2_assets, dashboard_asset_checks(r2_assets))
+    except Exception:
+        logger.exception("Unable to check dashboard storage")
+        return jsonify({"error": "ไม่สามารถตรวจไฟล์บน R2 ได้ในขณะนี้"}), 503
+    return jsonify({"storage": report["storage"], "assets": report["assets"],
+                    "health": {"r2_asset_reachability": report["reachability"]},
+                    "generated_at": datetime.now(timezone.utc).isoformat()})
 
 
 @app.get("/admin/api/dashboard/summary")
@@ -2842,7 +2795,7 @@ def confirm_narration_draft(token: str):
         audio_data = read_pending_narration_audio(payload["pending_key"])
         extension = str(payload.get("extension") or ".wav")
         filename = f"{uuid.uuid4().hex}{extension}"
-        if is_vercel_runtime():
+        if media_storage_uses_r2():
             permanent_key = f"{NARRATION_PERMANENT_PREFIX}{slugify(model['id'], 'model')}/{filename}"
             narration_audio = r2_upload_bytes(audio_data, permanent_key, mimetypes.guess_type(filename)[0] or "audio/wav")
         else:
@@ -2854,10 +2807,6 @@ def confirm_narration_draft(token: str):
         except Exception:
             model["narration_audio"] = old_audio
             raise
-        delete_pending_narration_audio(payload["pending_key"])
-        old_key = owned_r2_narration_key(old_audio)
-        if old_key:
-            r2_delete_object(old_key)
     except NarrationDraftError as exc:
         flash(str(exc), "error")
         return redirect(url_for("admin_narrations"))
@@ -2867,6 +2816,13 @@ def confirm_narration_draft(token: str):
         flash("ยืนยันเสียงบรรยายไม่สำเร็จ ข้อมูลเดิมยังไม่ถูกแทนที่", "error")
         return redirect(url_for("admin_narrations"))
     write_audit_event("narration", "confirm", "success", f'ยืนยันใช้เสียงบรรยายใหม่สำหรับ “{model.get("name", "โมเดล")}”', resource_type="model", resource_id=payload["model_id"], resource_name=model.get("name", ""))
+    # The database already references the new audio, so cleanup failure is not a failed save.
+    # The previous permanent audio stays in R2 so a rollback can still play it.
+    try:
+        delete_pending_narration_audio(payload["pending_key"])
+    except Exception:
+        logger.exception("Narration saved but pending audio cleanup failed")
+        write_audit_event("narration", "cleanup", "failure", "บันทึกเสียงบรรยายใหม่แล้ว แต่ลบไฟล์เสียงรอตรวจสอบไม่สำเร็จ", resource_type="model", resource_id=payload["model_id"], severity="warning")
     flash("ยืนยันและบันทึกเสียงบรรยายแล้ว", "success")
     return redirect(url_for("admin_narrations", focus=payload["model_id"]))
 
@@ -3184,12 +3140,43 @@ def create_admin_upload_url():
     abort(403, VERCEL_UPLOAD_MESSAGE)
 
 
+ADMIN_SETUP_BLOCKED_MESSAGE = (
+    "ยังไม่มีบัญชีผู้ดูแลในฐานข้อมูล กรุณานำเข้าบัญชีด้วย scripts/import_admin_to_d1.py "
+    "โดยผู้ดูแลระบบ ระบบไม่เปิดให้ตั้งบัญชีครั้งแรกผ่านหน้าเว็บ"
+)
+
+
+def first_run_setup_allowed() -> bool:
+    """Browser first-run setup only exists for isolated tests; real accounts are imported."""
+    return bool(app.config.get("TESTING")) and not is_vercel_runtime()
+
+
+def valid_login_csrf() -> bool:
+    supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token", "")
+    expected = session.get("csrf_token", "")
+    return bool(expected and supplied and hmac.compare_digest(str(expected), str(supplied)))
+
+
+def render_login(first_run: bool, setup_blocked: bool, status: int = 200):
+    return render_template(
+        "login.html", first_run=first_run, setup_blocked=setup_blocked,
+        login_csrf_token=csrf_token(),
+    ), status
+
+
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
-    first_run = not admin_password_configured()
+    account_missing = not admin_password_configured()
+    first_run = account_missing and first_run_setup_allowed()
+    setup_blocked = account_missing and not first_run
     next_url = safe_redirect_target(request.args.get("next"))
 
     if request.method == "POST":
+        if not valid_login_csrf():
+            abort(400, "Invalid CSRF token")
+        if setup_blocked:
+            flash(ADMIN_SETUP_BLOCKED_MESSAGE, "error")
+            return render_login(first_run, setup_blocked, 403)
         identity = login_rate_limit_identity()
         if not first_run and login_is_rate_limited(identity):
             write_audit_event(
@@ -3199,46 +3186,190 @@ def admin_login():
                 metadata={"reason": "rate_limited"},
             )
             flash("ไม่สามารถเข้าสู่ระบบได้ในขณะนี้ โปรดลองใหม่ภายหลัง", "error")
-            return render_template("login.html", first_run=first_run), 429
+            return render_login(first_run, setup_blocked, 429)
+        username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         confirm = request.form.get("confirm_password", "")
 
         if first_run:
-            if len(password) < 8:
+            if not re.fullmatch(r"[A-Za-z0-9_.-]{3,64}", username):
+                flash("ชื่อผู้ใช้ต้องมี 3–64 ตัวอักษร ใช้อักษรอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง", "error")
+            elif len(password) < 8:
                 flash("รหัสผ่านผู้ดูแลต้องมีอย่างน้อย 8 ตัวอักษร", "error")
             elif password != confirm:
                 flash("รหัสผ่านยืนยันไม่ตรงกัน", "error")
-            elif is_vercel_runtime():
-                flash(VERCEL_EDIT_MESSAGE, "error")
             else:
-                save_admin_password(password)
-                session["admin"] = True
-                session["admin_session_id"] = uuid.uuid4().hex
+                save_admin_password(password, username)
+                start_admin_session(admin_users_repository.owner(admin_db()))
                 write_audit_event("auth", "login", "success", "ผู้ดูแลตั้งค่ารหัสผ่านและเข้าสู่ระบบสำเร็จ")
                 flash("ตั้งค่ารหัสผ่านผู้ดูแลแล้ว", "success")
                 return redirect(next_url)
-        elif verify_admin_password(password):
+        elif user := admin_users_repository.authenticate(admin_db(), username, password):
             record_login_attempt(identity, "success")
-            session["admin"] = True
-            session["admin_session_id"] = uuid.uuid4().hex
+            start_admin_session(user)
             write_audit_event("auth", "login", "success", f"ผู้ดูแลเข้าสู่ระบบสำเร็จจาก IP {audit_request_context()['source_ip']} ผ่าน {audit_request_context()['browser_summary']}")
             return redirect(next_url)
         else:
             record_login_attempt(identity, "failure")
             write_audit_event("auth", "login", "failure", f"มีความพยายามเข้าสู่ระบบไม่สำเร็จจาก IP {audit_request_context()['source_ip']}", severity="warning")
-            flash("รหัสผ่านไม่ถูกต้อง", "error")
+            flash("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", "error")
 
-    return render_template("login.html", first_run=first_run)
+    return render_login(first_run, setup_blocked)
 
 
 @app.post("/admin/logout")
 def admin_logout():
     if session.get("admin"):
         write_audit_event("auth", "logout", "success", "ผู้ดูแลออกจากระบบ")
-    session.pop("admin", None)
-    session.pop("admin_session_id", None)
+    end_admin_session()
     flash("ออกจากระบบผู้ดูแลแล้ว", "success")
     return redirect(url_for("home"))
+
+
+def account_link_url(endpoint: str, token: str) -> str:
+    """Use the configured public site URL (behind Vercel's proxy), else this request's host."""
+    if os.environ.get("SITE_BASE_URL") or os.environ.get("PUBLIC_SITE_URL"):
+        return public_url_for(endpoint, token=token)
+    return url_for(endpoint, token=token, _external=True)
+
+
+def account_link_page(kind: str, token: str, status: int = 200):
+    db = admin_db()
+    link = admin_users_repository.open_link(db, token, kind)
+    target = admin_users_repository.get_user(db, link["user_id"]) if link and kind == "reset" else None
+    labels = {
+        "invite": ("ตั้งบัญชีผู้ร่วมงาน", "สร้างชื่อผู้ใช้และรหัสผ่านของคุณ", "สร้างบัญชีและเข้าสู่ระบบ"),
+        "reset": ("ตั้งรหัสผ่านใหม่", "ตั้งรหัสผ่านใหม่สำหรับบัญชีของคุณ", "บันทึกรหัสผ่านใหม่"),
+    }[kind]
+    if link and kind == "invite":
+        intro = f"{labels[1]} สิทธิ์ที่ได้รับ: {admin_users_repository.ROLE_LABELS[link['role']]}"
+    else:
+        intro = labels[1]
+    return render_template(
+        "admin_account_link.html", kind=kind, heading=labels[0], intro=intro, submit_label=labels[2],
+        link_valid=bool(link and (kind == "invite" or target)), target_username=target["username"] if target else "",
+        min_password=admin_users_repository.MIN_PASSWORD_LENGTH, login_csrf_token=csrf_token(),
+    ), status if link else 410
+
+
+@app.route("/admin/invite/<token>", methods=["GET", "POST"])
+def admin_accept_invite(token: str):
+    if request.method == "POST":
+        if not valid_login_csrf():
+            abort(400, "Invalid CSRF token")
+        try:
+            user = admin_users_repository.accept_invite(
+                admin_db(), token, request.form.get("username", "").strip(),
+                request.form.get("display_name", "").strip(), request.form.get("password", ""),
+                request.form.get("confirm_password", ""))
+        except admin_users_repository.AccountError as exc:
+            flash(str(exc), "error")
+            return account_link_page("invite", token, 400)
+        end_admin_session()
+        start_admin_session(user)
+        write_audit_event("auth", "invite_accept", "success", f"{user['username']} ตั้งบัญชีจากลิงก์เชิญ ({user['role_label']})",
+                          resource_type="admin_user", resource_id=user["id"], resource_name=user["username"])
+        flash("สร้างบัญชีเรียบร้อยแล้ว", "success")
+        return redirect(url_for("admin"))
+    return account_link_page("invite", token)
+
+
+@app.route("/admin/reset/<token>", methods=["GET", "POST"])
+def admin_accept_reset(token: str):
+    if request.method == "POST":
+        if not valid_login_csrf():
+            abort(400, "Invalid CSRF token")
+        try:
+            user = admin_users_repository.accept_reset(admin_db(), token, request.form.get("password", ""),
+                                                       request.form.get("confirm_password", ""))
+        except admin_users_repository.AccountError as exc:
+            flash(str(exc), "error")
+            return account_link_page("reset", token, 400)
+        end_admin_session()
+        write_audit_event("auth", "password_reset", "success", f"{user['username']} ตั้งรหัสผ่านใหม่จากลิงก์",
+                          resource_type="admin_user", resource_id=user["id"], resource_name=user["username"])
+        flash("ตั้งรหัสผ่านใหม่แล้ว กรุณาเข้าสู่ระบบ", "success")
+        return redirect(url_for("admin_login"))
+    return account_link_page("reset", token)
+
+
+@app.get("/admin/users")
+@admin_required
+def admin_users():
+    db = admin_db()
+    return render_template(
+        "admin_users.html", users=admin_users_repository.list_users(db),
+        links=admin_users_repository.list_open_links(db), new_link=session.pop("new_admin_link", None),
+        invitable_roles=admin_users_repository.INVITABLE_ROLES, role_labels=admin_users_repository.ROLE_LABELS,
+    )
+
+
+@app.post("/admin/users/invite")
+@admin_required
+def admin_create_invite():
+    role = request.form.get("role", "")
+    try:
+        token = admin_users_repository.create_link(admin_db(), kind="invite", role=role,
+                                                   note=request.form.get("note", "").strip(),
+                                                   created_by=current_admin()["id"])
+    except admin_users_repository.AccountError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("admin_users"))
+    label = admin_users_repository.ROLE_LABELS[role]
+    # Shown once to the owner; only the token's hash is stored in D1.
+    session["new_admin_link"] = {"title": f"ลิงก์เชิญ ({label})",
+                                 "url": account_link_url("admin_accept_invite", token)}
+    write_audit_event("users", "invite_create", "success", f"สร้างลิงก์เชิญสิทธิ์ {label}",
+                      metadata={"role": role, "note": request.form.get("note", "").strip()[:120]})
+    return redirect(url_for("admin_users"))
+
+
+@app.post("/admin/users/links/<link_hash>/revoke")
+@admin_required
+def admin_revoke_link(link_hash: str):
+    if admin_users_repository.revoke_link(admin_db(), link_hash):
+        write_audit_event("users", "link_revoke", "success", "ยกเลิกลิงก์เชิญหรือลิงก์ตั้งรหัสใหม่")
+        flash("ยกเลิกลิงก์แล้ว", "success")
+    else:
+        flash("ไม่พบลิงก์ที่ยกเลิกได้", "error")
+    return redirect(url_for("admin_users"))
+
+
+@app.post("/admin/users/<user_id>/update")
+@admin_required
+def admin_update_user(user_id: str):
+    db = admin_db()
+    before = admin_users_repository.get_user(db, user_id)
+    try:
+        user = admin_users_repository.update_user(db, user_id, role=request.form.get("role") or None,
+                                                  active=request.form.get("active", "1") == "1")
+    except admin_users_repository.AccountError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("admin_users"))
+    write_audit_event("users", "user_update", "success", f"แก้สิทธิ์/สถานะของ {user['username']}",
+                      resource_type="admin_user", resource_id=user_id, resource_name=user["username"],
+                      changes=audit_changes({"role": before["role"], "active": before["active"]},
+                                            {"role": user["role"], "active": user["active"]}))
+    flash(f"บันทึกสิทธิ์ของ {user['username']} แล้ว", "success")
+    return redirect(url_for("admin_users"))
+
+
+@app.post("/admin/users/<user_id>/reset-link")
+@admin_required
+def admin_create_reset_link(user_id: str):
+    db = admin_db()
+    try:
+        token = admin_users_repository.create_link(db, kind="reset", user_id=user_id,
+                                                   created_by=current_admin()["id"])
+    except admin_users_repository.AccountError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("admin_users"))
+    target = admin_users_repository.get_user(db, user_id)
+    session["new_admin_link"] = {"title": f"ลิงก์ตั้งรหัสใหม่ของ {target['username']}",
+                                 "url": account_link_url("admin_accept_reset", token)}
+    write_audit_event("users", "reset_link_create", "success", f"สร้างลิงก์ตั้งรหัสใหม่ให้ {target['username']}",
+                      resource_type="admin_user", resource_id=user_id, resource_name=target["username"])
+    return redirect(url_for("admin_users"))
 
 
 @app.post("/admin/projects")
@@ -3324,15 +3455,14 @@ def delete_project_route(project_id: str):
 
     models = load_models(include_hidden=True)
     linked_models = [model for model in models if model.get("project_id") == project_id]
+    remaining_models = [model for model in models if model.get("project_id") != project_id]
+    remaining_projects = [item for item in projects if item["id"] != project_id]
+    write_datasets([(CATALOG_FILE, remaining_models), (PROJECTS_FILE, remaining_projects)])
     for model in linked_models:
         delete_static_file(model.get("model"))
         delete_static_file(model.get("image"))
         delete_static_file(model.get("narration_audio"))
-    models = [model for model in models if model.get("project_id") != project_id]
-    projects = [item for item in projects if item["id"] != project_id]
     delete_static_file(project.get("cover_image"))
-    save_models(models)
-    save_projects(projects)
     write_audit_event("project", "delete", "success", f'ลบโครงการ “{project.get("name", "")}” สำเร็จ', resource_type="project", resource_id=project_id, resource_name=project.get("name", ""), metadata={"deleted_models": len(linked_models)})
     flash(f'ลบแหล่งเรียนรู้ "{project.get("name", "")}" และโมเดลในแหล่งเรียนรู้แล้ว', "success")
     return redirect(url_for("admin"))

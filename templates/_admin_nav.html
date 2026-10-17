@@ -1,37 +1,66 @@
-<nav class="admin-nav" aria-label="เมนูผู้ดูแลระบบ">
+{% set endpoint = request.endpoint %}
+<header class="admin-topbar">
+  <button type="button" class="admin-topbar__menu" data-admin-nav-toggle aria-controls="admin-nav" aria-expanded="false" data-admin-no-busy>
+    <span class="admin-topbar__menu-icon" aria-hidden="true"></span>
+    <span class="admin-visually-hidden">เปิดเมนู</span>
+  </button>
+  <span class="admin-topbar__brand">ARModel Admin</span>
+  {% if admin_user %}<span class="admin-topbar__role">{{ admin_user.role_label }}</span>{% endif %}
+</header>
+<div class="admin-nav-backdrop" data-admin-nav-close hidden></div>
+
+<nav class="admin-nav" id="admin-nav" aria-label="เมนูผู้ดูแลระบบ">
   <div class="admin-nav-logo">
     <span class="logo-text">ARModel Admin</span>
+    <button type="button" class="admin-nav-close" data-admin-nav-close aria-label="ปิดเมนู" data-admin-no-busy>×</button>
   </div>
 
-  <div class="admin-nav-group">
-    <span class="admin-nav-heading">ภาพรวมระบบ</span>
-    <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint in ['admin_dashboard', 'admin_dashboard_summary'] else '' }}"><span class="admin-icon admin-icon--dashboard" aria-hidden="true"></span> แดชบอร์ด</a>
-    <a href="{{ url_for('admin_audit_logs') }}" class="{{ 'active' if request.endpoint in ['admin_audit_logs', 'export_audit_logs'] else '' }}"><span class="admin-icon admin-icon--settings" aria-hidden="true"></span> บันทึกการใช้งาน</a>
+  <div class="admin-nav-scroll">
+    <div class="admin-nav-group">
+      <span class="admin-nav-heading">ภาพรวม</span>
+      <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if endpoint in ['admin_dashboard', 'admin_dashboard_summary'] else '' }}"><span class="admin-icon admin-icon--dashboard" aria-hidden="true"></span> แดชบอร์ด</a>
+    </div>
+
+    <div class="admin-nav-group">
+      <span class="admin-nav-heading">เนื้อหา</span>
+      <a href="{{ url_for('admin') }}#models" data-admin-nav-hash="models" class="{{ 'active' if endpoint in ['admin', 'edit_model'] else '' }}"><span class="admin-icon admin-icon--models" aria-hidden="true"></span> รายการโมเดล</a>
+      <a href="{{ url_for('admin') }}#projects" data-admin-nav-hash="projects" class="{{ 'active' if endpoint == 'edit_project' else '' }}"><span class="admin-icon admin-icon--projects" aria-hidden="true"></span> แหล่งเรียนรู้</a>
+      <a href="{{ url_for('admin_recommended_models') }}" class="{{ 'active' if endpoint == 'admin_recommended_models' else '' }}"><span class="admin-icon admin-icon--recommended" aria-hidden="true"></span> โมเดลแนะนำ</a>
+      <a href="{{ url_for('admin_narrations') }}" class="{{ 'active' if endpoint in ['admin_narrations', 'generate_narration_draft', 'confirm_narration_draft', 'cancel_narration_draft'] else '' }}"><span class="admin-icon admin-icon--gemini" aria-hidden="true"></span> เสียงบรรยาย</a>
+      <a href="{{ url_for('admin_sliders') }}" class="{{ 'active' if endpoint in ['admin_sliders', 'edit_slider'] else '' }}"><span class="admin-icon admin-icon--sliders" aria-hidden="true"></span> สไลด์หน้าแรก</a>
+    </div>
+
+    <div class="admin-nav-group">
+      <span class="admin-nav-heading">หน้าตาเว็บไซต์</span>
+      <a href="{{ url_for('admin_landing') }}" class="{{ 'active' if endpoint in ['admin_landing', 'admin_landing_preview'] else '' }}"><span class="admin-icon admin-icon--landing" aria-hidden="true"></span> หน้าปก (Landing)</a>
+      <a href="{{ url_for('admin_branding') }}" class="{{ 'active' if endpoint == 'admin_branding' else '' }}"><span class="admin-icon admin-icon--branding" aria-hidden="true"></span> แบรนด์ / SEO</a>
+      <a href="{{ url_for('admin_intro') }}" class="{{ 'active' if endpoint == 'admin_intro' else '' }}"><span class="admin-icon admin-icon--intro" aria-hidden="true"></span> โลโก้อินโทร</a>
+    </div>
+
+    {% if admin_can('admin_audit_logs') or admin_can('admin_users') %}
+    <div class="admin-nav-group">
+      <span class="admin-nav-heading">ระบบ</span>
+      {% if admin_can('admin_audit_logs') %}
+      <a href="{{ url_for('admin_audit_logs') }}" class="{{ 'active' if endpoint in ['admin_audit_logs', 'export_audit_logs'] else '' }}"><span class="admin-icon admin-icon--settings" aria-hidden="true"></span> บันทึกการใช้งาน</a>
+      {% endif %}
+      {% if admin_can('admin_users') %}
+      <a href="{{ url_for('admin_users') }}" class="{{ 'active' if endpoint == 'admin_users' else '' }}"><span class="admin-icon admin-icon--users" aria-hidden="true"></span> ผู้ใช้และสิทธิ์</a>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 
-  <div class="admin-nav-group">
-    <span class="admin-nav-heading">โมเดล 3D</span>
-    <a href="{{ url_for('admin') }}" class="{{ 'active' if request.endpoint == 'admin' and not request.path.endswith('#projects') and not request.path.endswith('#add-model-section') else '' }}"><span class="admin-icon admin-icon--models" aria-hidden="true"></span> รายการโมเดล</a>
-    <a href="{{ url_for('admin') }}#add-model-section"><span class="admin-icon admin-icon--add" aria-hidden="true"></span> เพิ่มโมเดล</a>
-    <a href="{{ url_for('admin_recommended_models') }}" class="{{ 'active' if request.endpoint == 'admin_recommended_models' else '' }}"><span class="admin-icon admin-icon--recommended" aria-hidden="true"></span> โมเดลแนะนำ</a>
-    <a href="{{ url_for('admin_narrations') }}" class="{{ 'active' if request.endpoint in ['admin_narrations', 'generate_narration_draft', 'confirm_narration_draft', 'cancel_narration_draft'] else '' }}"><span class="admin-icon admin-icon--gemini" aria-hidden="true"></span> จัดการเสียงบรรยาย</a>
-  </div>
-
-  <div class="admin-nav-group">
-    <span class="admin-nav-heading">เนื้อหาเว็บไซต์</span>
-    <a href="{{ url_for('admin_landing') }}" class="{{ 'active' if request.endpoint == 'admin_landing' else '' }}"><span class="admin-icon admin-icon--landing" aria-hidden="true"></span> หน้าปก (Landing Page)</a>
-    <a href="{{ url_for('admin_sliders') }}" class="{{ 'active' if request.endpoint in ['admin_sliders', 'edit_slider'] else '' }}"><span class="admin-icon admin-icon--sliders" aria-hidden="true"></span> สไลด์หน้าแรก</a>
-    <a href="{{ url_for('admin_branding') }}" class="{{ 'active' if request.endpoint == 'admin_branding' else '' }}"><span class="admin-icon admin-icon--branding" aria-hidden="true"></span> แบรนด์ / SEO</a>
-  </div>
-
-  <div class="admin-nav-group">
-    <span class="admin-nav-heading">สื่อและการแสดงผล</span>
-    <a href="{{ url_for('admin_intro') }}" class="{{ 'active' if request.endpoint == 'admin_intro' else '' }}"><span class="admin-icon admin-icon--intro" aria-hidden="true"></span> โลโก้ Intro</a>
-    <a href="{{ url_for('admin') }}#projects"><span class="admin-icon admin-icon--projects" aria-hidden="true"></span> แหล่งเรียนรู้ (Projects)</a>
-  </div>
-
-  <div class="admin-nav-group admin-nav-actions">
-    <a href="{{ url_for('home') }}" class="btn-view-site" target="_blank"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> ดูเว็บไซต์</a>
+  <div class="admin-nav-actions">
+    {% if admin_user %}
+    <div class="admin-nav-user" data-admin-role="{{ admin_user.role }}">
+      <span class="admin-nav-user__avatar" aria-hidden="true">{{ (admin_user.display_name or admin_user.username)[:1]|upper }}</span>
+      <span class="admin-nav-user__text">
+        <strong>{{ admin_user.display_name or admin_user.username }}</strong>
+        <small>{{ admin_user.role_label }}</small>
+      </span>
+    </div>
+    {% endif %}
+    <a href="{{ url_for('home') }}" class="btn-view-site" target="_blank" rel="noopener"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> ดูเว็บไซต์</a>
     <form action="{{ url_for('admin_logout') }}" method="post" class="logout-form" data-admin-no-busy>
       <button type="submit" class="btn-logout"><span class="admin-icon admin-icon--logout" aria-hidden="true"></span> ออกจากระบบ</button>
     </form>
@@ -39,3 +68,4 @@
 </nav>
 {% include "_admin_busy.html" %}
 <script src="{{ url_for('static', filename='js/admin-read-only.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/admin-shell.js') }}" defer></script>

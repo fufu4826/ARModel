@@ -7,6 +7,7 @@
   {% include "_public_meta.html" %}
   {% include "_structured_data.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  {% include "_theme_head.html" %}
   {% include "_model_viewer_loader.html" %}
 </head>
 <body class="viewer-page">
@@ -65,7 +66,7 @@
           environment-image="neutral"
           scale="{{ model.scale or 0.2 }} {{ model.scale or 0.2 }} {{ model.scale or 0.2 }}"
           orientation="{{ model.rotate_x or 0 }}rad {{ model.rotate_y or 0 }}rad {{ model.rotate_z or 0 }}rad">
-          <button class="ar-button" slot="ar-button" type="button" aria-label="เปิด {{ model_name }} ในโหมด AR">เปิด AR</button>
+          <button class="ar-button" slot="ar-button" type="button" aria-label="เปิด {{ model_name }} ในโหมด AR" aria-describedby="ar-guide-title">เปิด AR</button>
         </model-viewer>
         <div class="viewer-state is-visible" id="modelLoadingState" role="status" aria-live="polite">กำลังโหลดโมเดล 3D...</div>
         <div class="viewer-state viewer-error" id="modelErrorState" role="alert" hidden>
@@ -74,7 +75,7 @@
           <div class="viewer-recovery">
             <a class="button small" href="{{ url_for('models_index') }}">รายการโมเดล</a>
             {% if model_url %}
-            <a class="button secondary small" href="{{ model_url }}" target="_blank" rel="noopener">เปิดไฟล์โมเดลโดยตรง</a>
+            <a class="button secondary small" href="{{ model_url }}" target="_blank" rel="noopener" aria-describedby="model-file-help">เปิดไฟล์โมเดลโดยตรง</a>
             {% endif %}
             {% if model.has_project %}
             <a class="button secondary small" href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปแหล่งเรียนรู้</a>
@@ -86,14 +87,6 @@
         </div>
       </div>
 
-      <section class="viewer-help" aria-labelledby="viewer-help-title">
-        <h2 id="viewer-help-title">การควบคุมโมเดล</h2>
-        <ul>
-          <li><strong>ลากเพื่อหมุน</strong><span>หมุนดูรอบโมเดลด้วยเมาส์หรือนิ้ว</span></li>
-          <li><strong>บีบนิ้วเพื่อซูม</strong><span>ขยายรายละเอียดบนมือถือหรือแทร็กแพด</span></li>
-          <li><strong>กด AR</strong><span>ดูโมเดลในพื้นที่จริงบนมือถือที่รองรับ</span></li>
-        </ul>
-      </section>
     </section>
 
     <aside class="info-panel" aria-labelledby="modelTitle">
@@ -141,6 +134,15 @@
         {% endif %}
       </section>
 
+
+      <div class="model-tabs" data-tabs>
+        <div class="model-tabs__list" role="tablist" aria-label="ข้อมูลโมเดล" hidden>
+          <button class="model-tabs__tab" type="button" role="tab" id="tab-detail" aria-controls="panel-detail" aria-selected="true">รายละเอียด</button>
+          <button class="model-tabs__tab" type="button" role="tab" id="tab-ar" aria-controls="panel-ar" aria-selected="false" tabindex="-1">วิธีดู AR</button>
+          <button class="model-tabs__tab" type="button" role="tab" id="tab-file" aria-controls="panel-file" aria-selected="false" tabindex="-1">เปิดไฟล์</button>
+          <button class="model-tabs__tab" type="button" role="tab" id="tab-contact" aria-controls="panel-contact" aria-selected="false" tabindex="-1">ติดต่อศูนย์</button>
+        </div>
+        <div class="model-tabs__panel" id="panel-detail" role="tabpanel" aria-labelledby="tab-detail">
       <dl class="meta-list">
         {% if model.department %}
         <div>
@@ -165,16 +167,53 @@
       <div class="usage-note">
         หากปุ่ม AR ไม่แสดง อุปกรณ์หรือเบราว์เซอร์อาจยังไม่รองรับ WebXR, Scene Viewer หรือ Quick Look
       </div>
-
+        </div>
+        <div class="model-tabs__panel" id="panel-ar" role="tabpanel" aria-labelledby="tab-ar">
+      <section class="viewer-help" aria-labelledby="viewer-help-title">
+        <h2 id="viewer-help-title">การควบคุมโมเดล</h2>
+        <ul>
+          <li><strong>ลากเพื่อหมุน</strong><span>หมุนดูรอบโมเดลด้วยเมาส์หรือนิ้ว</span></li>
+          <li><strong>บีบนิ้วเพื่อซูม</strong><span>ขยายรายละเอียดบนมือถือหรือแทร็กแพด</span></li>
+          <li><strong>กด AR</strong><span>ดูโมเดลในพื้นที่จริงบนมือถือที่รองรับ</span></li>
+        </ul>
+      </section>
+      <section class="viewer-instructions" aria-labelledby="ar-guide-title">
+        <h2 id="ar-guide-title">ดูโมเดลในพื้นที่จริงด้วย AR</h2>
+        <ol>
+          <li>เปิดหน้านี้บนมือถือที่รองรับ AR ด้วย Chrome บน Android หรือ Safari บน iPhone/iPad หากเปิดจาก LINE หรือ Facebook ให้เลือกเปิดในเบราว์เซอร์ก่อน</li>
+          <li>รอโมเดลโหลดเสร็จ แล้วแตะปุ่ม “เปิด AR” หากเครื่องถามสิทธิ์กล้อง ให้อนุญาตเพื่อแสดงภาพพื้นที่จริง</li>
+          <li>หันกล้องไปยังพื้นราบที่มีแสงสว่าง ขยับมือถือช้า ๆ เพื่อให้ระบบตรวจจับพื้น แล้วแตะตำแหน่งเพื่อวางโมเดลตามข้อความบนหน้าจอ</li>
+          <li>ใช้นิ้วลากหรือบีบเพื่อปรับตำแหน่ง หมุน หรือขนาดตามที่แอปบนเครื่องรองรับ เมื่อเสร็จให้แตะปิดหรือย้อนกลับเพื่อกลับเว็บไซต์</li>
+        </ol>
+        <p>Android ต้องรองรับ ARCore และอาจต้องติดตั้งหรืออัปเดต Google Play Services for AR ส่วน iPhone/iPad ใช้ Quick Look บนอุปกรณ์ที่รองรับ หากไม่มีปุ่ม AR ยังหมุนและซูมดูแบบ 3D ในหน้านี้ได้</p>
+        <p id="arHelpStatus" role="status" aria-live="polite" hidden></p>
+        <p class="content-source"><a href="https://developers.google.com/ar/develop/webxr/model-viewer" target="_blank" rel="noopener noreferrer">ข้อมูลอุปกรณ์และการทำงานของ AR จาก Google</a></p>
+      </section>
+        </div>
+        <div class="model-tabs__panel" id="panel-file" role="tabpanel" aria-labelledby="tab-file">
       <div class="action-row">
         {% if model_url %}
-        <a class="button secondary" href="{{ model_url }}" target="_blank" rel="noopener">เปิดไฟล์โมเดลโดยตรง</a>
+        <a class="button secondary" href="{{ model_url }}" target="_blank" rel="noopener" aria-describedby="model-file-help">เปิดไฟล์โมเดลโดยตรง</a>
         {% endif %}
         {% if model.has_project %}
         <a class="button" href="{{ url_for('project_detail', project_id=model.project_id) }}">ดูโมเดลในแหล่งเรียนรู้</a>
         {% else %}
         <a class="button" href="{{ url_for('models_index') }}">ดูรายการโมเดล</a>
         {% endif %}
+      </div>
+      {% if model_url %}
+      <section class="viewer-instructions" id="model-file-help" aria-labelledby="model-file-title">
+        <h2 id="model-file-title">เปิดไฟล์โมเดลด้วยโปรแกรมอะไร?</h2>
+        <p>ไฟล์โมเดลเป็นชนิด <strong>.glb</strong> ปุ่มด้านบนอาจดาวน์โหลดไฟล์หรือเปิดแท็บใหม่ ขึ้นอยู่กับเบราว์เซอร์ หากต้องการดูทันทีโดยไม่ติดตั้งโปรแกรม ให้ใช้ตัวแสดง 3D ในหน้านี้</p>
+        <p>บนคอมพิวเตอร์สามารถเปิดด้วย <strong>Blender</strong> โดยเลือก <strong>File → Import → glTF 2.0 (.glb/.gltf)</strong> แล้วเลือกไฟล์ที่ดาวน์โหลด ไม่ใช่เมนูเปิดไฟล์ .blend</p>
+        <p>บนมือถือ การเปิดไฟล์ .glb ที่ดาวน์โหลดต้องใช้แอปที่รองรับไฟล์ชนิดนี้ หากต้องการวางในพื้นที่จริงให้ใช้ปุ่ม “เปิด AR” ในเว็บไซต์แทนการเปิดไฟล์จากโฟลเดอร์ดาวน์โหลด</p>
+        <a href="https://docs.blender.org/manual/en/latest/addons/import_export/scene_gltf2.html" target="_blank" rel="noopener noreferrer">คู่มือนำเข้าไฟล์ glTF/GLB ของ Blender</a>
+      </section>
+      {% endif %}
+        </div>
+        <div class="model-tabs__panel" id="panel-contact" role="tabpanel" aria-labelledby="tab-contact">
+          {% include "_centre_contact.html" %}
+        </div>
       </div>
     </aside>
 
@@ -206,6 +245,15 @@
     {% endif %}
   </main>
 
+  <div class="model-action-bar" aria-label="ทางลัดของโมเดล">
+    <button class="button" type="button" data-action-ar>ดูในพื้นที่จริง (AR)</button>
+    {% if narration_audio_url %}
+    <button class="button secondary" type="button" data-action-narration>ฟังเสียงบรรยาย</button>
+    {% else %}
+    <a class="button secondary" href="#modelTitle">อ่านรายละเอียด</a>
+    {% endif %}
+  </div>
+
   <script src="{{ url_for('static', filename='js/ar-viewer.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/model-gallery.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/model-narration.js', v='3') }}" defer></script>
@@ -214,5 +262,6 @@
     <span>เว็บไซต์นี้เกี่ยวกับภูพาน สกลนคร และแหล่งเรียนรู้ของดีสกลนครในรูปแบบโมเดล 3D และ AR</span>
     <a href="{{ url_for('admin_login') }}">ผู้ดูแลระบบ</a>
   </footer>
+  <script src="{{ url_for('static', filename='js/public-ui.js') }}" defer></script>
 </body>
 </html>

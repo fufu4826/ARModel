@@ -1,4 +1,4 @@
-"""Tamper-evident audit event construction and local immutable storage."""
+"""Tamper-evident audit construction; persistence belongs to the D1 repository."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import json
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from urllib.parse import unquote
 
 
@@ -113,30 +112,5 @@ def sanitize_request_path(path: str) -> str:
     )
 
 
-def object_key(event: dict, prefix: str) -> str:
-    now = datetime.fromisoformat(str(event["timestamp_utc"]).replace("Z", "+00:00"))
-    return f"{prefix}{now:%Y/%m/%d}/{now:%Y%m%dT%H%M%S.%fZ}-{event['event_id']}.json"
-
-
 def serialize(event: dict) -> bytes:
     return json.dumps(event, ensure_ascii=False, indent=2).encode("utf-8")
-
-
-def write_local(root: Path, key: str, data: bytes) -> Path:
-    target = root / key
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)
-    return target
-
-
-def list_local(root: Path, limit: int) -> list[dict]:
-    events = []
-    if root.exists():
-        for path in sorted(root.rglob("*.json"), reverse=True)[:limit]:
-            try:
-                value = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(value, dict):
-                    events.append(value)
-            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-                continue
-    return events

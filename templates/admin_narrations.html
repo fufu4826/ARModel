@@ -25,7 +25,7 @@
         </section>
         <section class="narration-filters" aria-label="กรองรายการโมเดล">
           <label>ค้นหา<input type="search" placeholder="ค้นหาชื่อโมเดล" data-narration-search></label>
-          <label>โครงการ<select data-narration-project><option value="">ทุกโครงการ</option>{% for project in projects %}<option value="{{ project.id }}">{{ project.name }}</option>{% endfor %}</select></label>
+          <label>แหล่งเรียนรู้<select data-narration-project><option value="">ทุกแหล่งเรียนรู้</option>{% for project in projects %}<option value="{{ project.id }}">{{ project.name }}</option>{% endfor %}</select></label>
           <label>สถานะเสียง<select data-narration-audio-status><option value="all">ทั้งหมด</option><option value="with">มีเสียงบรรยาย</option><option value="without">ไม่มีเสียงบรรยาย</option></select></label>
           <label>การเผยแพร่<select data-narration-visibility><option value="all">ทั้งหมด</option><option value="visible">แสดงอยู่</option><option value="hidden">ซ่อนอยู่</option></select></label>
           <button type="button" class="button secondary narration-reset" data-narration-reset>ล้างตัวกรอง</button>

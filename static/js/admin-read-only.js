@@ -13,8 +13,10 @@
 
     form.setAttribute("aria-disabled", "true");
     form.querySelectorAll("button, input, select, textarea").forEach((control) => {
+      // View-only helpers (search, list filters) stay usable; they are never submitted.
+      if (control.matches("[data-admin-list-search], [data-admin-list-selected], [data-admin-table-filter]")) return;
       control.disabled = true;
-      control.setAttribute("title", "Production admin is read-only");
+      control.setAttribute("title", "บัญชีหรือระบบนี้ดูได้อย่างเดียว");
     });
   });
 })();

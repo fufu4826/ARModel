@@ -1,0 +1,5 @@
+{# Colour family of a learning source, used by the theme (data-category). #}
+{% macro category_of(name) -%}
+{%- set n = name or '' -%}
+{%- if 'ไหม' in n %}silk{% elif 'เห็ด' in n %}mushroom{% elif 'ปศุสัตว์' in n %}livestock{% elif 'ข้าว' in n %}rice{% elif 'ประมง' in n %}fishery{% elif 'พืชสวน' in n %}garden{% elif 'สมุนไพร' in n %}herb{% elif 'ยางพารา' in n %}rubber{% elif 'อาหาร' in n %}food{% endif -%}
+{%- endmacro %}

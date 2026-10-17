@@ -1,0 +1,11 @@
+name = "armodel-d1-gateway-review"
+main = "worker.mjs"
+compatibility_date = "2026-10-16"
+workers_dev = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "armodel-review"
+# Local-only placeholder. Configure a separate reviewed deployment before remote use.
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"

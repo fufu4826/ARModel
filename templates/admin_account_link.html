@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>{{ heading }} - ศูนย์ศึกษาการพัฒนาภูพาน</title>
+  {% include "_fonts.html" %}
+  {% include "_auth_styles.html" %}
+</head>
+<body>
+  <main class="panel">
+    <div class="mark">AR</div>
+    <h1>{{ heading }}</h1>
+    {% if link_valid %}
+    <p>{{ intro }}</p>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% if link_valid %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ login_csrf_token }}">
+      {% if kind == "invite" %}
+      <div class="field">
+        <label for="username">ชื่อผู้ใช้ (Username)</label>
+        <input id="username" name="username" type="text" required minlength="3" maxlength="64" pattern="[A-Za-z0-9_.\-]{3,64}" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="username-help" value="{{ request.form.get('username', '') }}">
+        <small id="username-help">ใช้อักษรอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง 3–64 ตัวอักษร</small>
+      </div>
+      <div class="field">
+        <label for="display_name">ชื่อที่แสดง</label>
+        <input id="display_name" name="display_name" type="text" maxlength="80" autocomplete="name" value="{{ request.form.get('display_name', '') }}">
+      </div>
+      {% else %}
+      <p>บัญชี: <strong>{{ target_username }}</strong></p>
+      {% endif %}
+      <div class="field">
+        <label for="password">รหัสผ่านใหม่ (อย่างน้อย {{ min_password }} ตัวอักษร)</label>
+        <input id="password" name="password" type="password" required minlength="{{ min_password }}" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label for="confirm_password">ยืนยันรหัสผ่าน</label>
+        <input id="confirm_password" name="confirm_password" type="password" required minlength="{{ min_password }}" autocomplete="new-password">
+      </div>
+      <button class="submit" type="submit">{{ submit_label }}</button>
+    </form>
+    {% else %}
+    <div class="flash" role="alert">ลิงก์นี้หมดอายุ ถูกใช้ไปแล้ว หรือถูกยกเลิก กรุณาขอลิงก์ใหม่จากเจ้าของระบบ</div>
+    {% endif %}
+    <a class="back" href="{{ url_for('admin_login') }}">ไปหน้าเข้าสู่ระบบ</a>
+  </main>
+</body>
+</html>

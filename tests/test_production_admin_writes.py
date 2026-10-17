@@ -5,10 +5,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import app as module
+from admin_session import grant_admin_session
 
 
 class ProductionAdminWritesTests(unittest.TestCase):
     def setUp(self):
+        module.app.config["TESTING"] = True
         self.temp_dir = tempfile.TemporaryDirectory()
         data_dir = Path(self.temp_dir.name)
         self.original_paths = {
@@ -23,22 +25,21 @@ class ProductionAdminWritesTests(unittest.TestCase):
         module.PROJECTS_FILE = data_dir / "projects.json"
         module.SITE_SETTINGS_FILE = data_dir / "site_settings.json"
         module.SLIDER_ITEMS_FILE = data_dir / "slider_items.json"
-        module._JSON_CACHE.clear()
-        module.write_json(module.CATALOG_FILE, module.DEFAULT_MODELS)
-        module.write_json(module.PROJECTS_FILE, module.DEFAULT_PROJECTS)
-        module.write_json(module.SITE_SETTINGS_FILE, module.DEFAULT_SITE_SETTINGS)
-        module.write_json(module.SLIDER_ITEMS_FILE, [])
+        module.write_dataset(module.PROJECTS_FILE, module.DEFAULT_PROJECTS)
+        module.write_dataset(module.CATALOG_FILE, module.DEFAULT_MODELS)
+        module.write_dataset(module.PROJECTS_FILE, module.DEFAULT_PROJECTS)
+        module.write_dataset(module.SITE_SETTINGS_FILE, module.DEFAULT_SITE_SETTINGS)
+        module.write_dataset(module.SLIDER_ITEMS_FILE, [])
         module.app.config.update(TESTING=True, SECRET_KEY="production-write-test")
         self.client = module.app.test_client()
         with self.client.session_transaction() as session:
-            session["admin"] = True
+            grant_admin_session(session)
             session["csrf_token"] = "test-csrf-token"
         self.client.environ_base["HTTP_X_CSRF_TOKEN"] = "test-csrf-token"
 
     def tearDown(self):
         for name, value in self.original_paths.items():
             setattr(module, name, value)
-        module._JSON_CACHE.clear()
         self.temp_dir.cleanup()
 
     @staticmethod
@@ -54,58 +55,29 @@ class ProductionAdminWritesTests(unittest.TestCase):
             "R2_PUBLIC_BASE_URL": "https://pub.example.r2.dev",
         }
 
-    def test_admin_forms_are_enabled_when_production_write_env_is_configured(self):
-        with patch.dict(module.os.environ, self.production_env(), clear=False):
+    def test_admin_forms_are_enabled_when_d1_is_configured(self):
+        with patch.object(module, "d1_configured", return_value=True), patch.object(module, "is_vercel_runtime", return_value=True):
             html = self.client.get("/admin").get_data(as_text=True)
-
         self.assertIn('data-admin-read-only="false"', html)
-        self.assertIn('name="model_file" type="file"', html)
-        self.assertNotIn('name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" data-max-bytes="52428800" data-max-size-label="50 MB" disabled', html)
 
-    def test_add_model_uploads_to_r2_and_commits_json_on_vercel(self):
-        committed = {}
-
-        def fake_r2_upload(_data, object_key, _content_type):
+    def test_add_model_uploads_to_r2_and_persists_d1(self):
+        def upload(_data, object_key, _content_type):
             return f"https://pub.example.r2.dev/{object_key}"
-
-        def fake_commit(relative_path, value):
-            committed["relative_path"] = relative_path
-            committed["value"] = value
-
         with (
-            patch.dict(module.os.environ, self.production_env(), clear=False),
-            patch.object(module, "r2_upload_bytes", side_effect=fake_r2_upload),
-            patch.object(module, "github_commit_json", side_effect=fake_commit),
+            patch.dict(module.os.environ, self.production_env()),
+            patch.object(module, "d1_configured", return_value=True),
+            patch.object(module, "r2_upload_bytes", side_effect=upload),
         ):
-            response = self.client.post(
-                "/admin/models",
-                data={
-                    "name": "Production Upload Model",
-                    "description": "Uploaded through production admin",
-                    "department": "QA",
-                    "project_id": "garden",
-                    "model_file": (io.BytesIO(b"glb-data"), "production-model.glb"),
-                    "image_file": (io.BytesIO(b"image-data"), "production-image.jpg"),
-                    "scale": "0.2",
-                    "rotate_x": "0",
-                    "rotate_y": "0",
-                    "rotate_z": "0",
-                    "visible": "on",
-                },
-                content_type="multipart/form-data",
-            )
-
+            response = self.client.post("/admin/models", data={
+                "name": "D1 Upload Model", "project_id": "garden",
+                "model_file": (io.BytesIO(b"glb-data"), "review.glb"),
+                "image_file": (io.BytesIO(b"image-data"), "review.jpg"),
+                "visible": "on"
+            }, content_type="multipart/form-data")
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(committed["relative_path"], "data/models.json")
-        saved = next(
-            item
-            for item in committed["value"]
-            if item["name"] == "Production Upload Model"
-        )
+        saved = next(item for item in module.load_models(True) if item["name"] == "D1 Upload Model")
         self.assertTrue(saved["model_url"].startswith("https://pub.example.r2.dev/models/"))
-        self.assertEqual(saved["model_path"], "")
         self.assertTrue(saved["thumbnail_url"].startswith("https://pub.example.r2.dev/images/"))
-        self.assertEqual(saved["thumbnail_path"], "")
 
 
 if __name__ == "__main__":

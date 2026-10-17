@@ -16,16 +16,16 @@
       <div class="admin-shell dashboard-shell">
         <header class="admin-heading dashboard-heading">
           <div>
-            <p class="admin-eyebrow">ภาพรวมระบบแบบอ่านอย่างเดียว</p>
+            <p class="admin-eyebrow">ภาพรวม</p>
             <h1>แดชบอร์ดผู้ดูแลระบบ</h1>
-            <p>ข้อมูล JSON ไฟล์ Cloudflare R2 ที่ติดตาม การประมาณพื้นที่จัดเก็บ และสถานะ runtime</p>
+            <p>ข้อมูลจากฐานข้อมูล D1 ไฟล์สื่อบน R2 และสถานะระบบ</p>
           </div>
           <p class="dashboard-generated" id="dashboard-generated">กำลังรอข้อมูลล่าสุด…</p>
         </header>
 
         <div class="dashboard-state dashboard-loading" id="dashboard-loading" role="status">
           <span class="dashboard-spinner" aria-hidden="true"></span>
-          <div><strong>กำลังโหลดแดชบอร์ด…</strong><span>กำลังตรวจสอบข้อมูล JSON และไฟล์ public ที่ระบบติดตาม</span></div>
+          <div><strong>กำลังโหลดแดชบอร์ด…</strong><span>กำลังตรวจสอบฐานข้อมูลและไฟล์สื่อ</span></div>
         </div>
         <div class="dashboard-state dashboard-error" id="dashboard-error" role="alert" hidden>
           <div><strong>ไม่สามารถโหลดแดชบอร์ดได้</strong><span id="dashboard-error-message">กรุณาลองอีกครั้ง</span></div>
@@ -35,7 +35,7 @@
         <div id="dashboard-content" hidden>
           <section aria-labelledby="overview-title">
             <div class="dashboard-section-heading">
-              <div><p class="admin-eyebrow">ภาพรวม</p><h2 id="overview-title">สรุป Runtime</h2></div>
+              <div><p class="admin-eyebrow">ภาพรวม</p><h2 id="overview-title">สรุประบบ</h2></div>
             </div>
             <div class="dashboard-card-grid" id="overview-cards"></div>
             <div class="dashboard-runtime-strip" id="runtime-strip"></div>
@@ -73,7 +73,7 @@
 
           <section aria-labelledby="analytics-title">
             <div class="dashboard-section-heading">
-              <div><p class="admin-eyebrow">Analytics</p><h2 id="analytics-title">ข้อมูลวิเคราะห์ผู้เข้าชม</h2></div>
+              <div><p class="admin-eyebrow">ผู้เข้าชม</p><h2 id="analytics-title">ข้อมูลวิเคราะห์ผู้เข้าชม</h2></div>
               <span class="dashboard-badge dashboard-badge--disabled">ยังไม่ได้ตั้งค่า</span>
             </div>
             <div class="dashboard-date-toolbar" aria-label="เลือกช่วงเวลาสำหรับข้อมูลวิเคราะห์">
@@ -113,7 +113,8 @@
   </div>
   <script>
     window.ARModelDashboard = {
-      summaryUrl: {{ url_for('admin_dashboard_summary') | tojson }}
+      summaryUrl: {{ url_for('admin_dashboard_summary') | tojson }},
+      storageUrl: {{ url_for('admin_dashboard_storage') | tojson }}
     };
   </script>
   <script src="{{ url_for('static', filename='js/admin-dashboard.js') }}" defer></script>

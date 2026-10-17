@@ -1,0 +1,19 @@
+# CLI uploads for the separate staging project. Runtime needs only app.py, armodel/,
+# templates/, static/, requirements.txt and vercel.json; content lives in D1, media in R2.
+.git
+.env*
+__pycache__/
+*.pyc
+.pytest_cache/
+*.sqlite3
+*.sqlite3-*
+static/uploads/
+data/
+docs/
+tests/
+scripts/
+cloudflare/
+*.md
+config.json
+config.example.json
+requirements-dev.txt

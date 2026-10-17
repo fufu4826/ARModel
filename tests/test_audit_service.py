@@ -51,17 +51,15 @@ def test_request_context_trusts_only_vercel_headers_in_trusted_runtime():
     assert trusted["browser_summary"] == "Chrome บน Windows"
 
 
-def test_local_immutable_storage_and_malformed_records(tmp_path):
+def test_d1_audit_storage_preserves_signed_events(tmp_path):
+    from armodel.repositories.database import Database
     key = b"key"
     first = audit.sign_event(base_event(event_id="first"), key)
     second = audit.sign_event(base_event(event_id="second"), key)
-    first_key = audit.object_key(first, "audit/")
-    second_key = audit.object_key(second, "audit/")
-    assert first_key != second_key
-    audit.write_local(tmp_path, first_key, audit.serialize(first))
-    audit.write_local(tmp_path, second_key, audit.serialize(second))
-    malformed = tmp_path / "audit/2026/08/10/bad.json"
-    malformed.write_text("not json", encoding="utf-8")
-    records = audit.list_local(tmp_path, 10)
+    database = Database(local_path=tmp_path / 'test.sqlite3')
+    database.append_event('audit', first)
+    database.append_event('audit', second)
+    records = database.events('audit')
     assert {record["event_id"] for record in records} == {"first", "second"}
     assert all(audit.verify_event(record, key) for record in records)
+    assert not list(tmp_path.rglob('*.json'))

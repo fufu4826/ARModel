@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Site Branding - Admin</title>
+  <title>แบรนด์และ SEO - ARModel Admin</title>
   <link class="admin-stylesheet" rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
   {% include "_fonts.html" %}
 </head>
@@ -15,8 +15,8 @@
       <div class="admin-shell">
         <header class="admin-heading" id="site-settings">
           <div>
-            <p class="admin-eyebrow">Site Settings</p>
-            <h1>Site Branding & SEO</h1>
+            <p class="admin-eyebrow">หน้าตาเว็บไซต์</p>
+            <h1>แบรนด์และ SEO</h1>
             <p>จัดการชื่อเว็บไซต์ โลโก้ favicon และคำอธิบายสำหรับ SEO</p>
           </div>
           <a class="button secondary" href="{{ url_for('home') }}" target="_blank" rel="noopener">ดูหน้าเว็บไซต์</a>
@@ -35,13 +35,13 @@
             <legend class="admin-section-title">ข้อมูลทั่วไป</legend>
 
             <div class="field full">
-              <label for="site-name">Site Name (ชื่อเว็บไซต์)</label>
+              <label for="site-name">ชื่อเว็บไซต์</label>
               <input id="site-name" name="site_name" value="{{ settings.site_name }}" required />
               <p class="meta">ชื่อเว็บไซต์นี้ใช้เป็นชื่อบนแท็บและชื่อในการ์ดตัวอย่างเมื่อแชร์ลิงก์หน้า Landing และ Home</p>
             </div>
 
             <div class="field full">
-              <label for="meta-description">Meta Description (คำอธิบายสำหรับ SEO)</label>
+              <label for="meta-description">คำอธิบายสำหรับ SEO (Meta description)</label>
               <textarea id="meta-description" name="meta_description" rows="4" maxlength="320">{{ settings.meta_description }}</textarea>
               <p class="meta">คำอธิบายนี้ใช้กับระบบค้นหาของ Google และข้อความอธิบายในการ์ดตัวอย่างเมื่อแชร์ลิงก์</p>
             </div>

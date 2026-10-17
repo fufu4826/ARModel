@@ -3,7 +3,7 @@
 {% set meta_image = site_settings.social_image_absolute_url|default(page_image|default(default_meta_image, true), true) %}
 {% set meta_url = page_url|default(public_site_url ~ request.path, true) %}
 <meta name="description" content="{{ meta_description }}" />
-<meta name="keywords" content="{{ default_meta_keywords }}" />
+<meta name="keywords" content="{{ page_keywords|default(default_meta_keywords, true) }}" />
 <meta name="robots" content="{{ 'noindex, nofollow' if noindex else 'index, follow, max-image-preview:large' }}" />
 <link rel="canonical" href="{{ meta_url }}" />
 <meta property="og:title" content="{{ meta_title }}" />

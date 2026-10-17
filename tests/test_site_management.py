@@ -804,7 +804,8 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn('name="description" content="สำรวจและค้นหาโมเดล 3D และ AR ของดีสกลนคร เช่น ลูกประคบ ลิ้นจี่ ข้าวสกลนคร และแหล่งเรียนรู้ภูพานในพิพิธภัณฑ์ออนไลน์เสมือนจริง"', models_html)
 
         # 4. model detail page title includes model name and 3D/AR
-        self.assertIn("โมเดล 3D AR ภูพาน สกลนคร ของดีสกลนคร", model_detail_html)
+        self.assertIn("ศูนย์ศึกษาการพัฒนาภูพาน สกลนคร | โมเดล 3D AR</title>", model_detail_html)
+        self.assertIn('"@type": "3DModel"', model_detail_html.replace('\u0022', '"'))
 
         # 5. sitemap includes /models and model detail URLs
         sitemap_text = self.client.get("/sitemap.xml").get_data(as_text=True)

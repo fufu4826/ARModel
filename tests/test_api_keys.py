@@ -177,3 +177,15 @@ class ApiKeyAdminPageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SeoTermsTests(unittest.TestCase):
+    def test_aliases_are_real_synonyms_and_misspellings_stay_in_keywords(self):
+        from armodel.services import seo_terms
+        self.assertIn("หมูดำภูพาน", seo_terms.model_aliases("สุกรภูพาน"))
+        self.assertIn("ไก่หวายดำ", seo_terms.model_aliases("ไก่ดำภูพาน4 /สีหวายดำ"))
+        self.assertEqual(seo_terms.clean_name("ไก่ดำภูพาน3 /สีน้ำตาล"), "ไก่ดำภูพาน 3 (สีน้ำตาล)")
+        self.assertIn("3 ดำภูพาน", seo_terms.model_keywords("โคเนื้อภูพาน"))
+        self.assertIn("พูพาน", seo_terms.site_keywords())
+        for aliases in (seo_terms.model_aliases(n) for n in seo_terms.MODEL_ALIASES):
+            self.assertFalse(set(aliases) & set(seo_terms.CENTRE_MISSPELLINGS))

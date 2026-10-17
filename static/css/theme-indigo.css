@@ -481,3 +481,9 @@ body.landing-page { background: var(--indigo-950); }
   .model-tabs-section .model-tabs__list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .model-tabs-section .viewer-help ul { grid-template-columns: 1fr; }
 }
+
+/* Alternative names (real synonyms people search with) */
+.model-aliases { margin: 4px 0 10px; font-size: 15px; color: var(--muted); line-height: 1.6; }
+.model-aliases span { display: inline-block; margin-right: 6px; padding: 0 8px; border-radius: 999px; background: var(--indigo-50); color: var(--indigo-900); font-size: 13px; font-weight: 600; }
+.model-aliases--group { color: var(--silk-600); font-size: 14px; }
+.centre-aliases { margin: -4px 0 14px; }

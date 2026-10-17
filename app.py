@@ -36,6 +36,7 @@ from armodel.services import analytics as analytics_service
 from armodel.services import audit as audit_service
 from armodel.services import r2_storage
 from armodel.services import narration as narration_service
+from armodel.services import seo_terms
 from armodel.repositories import content as content_repository
 from armodel.repositories import database as database_repository
 from armodel.repositories import admin_users as admin_users_repository
@@ -101,7 +102,7 @@ DEFAULT_META_KEYWORDS = (
     "แหล่งเรียนรู้สกลนคร, พิพิธภัณฑ์ท้องถิ่นสกลนคร ออนไลน์, โมเดล 3D สกลนคร, "
     "ลูกประคบ สกลนคร 3D, ลิ้นจี่ สกลนคร 3D, ข้าวสกลนคร 3D, "
     "ศูนย์ศึกษาการพัฒนาภูพาน, ศูนย์ภูพาน, สกลนคร, สกล, ของดีสกลนคร, โมเดล 3D, AR, AR สกลนคร, "
-    "Phu Phan, PhuPhan AR, Sakon Nakhon"
+    "Phu Phan, PhuPhan AR, Sakon Nakhon, " + ", ".join(seo_terms.site_keywords())
 )
 DEFAULT_META_IMAGE_PATH = "pic/og-cover.jpg"
 MAX_RECOMMENDED_MODELS = 10
@@ -464,7 +465,8 @@ def public_structured_data(settings: dict) -> dict:
                 "@id": f"{PUBLIC_SITE_URL}/#website",
                 "url": PUBLIC_SITE_URL,
                 "name": settings["site_name"],
-                "alternateName": ["PhuPhan AR", "ภูพาน AR", "พูพาน AR", "ภูพาน สกลนคร"],
+                "alternateName": ["PhuPhan AR", "Puparn AR", "ภูพาน AR", "พูพาน AR", "ภูพาน สกลนคร",
+                                  "ศูนย์ภูพาน", "ศูนย์ศึกษาการพัฒนาภูพาน"],
                 "description": settings["meta_description"],
                 "inLanguage": "th",
                 "about": {"@id": place_id},
@@ -486,8 +488,11 @@ def public_structured_data(settings: dict) -> dict:
                 "@type": "Place",
                 "@id": place_id,
                 "name": "ศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ",
-                "alternateName": "Phu Phan Royal Development Study Centre",
+                "alternateName": seo_terms.CENTRE_ALT_NAMES,
                 "url": PUBLIC_SITE_URL,
+                "telephone": ["+66-42-747-458", "+66-42-747-459"],
+                "sameAs": ["http://puparn.rid.go.th/",
+                           "https://www.museumthailand.com/en/museum/Puparn-Royal-Development-Study-Centre"],
                 "description": (
                     "แหล่งเรียนรู้ในจังหวัดสกลนครด้านการเกษตร ทรัพยากรธรรมชาติ "
                     "ภูมิปัญญาท้องถิ่น ผลิตภัณฑ์ และการพัฒนาคุณภาพชีวิต "
@@ -527,13 +532,36 @@ def public_models_structured_data(settings: dict, models: list) -> dict:
     return base
 
 
+def model_page_title(model: dict) -> str:
+    name = seo_terms.clean_name(model.get("name", ""))
+    aliases = seo_terms.model_aliases(model.get("name", ""))
+    lead = (f"{name} · {aliases[0]}" if "(" in name else f"{name} ({aliases[0]})") if aliases else name
+    return f"{lead} | ศูนย์ศึกษาการพัฒนาภูพาน สกลนคร | โมเดล 3D AR"
+
+
+def model_page_description(model: dict) -> str:
+    name = seo_terms.clean_name(model.get("name", ""))
+    aliases = seo_terms.model_aliases(model.get("name", ""))[:3]
+    also = f" (หรือ {', '.join(aliases)})" if aliases else ""
+    text = re.sub(r"\s+", " ", str(model.get("description") or "")).strip()
+    lead = f"{name}{also} จาก{model.get('project_name', 'แหล่งเรียนรู้')} ศูนย์ศึกษาการพัฒนาภูพานฯ สกลนคร"
+    body = f": {text[:110]}…" if text else ""
+    return f"{lead}{body} ชมโมเดล 3D และ AR ได้ฟรี"
+
+
 def public_model_detail_structured_data(settings: dict, model: dict) -> dict:
     base = public_structured_data(settings)
     model_url = f"{PUBLIC_SITE_URL}/models/{model['id']}"
     creative_work = {
-        "@type": "CreativeWork",
+        "@type": "3DModel",
         "@id": f"{model_url}#creativework",
-        "name": model.get("name", ""),
+        "name": seo_terms.clean_name(model.get("name", "")),
+        "alternateName": seo_terms.model_aliases(model.get("name", "")),
+        "keywords": ", ".join(seo_terms.model_keywords(model.get("name", ""), model.get("project_name", ""))),
+        "inLanguage": "th",
+        "contentLocation": {"@id": f"{PUBLIC_SITE_URL}/#phu-phan-centre"},
+        "isPartOf": {"@type": "CollectionPage", "name": model.get("project_name", ""),
+                     "url": f"{PUBLIC_SITE_URL}/projects/{model.get('project_id', '')}"},
         "description": model.get("description") or f"โมเดล 3D และ AR ของ {model.get('name', '')} แหล่งเรียนรู้ภูพาน สกลนคร",
         "url": model_url,
         "provider": {
@@ -2542,12 +2570,11 @@ def model_detail(model_id: str):
         size_mb=model_size_mb(model),
         related_models=related_models,
         mode=request.args.get("mode", "3d"),
-        page_title=f"{model.get('name', '')} | โมเดล 3D AR ภูพาน สกลนคร ของดีสกลนคร",
-        page_description=(
-            f"โมเดล 3D และ AR {model.get('name', '')} ของดีสกลนคร: {model.get('description', '')[:120]} เรียนรู้ภูพาน สกลนคร ในพิพิธภัณฑ์ออนไลน์"
-            if model.get("description")
-            else f"ชมโมเดล 3D และ AR {model.get('name', '')} แหล่งเรียนรู้ภูพาน สกลนคร และของดีสกลนครแบบเสมือนจริง"
-        ),
+        page_title=model_page_title(model),
+        page_description=model_page_description(model),
+        page_keywords=", ".join(seo_terms.model_keywords(model.get("name", ""), model.get("project_name", ""))),
+        model_aliases=seo_terms.model_aliases(model.get("name", "")),
+        model_in_group=seo_terms.in_group(model.get("name", "")),
         structured_data=public_model_detail_structured_data(settings, model),
         page_image=public_meta_image_url(resolve_thumbnail_url(model)),
         page_url=public_url_for("model_detail", model_id=model_id),
@@ -2602,12 +2629,23 @@ def sitemap():
         {"loc": public_url_for("home"), "priority": "0.9"},
         {"loc": public_url_for("models_index"), "priority": "0.9"},
     ]
+    def lastmod(item):
+        return str(item.get("updated_at") or item.get("created_at") or "")[:10]
+
+    def absolute(url):
+        from urllib.parse import urljoin
+        return urljoin(PUBLIC_SITE_URL + "/", url) if url else ""
+
     urls.extend(
-        {"loc": public_url_for("project_detail", project_id=project["id"]), "priority": "0.8"}
+        {"loc": public_url_for("project_detail", project_id=project["id"]), "priority": "0.8",
+         "lastmod": lastmod(project), "image": absolute(project_with_urls(project, models).get("cover_image_url")),
+         "image_title": project.get("name", "")}
         for project in projects
     )
     urls.extend(
-        {"loc": public_url_for("model_detail", model_id=model["id"]), "priority": "0.7"}
+        {"loc": public_url_for("model_detail", model_id=model["id"]), "priority": "0.7",
+         "lastmod": lastmod(model), "image": absolute(resolve_thumbnail_url(model)),
+         "image_title": seo_terms.clean_name(model.get("name", ""))}
         for model in models
     )
     xml_body = render_template("sitemap.xml", urls=urls).lstrip("\ufeff \t\r\n")

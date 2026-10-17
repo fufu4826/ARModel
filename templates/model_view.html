@@ -90,6 +90,8 @@
       <div class="info-header">
         <p class="eyebrow">{{ model.department or model.project_department or "โมเดลการเรียนรู้" }}</p>
         <h1 id="modelTitle">{{ model.name }}</h1>
+        {% if model_aliases %}<p class="model-aliases"><span>ชื่อเรียกอื่น</span> {{ model_aliases|join(' · ') }}</p>{% endif %}
+        {% if model_in_group %}<p class="model-aliases model-aliases--group">หนึ่งในกลุ่มสัตว์ “3 ดำ / 5 ดำมหัศจรรย์ภูพาน” ของศูนย์ศึกษาการพัฒนาภูพานฯ</p>{% endif %}
         <p class="lead" id="modelDescription">{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้ภูมิปัญญา ผลิตภัณฑ์ และงานพัฒนาพื้นที่" }}</p>
       </div>
       {% if narration_audio_url %}

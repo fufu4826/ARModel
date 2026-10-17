@@ -74,9 +74,6 @@
           <span>ไฟล์อาจมีขนาดใหญ่หรือเบราว์เซอร์ยังไม่พร้อมสำหรับการแสดงผล 3D ลองรีเฟรชหน้า หรือเลือกเส้นทางอื่นด้านล่าง</span>
           <div class="viewer-recovery">
             <a class="button small" href="{{ url_for('models_index') }}">รายการโมเดล</a>
-            {% if model_url %}
-            <a class="button secondary small" href="{{ model_url }}" target="_blank" rel="noopener" aria-describedby="model-file-help">เปิดไฟล์โมเดลโดยตรง</a>
-            {% endif %}
             {% if model.has_project %}
             <a class="button secondary small" href="{{ url_for('project_detail', project_id=model.project_id) }}">กลับไปแหล่งเรียนรู้</a>
             {% endif %}
@@ -135,86 +132,6 @@
       </section>
 
 
-      <div class="model-tabs" data-tabs>
-        <div class="model-tabs__list" role="tablist" aria-label="ข้อมูลโมเดล" hidden>
-          <button class="model-tabs__tab" type="button" role="tab" id="tab-detail" aria-controls="panel-detail" aria-selected="true">รายละเอียด</button>
-          <button class="model-tabs__tab" type="button" role="tab" id="tab-ar" aria-controls="panel-ar" aria-selected="false" tabindex="-1">วิธีดู AR</button>
-          <button class="model-tabs__tab" type="button" role="tab" id="tab-file" aria-controls="panel-file" aria-selected="false" tabindex="-1">เปิดไฟล์</button>
-          <button class="model-tabs__tab" type="button" role="tab" id="tab-contact" aria-controls="panel-contact" aria-selected="false" tabindex="-1">ติดต่อศูนย์</button>
-        </div>
-        <div class="model-tabs__panel" id="panel-detail" role="tabpanel" aria-labelledby="tab-detail">
-      <dl class="meta-list">
-        {% if model.department %}
-        <div>
-          <dt>หน่วยงาน/แผนก</dt>
-          <dd id="modelDepartment">{{ model.department }}</dd>
-        </div>
-        {% endif %}
-        <div>
-          <dt>แหล่งเรียนรู้</dt>
-          <dd id="modelProjectName">{{ model.project_name }}</dd>
-        </div>
-        <div>
-          <dt>ขนาดไฟล์</dt>
-          <dd id="modelSize">{{ "%.2f MB"|format(size_mb) if size_mb is not none else "ไม่ระบุ" }}</dd>
-        </div>
-        <div>
-          <dt>การรับชม</dt>
-          <dd>หมุนดูแบบ 3D และเปิด AR บนอุปกรณ์ที่รองรับ</dd>
-        </div>
-      </dl>
-
-      <div class="usage-note">
-        หากปุ่ม AR ไม่แสดง อุปกรณ์หรือเบราว์เซอร์อาจยังไม่รองรับ WebXR, Scene Viewer หรือ Quick Look
-      </div>
-        </div>
-        <div class="model-tabs__panel" id="panel-ar" role="tabpanel" aria-labelledby="tab-ar">
-      <section class="viewer-help" aria-labelledby="viewer-help-title">
-        <h2 id="viewer-help-title">การควบคุมโมเดล</h2>
-        <ul>
-          <li><strong>ลากเพื่อหมุน</strong><span>หมุนดูรอบโมเดลด้วยเมาส์หรือนิ้ว</span></li>
-          <li><strong>บีบนิ้วเพื่อซูม</strong><span>ขยายรายละเอียดบนมือถือหรือแทร็กแพด</span></li>
-          <li><strong>กด AR</strong><span>ดูโมเดลในพื้นที่จริงบนมือถือที่รองรับ</span></li>
-        </ul>
-      </section>
-      <section class="viewer-instructions" aria-labelledby="ar-guide-title">
-        <h2 id="ar-guide-title">ดูโมเดลในพื้นที่จริงด้วย AR</h2>
-        <ol>
-          <li>เปิดหน้านี้บนมือถือที่รองรับ AR ด้วย Chrome บน Android หรือ Safari บน iPhone/iPad หากเปิดจาก LINE หรือ Facebook ให้เลือกเปิดในเบราว์เซอร์ก่อน</li>
-          <li>รอโมเดลโหลดเสร็จ แล้วแตะปุ่ม “เปิด AR” หากเครื่องถามสิทธิ์กล้อง ให้อนุญาตเพื่อแสดงภาพพื้นที่จริง</li>
-          <li>หันกล้องไปยังพื้นราบที่มีแสงสว่าง ขยับมือถือช้า ๆ เพื่อให้ระบบตรวจจับพื้น แล้วแตะตำแหน่งเพื่อวางโมเดลตามข้อความบนหน้าจอ</li>
-          <li>ใช้นิ้วลากหรือบีบเพื่อปรับตำแหน่ง หมุน หรือขนาดตามที่แอปบนเครื่องรองรับ เมื่อเสร็จให้แตะปิดหรือย้อนกลับเพื่อกลับเว็บไซต์</li>
-        </ol>
-        <p>Android ต้องรองรับ ARCore และอาจต้องติดตั้งหรืออัปเดต Google Play Services for AR ส่วน iPhone/iPad ใช้ Quick Look บนอุปกรณ์ที่รองรับ หากไม่มีปุ่ม AR ยังหมุนและซูมดูแบบ 3D ในหน้านี้ได้</p>
-        <p id="arHelpStatus" role="status" aria-live="polite" hidden></p>
-        <p class="content-source"><a href="https://developers.google.com/ar/develop/webxr/model-viewer" target="_blank" rel="noopener noreferrer">ข้อมูลอุปกรณ์และการทำงานของ AR จาก Google</a></p>
-      </section>
-        </div>
-        <div class="model-tabs__panel" id="panel-file" role="tabpanel" aria-labelledby="tab-file">
-      <div class="action-row">
-        {% if model_url %}
-        <a class="button secondary" href="{{ model_url }}" target="_blank" rel="noopener" aria-describedby="model-file-help">เปิดไฟล์โมเดลโดยตรง</a>
-        {% endif %}
-        {% if model.has_project %}
-        <a class="button" href="{{ url_for('project_detail', project_id=model.project_id) }}">ดูโมเดลในแหล่งเรียนรู้</a>
-        {% else %}
-        <a class="button" href="{{ url_for('models_index') }}">ดูรายการโมเดล</a>
-        {% endif %}
-      </div>
-      {% if model_url %}
-      <section class="viewer-instructions" id="model-file-help" aria-labelledby="model-file-title">
-        <h2 id="model-file-title">เปิดไฟล์โมเดลด้วยโปรแกรมอะไร?</h2>
-        <p>ไฟล์โมเดลเป็นชนิด <strong>.glb</strong> ปุ่มด้านบนอาจดาวน์โหลดไฟล์หรือเปิดแท็บใหม่ ขึ้นอยู่กับเบราว์เซอร์ หากต้องการดูทันทีโดยไม่ติดตั้งโปรแกรม ให้ใช้ตัวแสดง 3D ในหน้านี้</p>
-        <p>บนคอมพิวเตอร์สามารถเปิดด้วย <strong>Blender</strong> โดยเลือก <strong>File → Import → glTF 2.0 (.glb/.gltf)</strong> แล้วเลือกไฟล์ที่ดาวน์โหลด ไม่ใช่เมนูเปิดไฟล์ .blend</p>
-        <p>บนมือถือ การเปิดไฟล์ .glb ที่ดาวน์โหลดต้องใช้แอปที่รองรับไฟล์ชนิดนี้ หากต้องการวางในพื้นที่จริงให้ใช้ปุ่ม “เปิด AR” ในเว็บไซต์แทนการเปิดไฟล์จากโฟลเดอร์ดาวน์โหลด</p>
-        <a href="https://docs.blender.org/manual/en/latest/addons/import_export/scene_gltf2.html" target="_blank" rel="noopener noreferrer">คู่มือนำเข้าไฟล์ glTF/GLB ของ Blender</a>
-      </section>
-      {% endif %}
-        </div>
-        <div class="model-tabs__panel" id="panel-contact" role="tabpanel" aria-labelledby="tab-contact">
-          {% include "_centre_contact.html" %}
-        </div>
-      </div>
     </aside>
 
     {% if related_models %}
@@ -243,6 +160,62 @@
       </div>
     </section>
     {% endif %}
+    <section class="model-tabs-section" aria-label="ข้อมูลเพิ่มเติมของโมเดล">
+      <div class="model-tabs" data-tabs>
+        <div class="model-tabs__list" role="tablist" aria-label="ข้อมูลโมเดล" hidden>
+          <button class="model-tabs__tab" type="button" role="tab" id="tab-detail" aria-controls="panel-detail" aria-selected="true">รายละเอียด</button>
+          <button class="model-tabs__tab" type="button" role="tab" id="tab-ar" aria-controls="panel-ar" aria-selected="false" tabindex="-1">วิธีดู AR</button>
+          <button class="model-tabs__tab" type="button" role="tab" id="tab-contact" aria-controls="panel-contact" aria-selected="false" tabindex="-1">ติดต่อศูนย์</button>
+        </div>
+        <div class="model-tabs__panel" id="panel-detail" role="tabpanel" aria-labelledby="tab-detail">
+      <dl class="meta-list">
+        {% if model.department %}
+        <div>
+          <dt>หน่วยงาน/แผนก</dt>
+          <dd id="modelDepartment">{{ model.department }}</dd>
+        </div>
+        {% endif %}
+        <div>
+          <dt>แหล่งเรียนรู้</dt>
+          <dd id="modelProjectName">{{ model.project_name }}</dd>
+        </div>
+      </dl>
+
+      <div class="action-row">
+        {% if model.has_project %}
+        <a class="button" href="{{ url_for('project_detail', project_id=model.project_id) }}">ดูโมเดลในแหล่งเรียนรู้</a>
+        {% else %}
+        <a class="button" href="{{ url_for('models_index') }}">ดูรายการโมเดล</a>
+        {% endif %}
+      </div>
+        </div>
+        <div class="model-tabs__panel" id="panel-ar" role="tabpanel" aria-labelledby="tab-ar">
+      <section class="viewer-help" aria-labelledby="viewer-help-title">
+        <h2 id="viewer-help-title">การควบคุมโมเดล</h2>
+        <ul>
+          <li><strong>ลากเพื่อหมุน</strong><span>หมุนดูรอบโมเดลด้วยเมาส์หรือนิ้ว</span></li>
+          <li><strong>บีบนิ้วเพื่อซูม</strong><span>ขยายรายละเอียดบนมือถือหรือแทร็กแพด</span></li>
+          <li><strong>กด AR</strong><span>ดูโมเดลในพื้นที่จริงบนมือถือที่รองรับ</span></li>
+        </ul>
+      </section>
+      <section class="viewer-instructions" aria-labelledby="ar-guide-title">
+        <h2 id="ar-guide-title">ดูโมเดลในพื้นที่จริงด้วย AR</h2>
+        <ol>
+          <li>เปิดหน้านี้บนมือถือที่รองรับ AR ด้วย Chrome บน Android หรือ Safari บน iPhone/iPad หากเปิดจาก LINE หรือ Facebook ให้เลือกเปิดในเบราว์เซอร์ก่อน</li>
+          <li>รอโมเดลโหลดเสร็จ แล้วแตะปุ่ม “เปิด AR” หากเครื่องถามสิทธิ์กล้อง ให้อนุญาตเพื่อแสดงภาพพื้นที่จริง</li>
+          <li>หันกล้องไปยังพื้นราบที่มีแสงสว่าง ขยับมือถือช้า ๆ เพื่อให้ระบบตรวจจับพื้น แล้วแตะตำแหน่งเพื่อวางโมเดลตามข้อความบนหน้าจอ</li>
+          <li>ใช้นิ้วลากหรือบีบเพื่อปรับตำแหน่ง หมุน หรือขนาดตามที่แอปบนเครื่องรองรับ เมื่อเสร็จให้แตะปิดหรือย้อนกลับเพื่อกลับเว็บไซต์</li>
+        </ol>
+        <p>Android ต้องรองรับ ARCore และอาจต้องติดตั้งหรืออัปเดต Google Play Services for AR ส่วน iPhone/iPad ใช้ Quick Look บนอุปกรณ์ที่รองรับ หากไม่มีปุ่ม AR ยังหมุนและซูมดูแบบ 3D ในหน้านี้ได้</p>
+        <p id="arHelpStatus" role="status" aria-live="polite" hidden></p>
+        <p class="content-source"><a href="https://developers.google.com/ar/develop/webxr/model-viewer" target="_blank" rel="noopener noreferrer">ข้อมูลอุปกรณ์และการทำงานของ AR จาก Google</a></p>
+      </section>
+        </div>
+        <div class="model-tabs__panel" id="panel-contact" role="tabpanel" aria-labelledby="tab-contact">
+          {% include "_centre_contact.html" %}
+        </div>
+      </div>
+    </section>
   </main>
 
   <div class="model-action-bar" aria-label="ทางลัดของโมเดล">

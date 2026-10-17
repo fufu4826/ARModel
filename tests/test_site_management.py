@@ -172,9 +172,10 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("บ้านนานกเค้า", home)
         model = self.client.get("/models/lychee").get_data(as_text=True)
         self.assertIn('id="ar-guide-title"', model)
-        self.assertIn('id="model-file-help"', model)
-        self.assertIn("Blender", model)
-        self.assertIn("glTF 2.0 (.glb/.gltf)", model)
+        # Opening/downloading the model file was removed from the public page on request.
+        self.assertNotIn('id="model-file-help"', model)
+        self.assertNotIn("เปิดไฟล์โมเดลโดยตรง", model)
+        self.assertNotIn("ขนาดไฟล์", model)
         self.assertIn("Google Play Services for AR", model)
         self.assertIn('id="arHelpStatus"', model)
         self.assertIn('id="mainModelViewer"', model)

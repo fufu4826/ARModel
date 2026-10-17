@@ -439,3 +439,45 @@ body.landing-page { background: var(--indigo-950); }
 /* Card text: clamp by whole lines (the Thai looped font needs more line height than the old em cap). */
 .card-body p, .model-card .card-body p, .project-card .card-body p { max-height: none; line-height: 1.75; }
 .card-body h3 a { line-height: 1.45; padding-bottom: 2px; }
+
+/* ---------- Header on indigo cloth: white text, white halo behind logos ---------- */
+.site-nav {
+  background:
+    linear-gradient(rgba(18, 26, 53, 0.80), rgba(18, 26, 53, 0.86)),
+    var(--weave-indigo) repeat left center / 210px auto,
+    #121a35;
+  box-shadow: none;
+}
+.site-nav .brand-mark strong { color: #fff; }
+.site-nav .brand-mark small { color: #d7deef; }
+.site-nav .public-logo-strip__item {
+  background: #fff;
+  border-radius: 10px;
+  padding: 3px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35), 0 0 14px rgba(255, 255, 255, 0.55);
+}
+.site-nav .brand-symbol { background: #fff; color: var(--indigo-900); }
+.site-nav .nav-actions a { color: #fff; }
+.site-nav .nav-actions a:hover,
+.site-nav .nav-actions a[aria-current="page"],
+.site-nav .nav-actions a.active { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.site-nav .mobile-nav-toggle { color: #fff; background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.45); }
+.site-nav :focus-visible { outline-color: #f3d38b; }
+
+/* Model page: info tabs live in their own full-width section at the bottom. */
+.model-tabs-section { grid-column: 1 / -1; background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 24px 24px; }
+.model-tabs-section .model-tabs { margin-top: 0; }
+.model-tabs-section .model-tabs__list { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 640px; }
+.model-tabs-section .model-tabs__panel { max-width: 980px; }
+.model-tabs-section .viewer-help ul { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.model-tabs-section .centre-contact { max-width: 760px; }
+@media (min-width: 900px) {
+  .model-tabs-section .centre-contact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .model-tabs-section .centre-contact__map { aspect-ratio: auto; min-height: 100%; }
+  .model-tabs-section .centre-contact { max-width: none; }
+}
+@media (max-width: 920px) {
+  .model-tabs-section { order: 7; padding: 16px; }
+  .model-tabs-section .model-tabs__list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .model-tabs-section .viewer-help ul { grid-template-columns: 1fr; }
+}

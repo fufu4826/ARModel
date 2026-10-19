@@ -27,7 +27,7 @@ from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsp
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
-from flask import abort, flash, Flask, g, has_request_context, jsonify, redirect, render_template, request, session, url_for, send_file, Response
+from flask import abort, flash, Flask, g, has_request_context, jsonify, redirect, render_template, request, session, url_for, send_file, send_from_directory, Response
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -105,6 +105,7 @@ DEFAULT_META_KEYWORDS = (
     "Phu Phan, PhuPhan AR, Sakon Nakhon, " + ", ".join(seo_terms.site_keywords())
 )
 DEFAULT_META_IMAGE_PATH = "pic/og-cover.jpg"
+SEARCH_SITE_NAME = "ภูพาน AR"
 MAX_RECOMMENDED_MODELS = 10
 DEFAULT_SITE_SETTINGS = {
     "landing_cover": DEFAULT_META_IMAGE_PATH,
@@ -447,6 +448,7 @@ def inject_runtime_flags():
         "default_meta_keywords": DEFAULT_META_KEYWORDS,
         "default_meta_image": public_settings["social_image_absolute_url"],
         "default_site_name": settings["site_name"],
+        "search_site_name": SEARCH_SITE_NAME,
         "public_site_url": PUBLIC_SITE_URL,
         "site_settings": public_settings,
         "model_file_max_mb": MAX_MODEL_FILE_SIZE_MB,
@@ -463,9 +465,10 @@ def public_structured_data(settings: dict) -> dict:
             {
                 "@type": "WebSite",
                 "@id": f"{PUBLIC_SITE_URL}/#website",
-                "url": PUBLIC_SITE_URL,
-                "name": settings["site_name"],
-                "alternateName": ["PhuPhan AR", "Puparn AR", "ภูพาน AR", "พูพาน AR", "ภูพาน สกลนคร",
+                "url": PUBLIC_SITE_URL + "/",
+                # Short name for Google's site-name line in results (instead of the host "Vercel").
+                "name": SEARCH_SITE_NAME,
+                "alternateName": ["Puparn-AR", settings["site_name"], "PhuPhan AR", "Puparn AR", "ภูพาน AR", "พูพาน AR", "ภูพาน สกลนคร",
                                   "ศูนย์ภูพาน", "ศูนย์ศึกษาการพัฒนาภูพาน"],
                 "description": settings["meta_description"],
                 "inLanguage": "th",
@@ -2660,6 +2663,12 @@ def robots():
     return render_template("robots.txt", sitemap_url=public_url_for("sitemap")), 200, {
         "Content-Type": "text/plain; charset=utf-8"
     }
+
+
+@app.get("/favicon.ico")
+def favicon_root():
+    """Search engines look for /favicon.ico at the site root."""
+    return send_from_directory(STATIC_DIR, "favicon.ico", mimetype="image/vnd.microsoft.icon", max_age=86400)
 
 
 @app.get("/googleaf10e1de09a9b1b8.html")

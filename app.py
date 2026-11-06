@@ -105,7 +105,7 @@ DEFAULT_META_KEYWORDS = (
     "Phu Phan, PhuPhan AR, Sakon Nakhon, " + ", ".join(seo_terms.site_keywords())
 )
 DEFAULT_META_IMAGE_PATH = "pic/og-cover.jpg"
-SEARCH_SITE_NAME = "ภูพาน AR"
+SEARCH_SITE_NAME = "PuparnAR"
 MAX_RECOMMENDED_MODELS = 10
 DEFAULT_SITE_SETTINGS = {
     "landing_cover": DEFAULT_META_IMAGE_PATH,

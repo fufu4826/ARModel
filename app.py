@@ -18,7 +18,7 @@ import webbrowser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
-from functools import wraps
+from functools import lru_cache, wraps
 from pathlib import Path
 from threading import Lock, Timer
 from time import monotonic
@@ -405,6 +405,17 @@ def public_absolute_url(path_or_url: str | None) -> str:
     return f"{PUBLIC_SITE_URL}{value}"
 
 
+@lru_cache(maxsize=256)
+def qr_svg(text: str) -> str:
+    """Inline SVG QR code (no image file, no external service)."""
+    import qrcode
+    from qrcode.image.svg import SvgPathImage
+
+    image = qrcode.make(text, image_factory=SvgPathImage, box_size=10, border=2)
+    svg = image.to_string(encoding="unicode")
+    return svg[svg.index("<svg"):]
+
+
 def public_url_for(endpoint: str, **values) -> str:
     return public_absolute_url(url_for(endpoint, **values))
 
@@ -449,6 +460,8 @@ def inject_runtime_flags():
         "default_meta_image": public_settings["social_image_absolute_url"],
         "default_site_name": settings["site_name"],
         "search_site_name": SEARCH_SITE_NAME,
+        # Short brand shown in the header and footer: the site name up to the first "|".
+        "brand_name": (settings["site_name"].split("|")[0].strip() or SEARCH_SITE_NAME),
         "public_site_url": PUBLIC_SITE_URL,
         "site_settings": public_settings,
         "model_file_max_mb": MAX_MODEL_FILE_SIZE_MB,
@@ -640,6 +653,24 @@ def handle_database_error(error):
     if isinstance(error, database_repository.ConflictError):
         return "ข้อมูลมีการเปลี่ยนแปลง กรุณาโหลดหน้าใหม่ก่อนบันทึก", 409
     return "ระบบฐานข้อมูลไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง", 503
+
+
+@app.errorhandler(404)
+def handle_not_found(error):
+    """Thai 404 page in the site theme. A trailing slash (e.g. /admin/) is retried without it."""
+    path = request.path
+    if request.method in ("GET", "HEAD") and len(path) > 1 and path.endswith("/"):
+        target = path.rstrip("/") or "/"
+        if request.query_string:
+            target += "?" + request.query_string.decode("latin-1")
+        return redirect(target, code=301)
+    if path.startswith("/api/"):
+        return jsonify({"error": "not_found"}), 404
+    try:
+        return render_template("404.html", page_title="ไม่พบหน้าที่ต้องการ", nav_active=""), 404
+    except Exception:  # never let the error page itself fail (e.g. database unavailable)
+        logger.exception("Could not render the 404 page")
+        return "ไม่พบหน้าที่ต้องการ", 404
 
 
 CONTENT_DATASETS = ("projects", "models", "site_settings", "slider_items")
@@ -2562,6 +2593,8 @@ def model_detail(model_id: str):
         related_models.append(related)
         if len(related_models) >= 4:
             break
+    # Desktop browsers cannot open AR: the page shows this QR so a phone can open the same model in AR.
+    ar_qr_url = request.url_root.rstrip("/") + url_for("model_detail", model_id=model_id, mode="ar")
     return render_template(
         "model_view.html",
         model=model,
@@ -2573,6 +2606,8 @@ def model_detail(model_id: str):
         size_mb=model_size_mb(model),
         related_models=related_models,
         mode=request.args.get("mode", "3d"),
+        ar_qr_url=ar_qr_url,
+        ar_qr_svg=qr_svg(ar_qr_url),
         page_title=model_page_title(model),
         page_description=model_page_description(model),
         page_keywords=", ".join(seo_terms.model_keywords(model.get("name", ""), model.get("project_name", ""))),

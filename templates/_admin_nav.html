@@ -4,14 +4,14 @@
     <span class="admin-topbar__menu-icon" aria-hidden="true"></span>
     <span class="admin-visually-hidden">เปิดเมนู</span>
   </button>
-  <span class="admin-topbar__brand">ARModel Admin</span>
+  <span class="admin-topbar__brand">ระบบจัดการ {{ brand_name }}</span>
   {% if admin_user %}<span class="admin-topbar__role">{{ admin_user.role_label }}</span>{% endif %}
 </header>
 <div class="admin-nav-backdrop" data-admin-nav-close hidden></div>
 
 <nav class="admin-nav" id="admin-nav" aria-label="เมนูผู้ดูแลระบบ">
   <div class="admin-nav-logo">
-    <span class="logo-text">ARModel Admin</span>
+    <span class="logo-text">ระบบจัดการ {{ brand_name }}</span>
     <button type="button" class="admin-nav-close" data-admin-nav-close aria-label="ปิดเมนู" data-admin-no-busy>×</button>
   </div>
 

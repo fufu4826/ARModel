@@ -477,7 +477,7 @@ class SiteManagementTests(unittest.TestCase):
         script = (Path(module.BASE_DIR) / "static" / "js" / "site-carousel.js").read_text(encoding="utf-8")
 
         self.assertEqual(home_html.count('id="projects"'), 1)
-        self.assertIn('<a class="button" href="#projects">เริ่มชมโมเดล 3D</a>', home_html)
+        self.assertIn('<a class="button" href="#featured-models">เริ่มชมโมเดล 3D</a>', home_html)
         self.assertIn('class="card-grid project-grid"', template)
         self.assertNotIn("data-project-carousel", template)
         self.assertNotIn("project-carousel", script)
@@ -675,7 +675,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("นิทรรศการดิจิทัล 3D / AR", home_html)
         self.assertIn("ศูนย์ศึกษาการพัฒนาภูพาน", home_html)
         self.assertIn("เริ่มชมโมเดล 3D", home_html)
-        self.assertIn('<a class="button" href="#projects">เริ่มชมโมเดล 3D</a>', home_html)
+        self.assertIn('<a class="button" href="#featured-models">เริ่มชมโมเดล 3D</a>', home_html)
         self.assertEqual(home_html.count('id="projects"'), 1)
 
         self.sign_in()
@@ -720,7 +720,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("Test home description", home_html)
         self.assertIn("Test primary action", home_html)
         self.assertIn("Test secondary action", home_html)
-        self.assertIn('<a class="button" href="#projects">Test primary action</a>', home_html)
+        self.assertIn('<a class="button" href="#featured-models">Test primary action</a>', home_html)
         self.assertEqual(home_html.count('id="projects"'), 1)
 
     def test_landing_mobile_cover_image(self):

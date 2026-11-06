@@ -125,7 +125,7 @@ def dashboard_status(events: list[dict], selected_date: date, *, provider: str |
     return {
         "enabled": enabled,
         "provider": provider,
-        "message": "Analytics is collecting visitor data." if enabled else "Analytics is ready. Visit public pages to collect data.",
+        "message": "ระบบสถิติกำลังเก็บข้อมูลผู้เข้าชม" if enabled else "ระบบสถิติพร้อมใช้งาน เมื่อมีผู้เข้าชมหน้าเว็บจะเริ่มเก็บข้อมูล",
         "metrics": {
             "visitors_today": unique_visitors(selected_events),
             "pageviews_today": len(selected_events),

@@ -28,8 +28,9 @@ html {
   scroll-behavior: smooth;
 }
 
-#projects {
-  scroll-margin-top: 96px;
+/* Sections reached from the menu stop below the sticky header (height set by mobile-nav.js). */
+[id] {
+  scroll-margin-top: calc(var(--nav-h, 96px) + 12px);
 }
 
 body {
@@ -2442,7 +2443,7 @@ body:not(.landing-page) .site-slider-section .site-slide-content .button {
   background: var(--green-soft);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .mobile-nav-toggle {
     display: inline-flex;
   }

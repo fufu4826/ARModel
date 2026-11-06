@@ -296,7 +296,20 @@
     section.dataset.slideDialogReady = "true";
     const dialog = section.querySelector("[data-slide-dialog]");
     if (!dialog) return;
-    const image = dialog.querySelector("[data-slide-dialog-image]");
+    // The dialog image is only in the page while the dialog shows a picture (no <img> without src).
+    const imageSlot = dialog.querySelector("[data-slide-dialog-image-slot]");
+    const image = document.createElement("img");
+    image.className = "site-slide-modal__image";
+    image.alt = "";
+    const showImage = (src, alt) => {
+      image.src = src;
+      image.alt = alt;
+      if (imageSlot?.isConnected) imageSlot.replaceWith(image);
+    };
+    const hideImage = () => {
+      if (image.isConnected && imageSlot) image.replaceWith(imageSlot);
+      image.removeAttribute("src");
+    };
     const title = dialog.querySelector("[data-slide-dialog-title]");
     const description = dialog.querySelector("[data-slide-dialog-description]");
     const link = dialog.querySelector("[data-slide-dialog-link]");
@@ -323,8 +336,7 @@
       dialog.hidden = true;
       dialog.setAttribute("aria-hidden", "true");
       unlockPageScroll();
-      image.hidden = true;
-      image.removeAttribute("src");
+      hideImage();
       if (sectionSlider?.classList.contains("site-slider--marquee")) {
         resumeMarquee(carouselInstances.get(sectionSlider));
       }
@@ -350,12 +362,9 @@
 
       title.textContent = slideTitle ? slideTitle.textContent.trim() : "";
       if (slideImage && slideImage.currentSrc) {
-        image.src = slideImage.currentSrc;
-        image.alt = slideImage.alt || title.textContent;
-        image.hidden = false;
+        showImage(slideImage.currentSrc, slideImage.alt || title.textContent);
       } else {
-        image.hidden = true;
-        image.removeAttribute("src");
+        hideImage();
       }
       if (slideDescription && slideDescription.textContent.trim()) {
         description.textContent = slideDescription.textContent.trim();

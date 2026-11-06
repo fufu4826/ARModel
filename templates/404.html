@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>ไม่พบหน้าที่ต้องการ | {{ brand_name }}</title>
+  <link rel="icon" href="/favicon.ico" sizes="48x48" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  {% include "_theme_head.html" %}
+</head>
+<body>
+  <a class="skip-link" href="#content">ข้ามไปยังเนื้อหา</a>
+  {% include "_public_nav.html" %}
+  <main id="content" class="not-found">
+    <section class="not-found__card" aria-labelledby="not-found-title">
+      <p class="eyebrow">ข้อผิดพลาด 404</p>
+      <h1 id="not-found-title">ไม่พบหน้าที่ต้องการ</h1>
+      <p>ลิงก์นี้อาจพิมพ์ผิด หรือหน้านี้ถูกย้ายไปแล้ว ลองกลับไปหน้าแรก หรือเลือกดูรายการโมเดลทั้งหมด</p>
+      <div class="hero-actions">
+        <a class="button" href="{{ url_for('home') }}">กลับหน้าแรก</a>
+        <a class="button secondary" href="{{ url_for('models_index') }}">ดูรายการโมเดล</a>
+      </div>
+    </section>
+  </main>
+  {% include "_public_footer.html" %}
+  <script src="{{ url_for('static', filename='js/mobile-nav.js', v='2') }}" defer></script>
+</body>
+</html>

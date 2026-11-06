@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Login - ศูนย์ศึกษาการพัฒนาภูพาน</title>
+  <title>เข้าสู่ระบบผู้ดูแล - ศูนย์ศึกษาการพัฒนาภูพาน</title>
   {% include "_fonts.html" %}
   {% include "_auth_styles.html" %}
 </head>
 <body>
   <main class="panel">
     <div class="mark">AR</div>
-    <h1>{{ "ตั้งค่าผู้ดูแล" if first_run else "Admin Login" }}</h1>
+    <h1>{{ "ตั้งค่าผู้ดูแล" if first_run else "เข้าสู่ระบบผู้ดูแล" }}</h1>
     <p>{{ "สร้างชื่อผู้ใช้และรหัสผ่านผู้ดูแลครั้งแรกเพื่อเปิดใช้หน้าจัดการแหล่งเรียนรู้และโมเดล" if first_run else "เข้าสู่ระบบเพื่อจัดการแหล่งเรียนรู้และโมเดล AR" }}</p>
 
     {% with messages = get_flashed_messages(with_categories=true) %}

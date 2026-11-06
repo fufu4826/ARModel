@@ -30,7 +30,7 @@
         <div class="site-slide-hover-panel" aria-hidden="true">
           <div class="site-slide-hover-media">
             {% if slide.resolved_image_url %}
-            <img class="site-slide-hover-image" src="{{ slide.resolved_image_url }}" alt="" loading="lazy" />
+            <img class="site-slide-hover-image" src="{{ slide.resolved_image_url }}" alt="{{ slide.title }}" loading="lazy" />
             {% endif %}
           </div>
           <div class="site-slide-hover-content">
@@ -58,7 +58,7 @@
         </svg>
       </button>
       <div class="site-slide-modal__scroll-area">
-        <img class="site-slide-modal__image" data-slide-dialog-image alt="" hidden />
+        <span data-slide-dialog-image-slot hidden></span>
         <div class="site-slide-modal__body">
           <h2 id="slideDialogTitle" data-slide-dialog-title></h2>
           <p data-slide-dialog-description hidden></p>

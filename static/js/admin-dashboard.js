@@ -310,11 +310,11 @@
     if (disabled) {
       const title = disabled.querySelector("strong");
       const description = disabled.querySelector("span");
-      if (title) title.textContent = data.message || "Analytics is ready.";
+      if (title) title.textContent = data.message || "ระบบสถิติพร้อมใช้งาน";
       if (description) {
         description.textContent = data.enabled
-          ? `Provider: ${data.provider || "local"} · Events: ${formatInteger(data.metrics?.total_events || 0)}`
-          : "Visit public pages to start collecting data.";
+          ? `แหล่งข้อมูล: ${data.provider || "local"} · เหตุการณ์ทั้งหมด: ${formatInteger(data.metrics?.total_events || 0)} ครั้ง`
+          : "เมื่อมีผู้เข้าชมหน้าเว็บ ระบบจะเริ่มเก็บข้อมูล";
       }
       disabled.classList.toggle("dashboard-disabled--active", Boolean(data.enabled));
     }

@@ -487,3 +487,30 @@ body.landing-page { background: var(--indigo-950); }
 .model-aliases span { display: inline-block; margin-right: 6px; padding: 0 8px; border-radius: 999px; background: var(--indigo-50); color: var(--indigo-900); font-size: 13px; font-weight: 600; }
 .model-aliases--group { color: var(--silk-600); font-size: 14px; }
 .centre-aliases { margin: -4px 0 14px; }
+
+/* Header on small screens: one row (logos, short name, menu button); the menu drops down. */
+@media (max-width: 1024px) {
+  .site-nav { flex-wrap: wrap; gap: 10px; padding-top: 10px; padding-bottom: 10px; }
+  .site-nav .brand-mark { min-width: 0; flex: 1 1 auto; }
+  .site-nav .brand-mark strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mobile-nav-toggle svg { flex-shrink: 0; }
+}
+@media (max-width: 560px) {
+  .site-nav .brand-mark small { display: none; }
+  .site-nav .brand-mark strong { font-size: 16px; }
+}
+
+/* 404 page */
+.not-found { width: min(760px, calc(100% - 32px)); margin: 0 auto; padding: clamp(48px, 10vh, 110px) 0; }
+.not-found__card { background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(24px, 5vw, 48px); }
+.not-found__card h1 { margin: 6px 0 12px; font-size: clamp(28px, 4vw, 40px); }
+.not-found__card p { line-height: 1.8; }
+
+/* Model page: QR to open AR on a phone (shown only where AR is unavailable, e.g. desktop). */
+.ar-qr { display: flex; gap: 16px; align-items: center; margin: 14px 0; padding: 14px; background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--radius); }
+.ar-qr[hidden] { display: none; }
+.ar-qr__code { flex: 0 0 120px; width: 120px; background: #fff; border-radius: 8px; padding: 4px; }
+.ar-qr__code svg { display: block; width: 100%; height: auto; }
+.ar-qr__text strong { display: block; color: var(--indigo-900); font-size: 17px; }
+.ar-qr__text p { margin: 4px 0 6px; font-size: 14px; line-height: 1.7; }
+.ar-qr__link { font-size: 12px; color: var(--muted); word-break: break-all; }

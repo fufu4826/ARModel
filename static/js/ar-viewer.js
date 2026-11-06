@@ -65,6 +65,8 @@
   function updateArButtonAvailability() {
     if (!arButton || !("canActivateAR" in viewer)) return;
     arButton.hidden = viewer.canActivateAR === false;
+    const qrCard = document.getElementById("arQrCard");
+    if (qrCard) qrCard.hidden = viewer.canActivateAR !== false;
   }
 
   function startModelLoad() {

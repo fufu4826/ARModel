@@ -9,7 +9,7 @@
 </head>
 <body>
   <main class="panel">
-    <div class="mark">AR</div>
+    <div class="mark"><img src="{{ url_for('static', filename='apple-touch-icon.png') }}" alt="" width="54" height="54" /></div>
     <h1>{{ "ตั้งค่าผู้ดูแล" if first_run else "เข้าสู่ระบบผู้ดูแล" }}</h1>
     <p>{{ "สร้างชื่อผู้ใช้และรหัสผ่านผู้ดูแลครั้งแรกเพื่อเปิดใช้หน้าจัดการแหล่งเรียนรู้และโมเดล" if first_run else "เข้าสู่ระบบเพื่อจัดการแหล่งเรียนรู้และโมเดล AR" }}</p>
 

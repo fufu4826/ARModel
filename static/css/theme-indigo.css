@@ -501,16 +501,17 @@ body.landing-page { background: var(--indigo-950); }
 }
 
 /* 404 page */
-.not-found { width: min(760px, calc(100% - 32px)); margin: 0 auto; padding: clamp(48px, 10vh, 110px) 0; }
+.not-found { width: min(760px, calc(100% - 32px)); min-height: calc(100vh - 360px); margin: 0 auto; padding: clamp(48px, 10vh, 110px) 0; }
 .not-found__card { background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(24px, 5vw, 48px); }
 .not-found__card h1 { margin: 6px 0 12px; font-size: clamp(28px, 4vw, 40px); }
 .not-found__card p { line-height: 1.8; }
 
 /* Model page: QR to open AR on a phone (shown only where AR is unavailable, e.g. desktop). */
-.ar-qr { display: flex; gap: 16px; align-items: center; margin: 14px 0; padding: 14px; background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--radius); }
+.ar-qr { display: flex; gap: 14px; align-items: flex-start; margin: 14px 0; padding: 14px; background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--radius); }
 .ar-qr[hidden] { display: none; }
-.ar-qr__code { flex: 0 0 120px; width: 120px; background: #fff; border-radius: 8px; padding: 4px; }
+.ar-qr__code { flex: 0 0 104px; width: 104px; background: #fff; border-radius: 8px; padding: 4px; }
 .ar-qr__code svg { display: block; width: 100%; height: auto; }
-.ar-qr__text strong { display: block; color: var(--indigo-900); font-size: 17px; }
+.ar-qr__text { min-width: 0; }
+.ar-qr__text strong { display: block; color: var(--indigo-900); font-size: 16px; line-height: 1.4; }
 .ar-qr__text p { margin: 4px 0 6px; font-size: 14px; line-height: 1.7; }
 .ar-qr__link { font-size: 12px; color: var(--muted); word-break: break-all; }

@@ -97,7 +97,8 @@ class ArQrTests(unittest.TestCase):
     def test_model_page_has_hidden_qr_to_open_ar_on_a_phone(self):
         model = module.get_models()[0]
         html = module.app.test_client().get(f"/models/{model['id']}").get_data(as_text=True)
-        card = html.split('id="arQrCard"', 1)[1].split("</div>\n      </div>", 1)[0]
+        card = html.split('id="arQrCard"', 1)[1].split("</section>", 1)[0]
         self.assertIn("<svg", card)
-        self.assertIn(f"/models/{model['id']}?mode=ar", card)
+        self.assertIn("สแกนเพื่อเปิด AR บนมือถือ", card)
+        self.assertEqual(module.qr_svg(f"http://localhost/models/{model['id']}?mode=ar")[:4], "<svg")
         self.assertIn('id="arQrCard" hidden', html)

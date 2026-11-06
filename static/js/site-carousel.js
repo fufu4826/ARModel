@@ -196,7 +196,19 @@
           ? { delay: 5000, disableOnInteraction: false, pauseOnMouseEnter: false, waitForTransition: true }
           : (slideCount > 1 && !reduceMotion ? { delay: 7000, disableOnInteraction: false } : false),
         keyboard: { enabled: true },
-        pagination: { el: element.querySelector(".swiper-pagination"), clickable: true },
+        // The marquee repeats slides to fill the row; its dots still count only the real slides.
+        pagination: isHomeMarquee
+          ? {
+              el: element.querySelector(".swiper-pagination"),
+              type: "custom",
+              renderCustom: (swiper) => {
+                const active = ((swiper.realIndex % slideCount) + slideCount) % slideCount;
+                return originalSlides.map((_, index) =>
+                  `<button type="button" class="swiper-pagination-bullet${index === active ? " swiper-pagination-bullet-active" : ""}" data-real-slide="${index}" aria-label="ไปสไลด์ที่ ${index + 1}"></button>`
+                ).join("");
+              },
+            }
+          : { el: element.querySelector(".swiper-pagination"), clickable: true },
         navigation: {
           nextEl: element.querySelector(".swiper-button-next"),
           prevEl: element.querySelector(".swiper-button-prev"),
@@ -219,6 +231,17 @@
         return;
       }
       carouselInstances.set(element, carousel);
+      if (isHomeMarquee) {
+        element.querySelector(".swiper-pagination")?.addEventListener("click", (event) => {
+          const bullet = event.target.closest("[data-real-slide]");
+          if (!bullet) return;
+          const target = Number(bullet.dataset.realSlide);
+          const current = carousel.realIndex;
+          // nearest slide (original or copy) that shows the chosen real slide
+          const step = ((target - (current % slideCount)) + slideCount) % slideCount;
+          carousel.slideToLoop((current + step) % effectiveSlideCount);
+        });
+      }
       if (isHomeMarquee && effectiveSlideCount > 1) {
         let resumeTimer = null;
         const resumeAfterInteraction = () => {

@@ -6,3 +6,4 @@
   </div>
 </div>
 <script src="{{ url_for('static', filename='js/admin-busy.js') }}" defer></script>
+{% if not admin_read_only %}<script src="{{ url_for('static', filename='js/admin-direct-upload.js') }}" defer></script>{% endif %}

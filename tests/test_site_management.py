@@ -1783,18 +1783,6 @@ class SiteManagementTests(unittest.TestCase):
                     "https://example.com/not-audio.svg"
                 )
 
-    def test_direct_upload_endpoint_is_disabled(self):
-        self.sign_in()
-        response = self.client.post(
-            "/admin/api/create-upload-url",
-            json={
-                "filename": "learning-model.glb",
-                "kind": "model",
-                "file_size": module.MAX_MODEL_FILE_SIZE_BYTES,
-            },
-        )
-        self.assertEqual(response.status_code, 403)
-
     def test_model_forms_expose_direct_upload_limit_and_metadata_post(self):
         self.sign_in()
         add_form = self.client.get("/admin").get_data(as_text=True)
@@ -1823,25 +1811,6 @@ class SiteManagementTests(unittest.TestCase):
                 },
             )
         self.assertEqual(response.status_code, 302)
-
-    def test_direct_upload_frontend_is_removed(self):
-        script = Path(module.BASE_DIR) / "static" / "js" / "admin-direct-upload.js"
-        self.assertFalse(script.exists())
-        for template_name in (
-            "admin.html",
-            "edit_model.html",
-            "edit_project.html",
-            "admin_branding.html",
-            "admin_intro.html",
-            "admin_landing.html",
-            "admin_sliders.html",
-            "edit_slider.html",
-        ):
-            template = (
-                Path(module.BASE_DIR) / "templates" / template_name
-            ).read_text(encoding="utf-8")
-            self.assertNotIn("admin-direct-upload.js", template)
-            self.assertNotIn("data-direct-uploads", template)
 
     def test_json_reads_are_the_only_runtime_source(self):
         module.save_site_settings({**module.DEFAULT_SITE_SETTINGS, "site_name": "Fallback Brand"})

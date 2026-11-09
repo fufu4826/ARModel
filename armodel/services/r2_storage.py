@@ -157,3 +157,57 @@ def delete_object(requester: SignedRequester, object_key: str, *, timeout: int =
     payload_hash = hashlib.sha256(b"").hexdigest()
     with requester("DELETE", object_key, payload_hash, timeout=timeout) as response:
         return response.status
+
+
+def presigned_put_url(
+    object_key: str,
+    *,
+    account_id: str,
+    access_key: str,
+    secret_key: str,
+    bucket: str,
+    content_type: str,
+    cache_control: str,
+    expires: int = 900,
+    now: datetime | None = None,
+) -> tuple[str, dict[str, str]]:
+    """Query-signed (SigV4) URL so a browser can PUT one object straight to R2.
+
+    Returns the URL and the headers the browser must send unchanged (they are part of the signature).
+    The body is not signed (UNSIGNED-PAYLOAD), so the file never passes through the web server.
+    """
+    host = f"{account_id}.r2.cloudflarestorage.com"
+    canonical_uri = f"/{quote(bucket, safe='')}/{quote(object_key, safe='/-_.~')}"
+    timestamp = now or datetime.now(timezone.utc)
+    amz_date = timestamp.strftime("%Y%m%dT%H%M%SZ")
+    date_stamp = timestamp.strftime("%Y%m%d")
+    credential_scope = f"{date_stamp}/auto/s3/aws4_request"
+    headers = {"cache-control": cache_control, "content-type": content_type, "host": host}
+    signed_headers = ";".join(sorted(headers))
+    params = {
+        "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+        "X-Amz-Credential": f"{access_key}/{credential_scope}",
+        "X-Amz-Date": amz_date,
+        "X-Amz-Expires": str(int(expires)),
+        "X-Amz-SignedHeaders": signed_headers,
+    }
+    canonical_query = "&".join(
+        f"{quote(key, safe='-_.~')}={quote(value, safe='-_.~')}" for key, value in sorted(params.items())
+    )
+    canonical_headers = "".join(f"{key}:{headers[key]}\n" for key in sorted(headers))
+    canonical_request = "\n".join(
+        ["PUT", canonical_uri, canonical_query, canonical_headers, signed_headers, "UNSIGNED-PAYLOAD"]
+    )
+    string_to_sign = "\n".join(
+        ["AWS4-HMAC-SHA256", amz_date, credential_scope,
+         hashlib.sha256(canonical_request.encode("utf-8")).hexdigest()]
+    )
+
+    def sign(key: bytes, message: str) -> bytes:
+        return hmac.new(key, message.encode("utf-8"), hashlib.sha256).digest()
+
+    signing_key = sign(sign(sign(sign(("AWS4" + secret_key).encode("utf-8"), date_stamp), "auto"), "s3"),
+                       "aws4_request")
+    signature = hmac.new(signing_key, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+    url = f"https://{host}{canonical_uri}?{canonical_query}&X-Amz-Signature={signature}"
+    return url, {"Content-Type": content_type, "Cache-Control": cache_control}

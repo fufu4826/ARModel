@@ -2127,7 +2127,7 @@ ROLE_RANK = {"reviewer": 0, "editor": 1, "admin": 2, "owner": 3}
 CONTENT_ENDPOINTS = {
     "add_model", "delete_model", "edit_model", "generate_model_narration", "generate_narration_draft",
     "cancel_narration_draft", "confirm_narration_draft", "add_project", "delete_project", "edit_project",
-    "admin_sliders", "delete_slider", "edit_slider", "admin_recommended_models",
+    "admin_sliders", "delete_slider", "edit_slider", "admin_recommended_models", "create_admin_upload_url",
 }
 SETTINGS_PAGES = {"admin_branding", "admin_landing", "admin_landing_preview", "admin_intro"}
 AUDIT_ENDPOINTS = {"admin_audit_logs", "export_audit_logs"}
@@ -3248,10 +3248,76 @@ def update_admin_settings():
     return redirect(request.form.get("return_to") or url_for("admin"))
 
 
+DIRECT_UPLOAD_IMAGE_MAX_BYTES = 15 * 1024 * 1024
+# kind (data-upload-kind on the file input) -> (R2 folder, allowed extensions, max bytes, least role)
+DIRECT_UPLOAD_KINDS = {
+    "model": ("model", MODEL_EXTENSIONS, MAX_MODEL_FILE_SIZE_BYTES, "editor"),
+    "thumbnail": ("pic", IMAGE_EXTENSIONS, DIRECT_UPLOAD_IMAGE_MAX_BYTES, "editor"),
+    "project_image": ("pic", IMAGE_EXTENSIONS, DIRECT_UPLOAD_IMAGE_MAX_BYTES, "editor"),
+    "model_narration_audio": ("audio", AUDIO_EXTENSIONS, NARRATION_AUDIO_MAX_BYTES, "editor"),
+    "slider_image": ("uploads/sliders", IMAGE_EXTENSIONS, DIRECT_UPLOAD_IMAGE_MAX_BYTES, "editor"),
+    "landing_cover": ("uploads/site", IMAGE_EXTENSIONS, DIRECT_UPLOAD_IMAGE_MAX_BYTES, "admin"),
+    "landing_mobile_cover_image": ("uploads/site", IMAGE_EXTENSIONS, DIRECT_UPLOAD_IMAGE_MAX_BYTES, "admin"),
+    "site_logo": ("uploads/site", SITE_LOGO_EXTENSIONS, SITE_ASSET_MAX_BYTES, "admin"),
+    "favicon": ("uploads/site", FAVICON_EXTENSIONS, SITE_ASSET_MAX_BYTES, "admin"),
+    "site_social_image": ("uploads/site/social", IMAGE_EXTENSIONS, DIRECT_UPLOAD_IMAGE_MAX_BYTES, "admin"),
+    **{f"intro_logo_{index}": ("uploads/site/intro", IMAGE_EXTENSIONS, SITE_ASSET_MAX_BYTES, "admin")
+       for index in range(1, 4)},
+}
+DIRECT_UPLOAD_CONTENT_TYPES = {
+    ".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+    ".webp": "image/webp", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4", ".wav": "audio/wav", ".ogg": "audio/ogg",
+}
+
+
 @app.post("/admin/api/create-upload-url")
 @admin_required
 def create_admin_upload_url():
-    abort(403, VERCEL_UPLOAD_MESSAGE)
+    """Short-lived R2 upload link so the browser sends the file straight to R2.
+
+    Vercel rejects request bodies over 4.5 MB, so files never go through this server; the form
+    is then saved with the returned public URL in the field named by data-upload-target.
+    """
+    if not r2_upload_configured():
+        return jsonify({"error": VERCEL_UPLOAD_MESSAGE}), 403
+    payload = request.get_json(silent=True) or {}
+    kind = str(payload.get("kind") or "")
+    if kind not in DIRECT_UPLOAD_KINDS:
+        return jsonify({"error": "ไม่รองรับการอัปโหลดไฟล์ประเภทนี้"}), 400
+    folder, extensions, max_bytes, least_role = DIRECT_UPLOAD_KINDS[kind]
+    if not role_allows(current_admin()["role"], least_role):
+        return jsonify({"error": "บัญชีนี้ไม่มีสิทธิ์อัปโหลดไฟล์ส่วนนี้"}), 403
+    filename = str(payload.get("filename") or "")
+    extension = Path(filename).suffix.lower()
+    if extension not in extensions:
+        allowed = ", ".join(sorted(extensions))
+        return jsonify({"error": f"ไฟล์ต้องเป็น {allowed}"}), 400
+    try:
+        size = int(payload.get("size") or 0)
+    except (TypeError, ValueError):
+        size = 0
+    if size <= 0:
+        return jsonify({"error": "ไฟล์ว่างเปล่า"}), 400
+    if size > max_bytes:
+        return jsonify({"error": f"ไฟล์ต้องมีขนาดไม่เกิน {max_bytes // (1024 * 1024)} MB"}), 413
+    object_key = f"{r2_object_folder(folder)}/{unique_asset_name(filename, extensions)}"
+    content_type = DIRECT_UPLOAD_CONTENT_TYPES.get(extension, "application/octet-stream")
+    upload_url, headers = r2_storage.presigned_put_url(
+        object_key,
+        account_id=env_value("R2_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID"),
+        access_key=env_value("R2_ACCESS_KEY_ID"),
+        secret_key=env_value("R2_SECRET_ACCESS_KEY"),
+        bucket=env_value("R2_BUCKET"),
+        content_type=content_type,
+        cache_control="public, max-age=31536000, immutable",
+    )
+    return jsonify({
+        "upload_url": upload_url,
+        "headers": headers,
+        "public_url": f"{r2_public_base_url()}/{object_key}",
+        "max_bytes": max_bytes,
+    })
 
 
 ADMIN_SETUP_BLOCKED_MESSAGE = (

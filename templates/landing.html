@@ -32,7 +32,7 @@
       <div class="desktop-only">
         <div class="landing-hero-center">
           <p class="eyebrow landing-eyebrow">นิทรรศการดิจิทัล 3D / AR</p>
-          <h1 id="landing-title" class="landing-title">{{ site_settings.landing_headline }}</h1>
+          <h1 id="landing-title" class="landing-title">{% for part in site_settings.landing_headline|headline_parts %}{% if not loop.first %}<wbr>{% endif %}<span class="headline-part">{{ part }}</span>{% endfor %}</h1>
           <p class="landing-subtitle">{{ site_settings.landing_subheadline }}</p>
           <p class="landing-description">{{ site_settings.landing_description }}</p>
           <div class="landing-actions">
@@ -45,7 +45,7 @@
       <div class="landing-mobile-screen landing-mobile-hero mobile-only">
         <div class="landing-mobile-overlay" aria-hidden="true"></div>
         <div class="landing-mobile-hero-title-container">
-          <h1 class="landing-mobile-hero-title">{{ site_settings.landing_headline }}</h1>
+          <h1 class="landing-mobile-hero-title">{% for part in site_settings.landing_headline|headline_parts %}{% if not loop.first %}<wbr>{% endif %}<span class="headline-part">{{ part }}</span>{% endfor %}</h1>
         </div>
         <div class="landing-scroll-cue">
           <span class="landing-scroll-cue-text">เลื่อนเพื่อดูข้อมูล</span>

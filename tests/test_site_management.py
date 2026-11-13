@@ -552,7 +552,16 @@ class SiteManagementTests(unittest.TestCase):
 
         landing_html = self.client.get("/").get_data(as_text=True)
         # Verify the unique admin-managed headline is rendered in the mobile hero title markup
-        self.assertIn(f'class="landing-mobile-hero-title">{unique_headline}</h1>', landing_html)
+        self.assertIn(f'class="landing-mobile-hero-title"><span class="headline-part">{unique_headline}</span></h1>', landing_html)
+
+    def test_landing_headline_wraps_only_between_its_two_parts(self):
+        settings = module.load_site_settings()
+        settings["landing_headline"] = "สื่อการเรียนรู้ศูนย์ศึกษาการพัฒนาภูพาน"
+        module.save_site_settings(settings)
+        landing_html = self.client.get("/").get_data(as_text=True)
+        parts = '<span class="headline-part">สื่อการเรียนรู้</span><wbr><span class="headline-part">ศูนย์ศึกษาการพัฒนาภูพาน</span>'
+        self.assertEqual(landing_html.count(parts), 2)
+        self.assertEqual(module.headline_parts("ก | ข"), ["ก", "ข"])
 
     def test_landing_typography_settings_are_admin_editable_and_sanitized(self):
         self.sign_in()

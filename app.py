@@ -655,6 +655,19 @@ def handle_database_error(error):
     return "ระบบฐานข้อมูลไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง", 503
 
 
+@app.template_filter("headline_parts")
+def headline_parts(text: str) -> list[str]:
+    """Split the landing headline where it may wrap: at "|" if the admin wrote one, otherwise
+    before "ศูนย์" (สื่อการเรียนรู้ / ศูนย์ศึกษาการพัฒนาภูพาน). Each part stays on one line."""
+    text = str(text or "").strip()
+    if "|" in text:
+        return [part.strip() for part in text.split("|") if part.strip()]
+    index = text.find("ศูนย์")
+    if index > 0:
+        return [text[:index].strip(), text[index:].strip()]
+    return [text]
+
+
 @app.errorhandler(404)
 def handle_not_found(error):
     """Thai 404 page in the site theme. A trailing slash (e.g. /admin/) is retried without it."""

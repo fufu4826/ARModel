@@ -190,6 +190,7 @@ class SiteManagementTests(unittest.TestCase):
         audit_events = []
         with (
             patch.dict(module.os.environ, {"ADMIN_PASSWORD": "correct-password"}, clear=False),
+            patch.object(module, "LOGIN_LOCKOUT_ENABLED", True),
             patch.object(module, "write_audit_event", side_effect=lambda *args, **kwargs: audit_events.append((args, kwargs))),
             patch.object(module.admin_users_repository, "authenticate", wraps=module.admin_users_repository.authenticate) as verified,
         ):
@@ -205,6 +206,16 @@ class SiteManagementTests(unittest.TestCase):
         self.assertTrue(any(args[2] == "rejected" for args, _ in audit_events))
         persisted = json.dumps(module.get_database().events("login"))
         self.assertNotIn("wrong-password", persisted)
+
+    def test_wrong_passwords_never_lock_the_login_by_default(self):
+        module.save_admin_password("correct-password", "admin")
+        self.assertFalse(module.LOGIN_LOCKOUT_ENABLED)
+        for _ in range(module.LOGIN_FAILURE_LIMIT + 3):
+            self.assertEqual(self.login_post(data={"username": "admin", "password": "wrong-password"}).status_code, 200)
+        response = self.login_post(data={"username": "admin", "password": "correct-password"})
+        self.assertEqual(response.status_code, 302, response.get_data(as_text=True)[:300])
+        self.assertEqual(sum(e.get("outcome") == "failure" for e in module.get_database().events("login")),
+                         module.LOGIN_FAILURE_LIMIT + 3)
 
     def test_login_rate_limit_expiry_reset_and_separate_clients(self):
         now = module.datetime(2026, 8, 10, 12, tzinfo=module.timezone.utc)

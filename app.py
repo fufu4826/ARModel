@@ -79,6 +79,9 @@ LOCAL_NARRATION_DRAFT_DIR = Path(tempfile.gettempdir()) / "armodel-narration-dra
 LOCAL_AUDIT_LOG_DIR = Path(tempfile.gettempdir()) / "armodel-audit-logs"
 LOGIN_FAILURE_PREFIX = "auth/login-failures/"
 LOGIN_FAILURE_LIMIT = 5
+# Owner's choice (2026-11-25): no lockout after wrong passwords. Failures are still recorded
+# in the audit log. Set ADMIN_LOGIN_LOCKOUT=1 to turn the 5-failures/15-minutes lock back on.
+LOGIN_LOCKOUT_ENABLED = os.environ.get("ADMIN_LOGIN_LOCKOUT", "").strip().lower() in {"1", "true", "yes", "on"}
 LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
 AUDIT_PAGE_SIZE = 50
 MAX_MODEL_FILE_SIZE_MB = 50
@@ -3371,7 +3374,7 @@ def admin_login():
             flash(ADMIN_SETUP_BLOCKED_MESSAGE, "error")
             return render_login(first_run, setup_blocked, 403)
         identity = login_rate_limit_identity()
-        if not first_run and login_is_rate_limited(identity):
+        if not first_run and LOGIN_LOCKOUT_ENABLED and login_is_rate_limited(identity):
             write_audit_event(
                 "auth", "login", "rejected",
                 "มีความพยายามเข้าสู่ระบบเกินจำนวนที่กำหนด",

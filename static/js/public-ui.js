@@ -1,6 +1,11 @@
 // Public-site enhancements (progressive): model-page tabs, mobile action bar, filter chips.
 // Without JavaScript every panel stays visible and the original <select> filter works.
 (() => {
+  // ---------- Fold-away text: open on wide screens, closed on phones ----------
+  if (window.matchMedia("(min-width: 721px)").matches) {
+    document.querySelectorAll("details[data-open-on-desktop]").forEach((el) => { el.open = true; });
+  }
+
   // ---------- Tabs (WAI-ARIA tabs pattern, automatic activation) ----------
   document.querySelectorAll("[data-tabs]").forEach((root) => {
     const list = root.querySelector('[role="tablist"]');

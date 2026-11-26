@@ -113,8 +113,7 @@
             {% endif %}
             <p>{{ model.description or "โมเดลสามมิติสำหรับการเรียนรู้" }}</p>
             <div class="card-actions">
-              <a class="button small" href="{{ url_for('model_detail', model_id=model.id) }}">ดูโมเดล 3D</a>
-              <a class="button secondary small" href="{{ url_for('model_detail', model_id=model.id, mode='ar') }}">เปิด AR</a>
+              <a class="button small" href="{{ url_for('model_detail', model_id=model.id) }}" aria-label="เริ่มเรียนรู้ {{ model.name }}">เริ่มเรียนรู้</a>
             </div>
           </div>
         </article>
@@ -138,6 +137,6 @@
   {% include "_public_footer.html" %}
   <script src="{{ url_for('static', filename='js/mobile-nav.js', v='2') }}" defer></script>
   <script src="{{ url_for('static', filename='js/models-filter.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='js/public-ui.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/public-ui.js', v='4') }}" defer></script>
 </body>
 </html>

@@ -549,7 +549,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("landing-mobile-details", landing_html)
         self.assertNotIn("mobile-only-title", landing_html)
         self.assertIn("ภูพาน AR สกลนคร", landing_html)
-        self.assertIn("เลื่อนเพื่อดูข้อมูล", landing_html)
+        self.assertIn("ปัดขึ้นเพื่อเข้าสู่เว็บไซต์", landing_html)
         self.assertIn('href="/home"', landing_html)
         self.assertNotIn('href="/models"', landing_html)
 
@@ -1970,7 +1970,7 @@ class SiteManagementTests(unittest.TestCase):
         # Check required strings on landing
         self.assertIn("mobile landing override active", landing_html)
         self.assertIn("ศูนย์ศึกษาการพัฒนาภูพาน", landing_html)
-        self.assertIn("เลื่อนเพื่อดูข้อมูล", landing_html)
+        self.assertIn("ปัดขึ้นเพื่อเข้าสู่เว็บไซต์", landing_html)
         self.assertIn('href="/home"', landing_html)
         self.assertNotIn('href="/models"', landing_html)
 

@@ -47,10 +47,10 @@
         <div class="landing-mobile-hero-title-container">
           <h1 class="landing-mobile-hero-title">{% for part in site_settings.landing_headline|headline_parts %}{% if not loop.first %}<wbr>{% endif %}<span class="headline-part">{{ part }}</span>{% endfor %}</h1>
         </div>
-        <div class="landing-scroll-cue">
-          <span class="landing-scroll-cue-text">เลื่อนเพื่อดูข้อมูล</span>
-          <span class="landing-scroll-cue-arrow">↓</span>
-        </div>
+        <a class="landing-scroll-cue landing-swipe-cue" href="{{ site_settings.landing_cta_url }}" data-landing-intro-trigger data-swipe-enter>
+          <span class="landing-swipe-cue-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg></span>
+          <span class="landing-scroll-cue-text">ปัดขึ้นเพื่อเข้าสู่เว็บไซต์</span>
+        </a>
       </div>
 
       <!-- Mobile-only Content Block: Screen 2 -->
@@ -98,6 +98,6 @@
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/site-carousel.js', v='2') }}" defer></script>
   {% endif %}
-  <script src="{{ url_for('static', filename='js/landing-intro.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/landing-intro.js', v='3') }}" defer></script>
 </body>
 </html>

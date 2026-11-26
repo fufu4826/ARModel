@@ -141,4 +141,28 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") skip();
   });
+
+  // Phones: swipe up on the cover screen to play the intro and enter the site.
+  const swipeTarget = document.querySelector("[data-swipe-enter]");
+  const hero = swipeTarget && swipeTarget.closest(".landing-mobile-hero");
+  if (hero) {
+    let startY = null;
+    let startX = 0;
+    hero.addEventListener("touchstart", (event) => {
+      if (event.touches.length !== 1) { startY = null; return; }
+      startY = event.touches[0].clientY;
+      startX = event.touches[0].clientX;
+    }, { passive: true });
+    hero.addEventListener("touchmove", (event) => {
+      if (startY !== null && startY - event.touches[0].clientY > 8) event.preventDefault();
+    }, { passive: false });
+    hero.addEventListener("touchend", (event) => {
+      if (startY === null) return;
+      const touch = event.changedTouches[0];
+      const dy = startY - touch.clientY;
+      const dx = Math.abs(touch.clientX - startX);
+      startY = null;
+      if (dy > 50 && dy > dx) swipeTarget.click();
+    });
+  }
 })();

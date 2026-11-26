@@ -49,6 +49,12 @@
   const arButton = document.querySelector("[data-action-ar]");
   if (arButton) {
     arButton.addEventListener("click", () => {
+      // Same as the viewer's own AR button: model-viewer opens the camera (Scene Viewer / Quick Look / WebXR).
+      const viewerArButton = viewer && viewer.querySelector('[slot="ar-button"]');
+      if (viewer && viewer.canActivateAR !== false && viewerArButton) {
+        viewerArButton.click();
+        return;
+      }
       if (viewer && viewer.canActivateAR && typeof viewer.activateAR === "function") {
         viewer.activateAR();
         return;

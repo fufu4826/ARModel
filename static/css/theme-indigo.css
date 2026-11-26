@@ -640,3 +640,8 @@ body.landing-page { background: var(--indigo-950); }
 
 /* Model cards: one button */
 .model-card .card-actions { grid-template-columns: 1fr; }
+
+/* Phones: the bottom bar's "ดูในพื้นที่จริง (AR)" opens the camera; no second AR button on the viewer */
+@media (max-width: 760px) {
+  model-viewer .ar-button[slot="ar-button"] { display: none !important; }
+}

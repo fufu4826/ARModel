@@ -654,8 +654,8 @@ body.landing-page { background: var(--indigo-950); }
 [data-narration-toggle][aria-pressed="true"]::before, [data-action-narration][aria-pressed="true"]::before {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='40' viewBox='0 0 80 40'%3E%3Cpath d='M0 22 Q10 12 20 22 T40 22 T60 22 T80 22 V40 H0Z' fill='%233b6fd6' fill-opacity='.38'/%3E%3C/svg%3E") repeat-x left bottom / 80px 100%,
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40' viewBox='0 0 120 40'%3E%3Cpath d='M0 26 Q15 16 30 26 T60 26 T90 26 T120 26 V40 H0Z' fill='%231f4fb3' fill-opacity='.45'/%3E%3C/svg%3E") repeat-x left bottom / 120px 100%;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='40' viewBox='0 0 80 40'%3E%3Cpath d='M0 22 Q10 12 20 22 T40 22 T60 22 T80 22 V40 H0Z' fill='%233b6fd6' fill-opacity='.38'/%3E%3C/svg%3E") repeat-x left bottom / 80px 55%,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40' viewBox='0 0 120 40'%3E%3Cpath d='M0 26 Q15 16 30 26 T60 26 T90 26 T120 26 V40 H0Z' fill='%231f4fb3' fill-opacity='.45'/%3E%3C/svg%3E") repeat-x left bottom / 120px 55%;
   animation: narration-wave 1.6s linear infinite;
 }
 @keyframes narration-wave { from { background-position: 0 100%, 0 100%; } to { background-position: 80px 100%, 120px 100%; } }

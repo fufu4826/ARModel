@@ -68,7 +68,16 @@
   const narrationButton = document.querySelector("[data-action-narration]");
   const narrationToggle = document.querySelector("[data-narration-toggle]");
   if (narrationButton && narrationToggle) {
+    const idleLabel = narrationButton.textContent.trim();
     narrationButton.addEventListener("click", () => narrationToggle.click());
+    // Mirror the playing state so the bottom bar shows the same wave effect.
+    const sync = () => {
+      const playing = narrationToggle.getAttribute("aria-pressed") === "true";
+      narrationButton.setAttribute("aria-pressed", String(playing));
+      narrationButton.textContent = playing ? "หยุดเสียงบรรยาย" : idleLabel;
+    };
+    new MutationObserver(sync).observe(narrationToggle, { attributes: true, attributeFilter: ["aria-pressed"] });
+    sync();
   }
 
   // ---------- Filter chips driving the existing <select> ----------

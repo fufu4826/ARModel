@@ -213,9 +213,14 @@
           nextEl: element.querySelector(".swiper-button-next"),
           prevEl: element.querySelector(".swiper-button-prev"),
         },
-        slidesPerView: isHomeMarquee ? "auto" : (isLandingCarousel ? 1 : 3),
-        spaceBetween: isLandingCarousel ? 0 : 18,
+        // Phones see about one card at a time (with a peek of the next); wider screens more.
+        slidesPerView: isHomeMarquee ? "auto" : (isLandingCarousel ? 1 : 1.15),
+        spaceBetween: isLandingCarousel ? 0 : 14,
         breakpoints: isLandingCarousel ? {} : {
+          600: isHomeMarquee ? {} : {
+            slidesPerView: 2,
+            spaceBetween: 16,
+          },
           921: {
             slidesPerView: 4,
             spaceBetween: 20,

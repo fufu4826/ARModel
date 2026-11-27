@@ -109,6 +109,7 @@ def normalize_model(model: dict, projects: list[dict], *, default_name: str) -> 
         "thumbnail_path": thumbnail_path,
         "preview_images": normalize_preview_images(model.get("preview_images")),
         "narration_audio": str(model.get("narration_audio") or "").strip(),
+        "narration_text": str(model.get("narration_text") or "").strip(),
         "file_size_mb": size_mb,
         "rotate_x": rotate_x,
         "rotate_y": rotate_y,

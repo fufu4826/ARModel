@@ -3,56 +3,161 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>จัดการเสียงบรรยาย | ระบบจัดการ {{ brand_name }}</title>
+  <title>เสียงบรรยาย | ระบบจัดการ {{ brand_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261127v') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-narrations.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-narrations.css', v='4') }}">
   {% include "_fonts.html" %}
 </head>
 <body>
   <div class="admin-container">
     {% include "_admin_nav.html" %}
     <main class="admin-main-content">
-      <div class="admin-shell narration-manager" data-narration-manager>
-        <header class="admin-heading narration-page-header">
-          <div><p class="admin-eyebrow">โมเดล 3D / เสียงบรรยาย</p><h1><span class="admin-icon admin-icon--gemini" aria-hidden="true"></span> จัดการเสียงบรรยาย</h1><p>สร้างเสียงด้วย Gemini ตรวจสอบ และยืนยันก่อนแทนที่เสียงปัจจุบัน</p></div>
-          <p class="narration-review-note">เสียงที่สร้างใหม่จะยังไม่เผยแพร่จนกว่าจะยืนยัน</p>
+      <div class="admin-shell voice" data-voice-studio
+           data-draft-url="{{ url_for('generate_narration_draft', model_id='__ID__') }}"
+           data-edit-url="{{ url_for('edit_model', model_id='__ID__') }}"
+           data-text-max="{{ narration_text_max }}"
+           data-focus="{{ focus_model_id }}">
+        <header class="admin-heading voice-head">
+          <div>
+            <p class="admin-eyebrow">เนื้อหา</p>
+            <h1>เสียงบรรยาย</h1>
+            <p>เลือกโมเดล แก้ข้อความ กดสร้างเสียง ฟัง แล้วกด “ใช้เสียงนี้” เสียงใหม่จะขึ้นเว็บหลังกดใช้เท่านั้น</p>
+          </div>
+          <div class="voice-progress" aria-label="ความคืบหน้า">
+            <strong><span data-voice-done>{{ narration_counts.with_audio }}</span> / {{ narration_counts.total }}</strong>
+            <span>โมเดลมีเสียงแล้ว</span>
+            <span class="voice-progress__bar"><span data-voice-bar style="width: {{ (100 * narration_counts.with_audio / (narration_counts.total or 1))|round(1) }}%"></span></span>
+          </div>
         </header>
         {% include "_admin_messages.html" %}
-        <section class="narration-summary" aria-label="สรุปเสียงบรรยาย">
-          <article><span>โมเดลทั้งหมด</span><strong>{{ narration_counts.total }}</strong></article>
-          <article><span>มีเสียงบรรยาย</span><strong>{{ narration_counts.with_audio }}</strong></article>
-          <article><span>ไม่มีเสียงบรรยาย</span><strong>{{ narration_counts.without_audio }}</strong></article>
-        </section>
-        <section class="narration-filters" aria-label="กรองรายการโมเดล">
-          <label>ค้นหา<input type="search" placeholder="ค้นหาชื่อโมเดล" data-narration-search></label>
-          <label>แหล่งเรียนรู้<select data-narration-project><option value="">ทุกแหล่งเรียนรู้</option>{% for project in projects %}<option value="{{ project.id }}">{{ project.name }}</option>{% endfor %}</select></label>
-          <label>สถานะเสียง<select data-narration-audio-status><option value="all">ทั้งหมด</option><option value="with">มีเสียงบรรยาย</option><option value="without">ไม่มีเสียงบรรยาย</option></select></label>
-          <label>การเผยแพร่<select data-narration-visibility><option value="all">ทั้งหมด</option><option value="visible">แสดงอยู่</option><option value="hidden">ซ่อนอยู่</option></select></label>
-          <button type="button" class="button secondary narration-reset" data-narration-reset>ล้างตัวกรอง</button>
-        </section>
-        <p class="narration-result-count" data-narration-result-count aria-live="polite"></p>
-        <section class="narration-list" aria-label="รายการโมเดล">
-          {% for model in models %}
-          <article class="narration-item{% if model.id == focus_model_id %} is-focused{% endif %}" id="narration-{{ model.id }}" data-narration-item data-name="{{ model.name|lower }}" data-project="{{ model.project_id }}" data-audio="{{ 'with' if model.narration_audio_url else 'without' }}" data-visibility="{{ 'visible' if model.visible else 'hidden' }}">
-            <img src="{{ model.thumbnail_resolved_url }}" alt="" loading="lazy">
-            <div class="narration-item__details"><h2>{{ model.name }}</h2><p>{{ model.project_name }}</p><span class="status {{ '' if model.visible else 'off' }}">{{ 'แสดงอยู่' if model.visible else 'ซ่อนอยู่' }}</span>
-              {% if model.narration_audio_url %}<span class="admin-audio-badge">มีเสียงบรรยาย</span>{% else %}<span class="admin-audio-badge is-muted">ไม่มีเสียงบรรยาย</span>{% endif %}
+
+        {# A small post form: the server adds the CSRF token and data revisions to it; the script reuses them. #}
+        <form method="post" action="#" data-voice-security hidden></form>
+
+        <div class="voice-layout">
+          <section class="voice-list" aria-label="รายการโมเดล">
+            <div class="voice-tabs" role="tablist" aria-label="กรองตามสถานะเสียง">
+              <button type="button" role="tab" data-voice-tab="without" aria-selected="false">ยังไม่มีเสียง <span data-voice-count="without">{{ narration_counts.without_audio }}</span></button>
+              <button type="button" role="tab" data-voice-tab="with" aria-selected="false">มีเสียงแล้ว <span data-voice-count="with">{{ narration_counts.with_audio }}</span></button>
+              <button type="button" role="tab" data-voice-tab="all" aria-selected="false">ทั้งหมด <span>{{ narration_counts.total }}</span></button>
             </div>
-            <div class="narration-item__actions">
-              {% if model.narration_audio_url %}<button type="button" class="button secondary" data-audio-toggle data-audio-src="{{ model.narration_audio_url }}">ฟังเสียงปัจจุบัน</button>{% endif %}
-              <button type="button" class="button" data-generate-dialog="dialog-{{ model.id }}">{{ 'สร้างเสียงใหม่' if model.narration_audio_url else 'สร้างเสียงบรรยาย' }}</button>
+            <div class="voice-filters">
+              <input type="search" placeholder="ค้นหาชื่อโมเดล" aria-label="ค้นหาชื่อโมเดล" data-voice-search>
+              <select aria-label="แหล่งเรียนรู้" data-voice-project>
+                <option value="">ทุกแหล่งเรียนรู้</option>
+                {% for project in projects %}<option value="{{ project.id }}">{{ project.name }}</option>{% endfor %}
+              </select>
             </div>
-            {% if draft and draft.model_id == model.id %}
-            <section class="narration-draft" aria-label="เสียงรอตรวจสอบ"><div class="narration-draft__heading"><strong>รอตรวจสอบ</strong><span>เสียงใหม่รอตรวจสอบ กรุณาฟังเสียงก่อนยืนยัน</span></div><button type="button" class="button secondary" data-audio-toggle data-audio-src="{{ url_for('admin_narration_draft_audio', token=draft.token) }}">ฟังเสียงที่สร้างใหม่</button><form method="post" action="{{ url_for('confirm_narration_draft', token=draft.token) }}" data-admin-busy-title="กำลังยืนยันเสียงบรรยาย..."><button class="button" type="submit">ยืนยันใช้เสียงนี้</button></form><form method="post" action="{{ url_for('cancel_narration_draft', token=draft.token) }}"><button class="button danger" type="submit">ยกเลิก</button></form></section>
-            {% endif %}
-          </article>
-          <dialog class="narration-dialog" id="dialog-{{ model.id }}" aria-labelledby="dialog-title-{{ model.id }}"><form method="dialog"><button class="narration-dialog__close" aria-label="ปิด">×</button></form><h2 id="dialog-title-{{ model.id }}">สร้างเสียงบรรยาย</h2><p><strong>{{ model.name }}</strong></p><label>ข้อความที่จะส่งไป Gemini<textarea readonly rows="7">{{ model.name }}. {{ model.description }}</textarea></label><p class="meta">เสียงปัจจุบันใช้การตั้งค่า Gemini: เสียง Iapetus, ภาษาไทย, น้ำเสียงเป็นมิตร</p><form method="post" action="{{ url_for('generate_narration_draft', model_id=model.id) }}" data-admin-busy-title="กำลังสร้างเสียงบรรยาย..." data-admin-busy-message="Gemini กำลังสร้างไฟล์เสียง กรุณารอสักครู่"><button class="button" type="submit">สร้างเสียงรอตรวจสอบ</button></form></dialog>
-          {% endfor %}
-        </section>
-        <section class="narration-empty" data-narration-empty hidden aria-live="polite"><strong>ไม่พบโมเดลตามตัวกรอง</strong><p>ลองล้างตัวกรองหรือค้นหาด้วยคำอื่น</p><button type="button" class="button secondary" data-narration-reset>ล้างตัวกรอง</button></section>
+            <div class="voice-batch" data-voice-batch hidden>
+              <button type="button" class="button secondary" data-voice-batch-start>สร้างเสียงให้ทั้ง <span data-voice-batch-n>0</span> โมเดลในรายการ</button>
+              <div class="voice-batch__run" data-voice-batch-run hidden>
+                <span data-voice-batch-status role="status" aria-live="polite"></span>
+                <button type="button" class="button small secondary" data-voice-batch-stop>หยุด</button>
+              </div>
+            </div>
+            <ul class="voice-items" data-voice-items>
+              {% for model in models %}
+              <li>
+                <button type="button" class="voice-item" data-voice-item="{{ model.id }}"
+                        data-name="{{ model.name|lower }}" data-project="{{ model.project_id }}"
+                        data-audio="{{ 'with' if model.narration_audio_url else 'without' }}">
+                  <img src="{{ model.thumbnail_resolved_url }}" alt="" loading="lazy">
+                  <span class="voice-item__text">
+                    <strong>{{ model.name }}</strong>
+                    <small>{{ model.project_name }}{% if not model.visible %} · ซ่อนอยู่{% endif %}</small>
+                  </span>
+                  <span class="voice-pill" data-voice-pill>{{ 'มีเสียง' if model.narration_audio_url else 'ไม่มีเสียง' }}</span>
+                </button>
+              </li>
+              {% endfor %}
+            </ul>
+            <p class="voice-empty" data-voice-empty hidden>ไม่พบโมเดลตามที่เลือก</p>
+          </section>
+
+          <section class="voice-editor" data-voice-editor aria-live="polite">
+            <div class="voice-placeholder" data-voice-placeholder>
+              <strong>เลือกโมเดลจากรายการ</strong>
+              <span>เพื่อฟังเสียงตอนนี้ แก้ข้อความ และสร้างเสียงใหม่</span>
+            </div>
+          </section>
+        </div>
+
+        {# Data for the script: one entry per model (texts are escaped by tojson). #}
+        <script type="application/json" data-voice-data>{
+          {%- for model in models %}
+          {{ model.id|tojson }}: {"name": {{ model.name|tojson }}, "project": {{ (model.project_name or '')|tojson }},
+            "visible": {{ 'true' if model.visible else 'false' }}, "thumb": {{ (model.thumbnail_resolved_url or '')|tojson }},
+            "audio": {{ (model.narration_audio_url or '')|tojson }}, "text": {{ narration_texts[model.id]|tojson }},
+            "defaultText": {{ ([model.name, model.description]|select|join('. '))|tojson }}}{{ ',' if not loop.last }}
+          {%- endfor %}
+        }</script>
+
+        {# Without JavaScript the old review flow still works: a draft from ?draft= is shown here. #}
+        {% if draft %}
+        <noscript>
+          <section class="narration-draft"><strong>รอตรวจสอบ</strong> เสียงใหม่รอตรวจสอบ
+            <form method="post" action="{{ url_for('confirm_narration_draft', token=draft.token) }}"><button class="button" type="submit">ยืนยันใช้เสียงนี้</button></form>
+            <form method="post" action="{{ url_for('cancel_narration_draft', token=draft.token) }}"><button class="button danger" type="submit">ยกเลิก</button></form>
+          </section>
+        </noscript>
+        <script type="application/json" data-voice-initial-draft>{{ {"model_id": draft.model_id, "token": draft.token, "text": draft.text,
+          "audio_url": url_for('admin_narration_draft_audio', token=draft.token),
+          "confirm_url": url_for('confirm_narration_draft', token=draft.token),
+          "cancel_url": url_for('cancel_narration_draft', token=draft.token)}|tojson }}</script>
+        {% endif %}
       </div>
     </main>
   </div>
-  <script src="{{ url_for('static', filename='js/admin-narrations.js', v=2) }}" defer></script>
+
+  <template data-voice-editor-template>
+    <div class="voice-panel">
+      <button type="button" class="voice-back" data-v="back">รายการโมเดล</button>
+      <div class="voice-panel__head">
+        <img data-v="thumb" alt="">
+        <div>
+          <h2 data-v="name"></h2>
+          <p><span data-v="project"></span> · <a data-v="edit" href="#">แก้ข้อมูลโมเดล</a></p>
+        </div>
+      </div>
+
+      <div class="voice-block">
+        <h3>เสียงตอนนี้</h3>
+        <audio controls preload="none" data-v="current-audio" hidden></audio>
+        <p class="voice-muted" data-v="no-audio" hidden>ยังไม่มีเสียงบรรยาย บนเว็บจะใช้เสียงอ่านอัตโนมัติของเครื่องผู้ชมแทน</p>
+      </div>
+
+      <div class="voice-block">
+        <div class="voice-block__row">
+          <h3><label for="voice-text">ข้อความที่จะให้ AI อ่าน</label></h3>
+          <button type="button" class="voice-link" data-v="reset">ใช้ข้อความจากรายละเอียดโมเดล</button>
+        </div>
+        <textarea id="voice-text" rows="9" data-v="text"></textarea>
+        <p class="voice-meta"><span data-v="count"></span><span>แก้คำที่ AI อาจอ่านผิดได้ เช่น เขียนตัวเลขเป็นคำอ่าน</span></p>
+        <div class="voice-actions">
+          <button type="button" class="button voice-generate" data-v="generate">สร้างเสียง</button>
+          <span class="voice-busy" data-v="busy" hidden><span class="voice-spinner" aria-hidden="true"></span><span data-v="busy-text">กำลังสร้างเสียง…</span></span>
+        </div>
+        <p class="voice-error" data-v="error" role="alert" hidden></p>
+      </div>
+
+      <div class="voice-block voice-block--draft" data-v="draft" hidden>
+        <h3>เสียงใหม่ <span class="voice-pill voice-pill--draft">ยังไม่ได้ใช้</span></h3>
+        <audio controls preload="auto" data-v="draft-audio"></audio>
+        <div class="voice-actions">
+          <button type="button" class="button" data-v="confirm">ใช้เสียงนี้</button>
+          <button type="button" class="button secondary" data-v="regenerate">สร้างใหม่อีกครั้ง</button>
+          <button type="button" class="button admin-delete" data-v="discard">ทิ้งเสียงนี้</button>
+        </div>
+        <p class="voice-muted">ถ้าไม่กด “ใช้เสียงนี้” ภายใน 30 นาที เสียงใหม่จะหมดอายุ และเสียงเดิมยังอยู่เหมือนเดิม</p>
+      </div>
+
+      <div class="voice-block voice-block--saved" data-v="saved" hidden>
+        <strong>บันทึกเสียงแล้ว เสียงใหม่ขึ้นเว็บแล้ว</strong>
+        <button type="button" class="button" data-v="next">ไปโมเดลถัดไปที่ยังไม่มีเสียง</button>
+      </div>
+    </div>
+  </template>
+
+  <script src="{{ url_for('static', filename='js/admin-narrations.js', v=3) }}" defer></script>
 </body>
 </html>

@@ -2860,6 +2860,21 @@ def admin_landing():
     return render_template("admin_landing.html", settings=site_settings_with_urls(get_site_settings()))
 
 
+NARRATION_TEXT_MAX_CHARS = 3000
+
+
+def narration_default_text(model: dict) -> str:
+    """The script the voice reads: the saved custom script, else the model name and description."""
+    custom = str(model.get("narration_text") or "").strip()
+    if custom:
+        return custom
+    return ". ".join(part for part in (str(model.get("name") or "").strip(), str(model.get("description") or "").strip()) if part)
+
+
+def narration_wants_json() -> bool:
+    return "application/json" in (request.headers.get("Accept") or "")
+
+
 @app.get("/admin/narrations")
 @admin_required
 def admin_narrations():
@@ -2888,6 +2903,8 @@ def admin_narrations():
             "without_audio": sum(not item.get("narration_audio_url") for item in models),
         },
         focus_model_id=request.args.get("focus", "").strip(),
+        narration_texts={item["id"]: narration_default_text(item) for item in models},
+        narration_text_max=NARRATION_TEXT_MAX_CHARS,
     )
 
 
@@ -2899,9 +2916,19 @@ def generate_narration_draft(model_id: str):
     model = next((item for item in get_models(include_hidden=True) if item["id"] == model_id), None)
     if model is None:
         abort(404)
-    narration_text = ". ".join(part for part in (str(model.get("name") or "").strip(), str(model.get("description") or "").strip()) if part)
+    wants_json = narration_wants_json()
+    narration_text = re.sub(r"[ \t]+", " ", str(request.form.get("text") or "")).strip() or narration_default_text(model)
     if not narration_text:
-        flash("โมเดลนี้ยังไม่มีข้อความสำหรับสร้างเสียงบรรยาย", "error")
+        message = "โมเดลนี้ยังไม่มีข้อความสำหรับสร้างเสียงบรรยาย"
+        if wants_json:
+            return jsonify({"ok": False, "error": message}), 400
+        flash(message, "error")
+        return redirect(url_for("admin_narrations", focus=model_id))
+    if len(narration_text) > NARRATION_TEXT_MAX_CHARS:
+        message = f"ข้อความยาวเกิน {NARRATION_TEXT_MAX_CHARS:,} ตัวอักษร กรุณาตัดให้สั้นลง"
+        if wants_json:
+            return jsonify({"ok": False, "error": message}), 400
+        flash(message, "error")
         return redirect(url_for("admin_narrations", focus=model_id))
     try:
         if os.environ.get("NARRATION_PREVIEW_MOCK", "").strip() == "1":
@@ -2920,9 +2947,18 @@ def generate_narration_draft(model_id: str):
     except (GeminiTTSError, NarrationDraftError, OSError) as exc:
         logger.exception("Unable to create narration draft for %s", model_id)
         write_audit_event("narration", "draft", "failure", f'สร้างเสียงบรรยายฉบับทดลองสำหรับ “{model.get("name", "โมเดล")}” ไม่สำเร็จ', resource_type="model", resource_id=model_id, resource_name=model.get("name", ""), severity="warning")
+        if wants_json:
+            return jsonify({"ok": False, "error": f"สร้างเสียงไม่สำเร็จ: {exc}"}), 502
         flash(f"สร้างเสียงรอตรวจสอบไม่สำเร็จ: {exc}", "error")
         return redirect(url_for("admin_narrations", focus=model_id))
     write_audit_event("narration", "draft", "success", f'สร้างเสียงบรรยายฉบับทดลองสำหรับ “{model.get("name", "โมเดล")}” สำเร็จ', resource_type="model", resource_id=model_id, resource_name=model.get("name", ""))
+    if wants_json:
+        return jsonify({
+            "ok": True, "model_id": model_id, "token": token, "text": narration_text,
+            "audio_url": url_for("admin_narration_draft_audio", token=token),
+            "confirm_url": url_for("confirm_narration_draft", token=token),
+            "cancel_url": url_for("cancel_narration_draft", token=token),
+        })
     return redirect(url_for("admin_narrations", draft=token, focus=model_id))
 
 
@@ -2961,18 +2997,31 @@ def confirm_narration_draft(token: str):
         else:
             narration_audio = save_generated_narration_audio(model["id"], audio_data, extension)
         old_audio = str(model.get("narration_audio") or "")
+        old_text = str(model.get("narration_text") or "")
         model["narration_audio"] = narration_audio
+        # Remember the script only when it differs from the default, so later edits to the
+        # model description still flow into the next generated voice.
+        model["narration_text"] = "" if payload.get("text", "") == narration_default_text({**model, "narration_text": ""}) else str(payload.get("text") or "")
         try:
             save_models(models)
         except Exception:
             model["narration_audio"] = old_audio
+            model["narration_text"] = old_text
             raise
     except NarrationDraftError as exc:
+        if narration_wants_json():
+            return jsonify({"ok": False, "error": str(exc)}), 409
         flash(str(exc), "error")
         return redirect(url_for("admin_narrations"))
+    except database_repository.ConflictError:
+        if narration_wants_json():
+            return jsonify({"ok": False, "error": "มีคนแก้ข้อมูลโมเดลระหว่างนี้ กรุณาโหลดหน้าใหม่แล้วกดใช้เสียงอีกครั้ง"}), 409
+        raise
     except Exception:
         logger.exception("Unable to confirm narration draft")
         write_audit_event("narration", "confirm", "failure", "ยืนยันเสียงบรรยายใหม่ไม่สำเร็จ", severity="warning")
+        if narration_wants_json():
+            return jsonify({"ok": False, "error": "บันทึกเสียงไม่สำเร็จ เสียงเดิมยังอยู่"}), 500
         flash("ยืนยันเสียงบรรยายไม่สำเร็จ ข้อมูลเดิมยังไม่ถูกแทนที่", "error")
         return redirect(url_for("admin_narrations"))
     write_audit_event("narration", "confirm", "success", f'ยืนยันใช้เสียงบรรยายใหม่สำหรับ “{model.get("name", "โมเดล")}”', resource_type="model", resource_id=payload["model_id"], resource_name=model.get("name", ""))
@@ -2983,6 +3032,12 @@ def confirm_narration_draft(token: str):
     except Exception:
         logger.exception("Narration saved but pending audio cleanup failed")
         write_audit_event("narration", "cleanup", "failure", "บันทึกเสียงบรรยายใหม่แล้ว แต่ลบไฟล์เสียงรอตรวจสอบไม่สำเร็จ", resource_type="model", resource_id=payload["model_id"], severity="warning")
+    if narration_wants_json():
+        return jsonify({
+            "ok": True, "model_id": payload["model_id"],
+            "audio_url": resolve_narration_audio_url(model),
+            "revisions": {"models": g.get("dataset_revisions", {}).get("models")},
+        })
     flash("ยืนยันและบันทึกเสียงบรรยายแล้ว", "success")
     return redirect(url_for("admin_narrations", focus=payload["model_id"]))
 
@@ -2994,9 +3049,13 @@ def cancel_narration_draft(token: str):
         payload = load_narration_draft_token(token)
         delete_pending_narration_audio(payload["pending_key"])
     except NarrationDraftError as exc:
+        if narration_wants_json():
+            return jsonify({"ok": True, "note": str(exc)})
         flash(str(exc), "error")
     else:
         write_audit_event("narration", "cancel", "success", "ยกเลิกเสียงบรรยายฉบับทดลอง", resource_type="model", resource_id=payload.get("model_id", ""))
+        if narration_wants_json():
+            return jsonify({"ok": True})
         flash("ยกเลิกเสียงรอตรวจสอบแล้ว", "success")
     return redirect(url_for("admin_narrations"))
 

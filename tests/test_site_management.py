@@ -1108,20 +1108,20 @@ class SiteManagementTests(unittest.TestCase):
         models[1]["visible"] = False
         module.save_models(models)
         page = self.client.get("/admin/narrations").get_data(as_text=True)
-        self.assertIn("จัดการเสียงบรรยาย", page)
-        self.assertIn("data-narration-search", page)
-        self.assertIn("data-narration-project", page)
-        self.assertIn("data-narration-audio-status", page)
-        self.assertIn("data-narration-visibility", page)
+        self.assertIn("เสียงบรรยาย", page)
+        self.assertIn("data-voice-search", page)
+        self.assertIn("data-voice-project", page)
+        self.assertIn('data-voice-tab="without"', page)
+        self.assertIn("data-voice-batch-start", page)
         self.assertIn("css/admin-narrations.css", page)
-        self.assertIn("data-narration-reset", page)
-        self.assertIn("data-narration-empty", page)
-        self.assertIn('src="/static/js/admin-narrations.js?v=2"', page)
+        self.assertIn("data-voice-empty", page)
+        self.assertIn('src="/static/js/admin-narrations.js?v=3"', page)
         narration_styles = (Path(module.BASE_DIR) / "static" / "css" / "admin-narrations.css").read_text(encoding="utf-8")
-        self.assertIn("[data-narration-item][hidden]", narration_styles)
-        self.assertIn("ฟังเสียงปัจจุบัน", page)
-        self.assertIn("data-audio-toggle", page)
+        self.assertIn(".voice [hidden]", narration_styles)
+        self.assertIn("https://example.com/current.wav", page)
         self.assertIn("ซ่อนอยู่", page)
+        # The editable script defaults to the model name and description.
+        self.assertIn(json.dumps(f"{models[0]['name']}. {models[0]['description']}")[1:-1], page)
 
         before = module.load_models(include_hidden=True)
         with patch.dict(module.os.environ, {"NARRATION_PREVIEW_MOCK": "1"}, clear=False):
@@ -1134,7 +1134,7 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("รอตรวจสอบ", draft_page)
         self.assertIn("เสียงใหม่รอตรวจสอบ", draft_page)
         self.assertIn("ยืนยันใช้เสียงนี้", draft_page)
-        self.assertIn('aria-labelledby="dialog-title-', draft_page)
+        self.assertIn("data-voice-initial-draft", draft_page)
         self.assertEqual(self.client.post(f"/admin/narrations/drafts/{token}x/confirm").status_code, 302)
         with patch.object(module, "save_generated_narration_audio", return_value="audio/confirmed.wav"):
             confirmed = self.client.post(f"/admin/narrations/drafts/{token}/confirm")
@@ -1142,6 +1142,37 @@ class SiteManagementTests(unittest.TestCase):
         selected = next(item for item in module.load_models(True) if item["id"] == models[0]["id"])
         self.assertEqual(selected["narration_audio"], "audio/confirmed.wav")
         self.assertEqual(self.client.post(f"/admin/narrations/drafts/{token}/confirm").status_code, 302)
+
+    def test_narration_studio_json_flow_uses_edited_text_and_returns_revision(self):
+        self.sign_in()
+        model_id = module.load_models(include_hidden=True)[0]["id"]
+        accept = {"Accept": "application/json"}
+        with patch.dict(module.os.environ, {"NARRATION_PREVIEW_MOCK": "1"}, clear=False):
+            empty = self.client.post(f"/admin/narrations/{model_id}/draft", data={"text": "x" * 3001}, headers=accept)
+            self.assertEqual(empty.status_code, 400)
+            self.assertFalse(empty.get_json()["ok"])
+            made = self.client.post(f"/admin/narrations/{model_id}/draft", data={"text": "  ข้อความที่แก้แล้ว  "}, headers=accept)
+        self.assertEqual(made.status_code, 200)
+        draft = made.get_json()
+        self.assertTrue(draft["ok"])
+        self.assertEqual(draft["text"], "ข้อความที่แก้แล้ว")
+        self.assertIn("/audio", draft["audio_url"])
+        self.assertEqual(self.client.get(draft["audio_url"]).status_code, 200)
+        with patch.object(module, "save_generated_narration_audio", return_value="audio/studio.wav"):
+            confirmed = self.client.post(draft["confirm_url"], headers=accept)
+        self.assertEqual(confirmed.status_code, 200)
+        body = confirmed.get_json()
+        self.assertTrue(body["ok"])
+        self.assertIn("models", body["revisions"])
+        saved = next(item for item in module.load_models(True) if item["id"] == model_id)
+        self.assertEqual(saved["narration_audio"], "audio/studio.wav")
+        self.assertEqual(saved["narration_text"], "ข้อความที่แก้แล้ว")
+        page = self.client.get("/admin/narrations").get_data(as_text=True)
+        self.assertIn(json.dumps("ข้อความที่แก้แล้ว")[1:-1], page)
+        again = self.client.post(draft["confirm_url"], headers=accept)
+        self.assertEqual(again.status_code, 409)
+        self.assertFalse(again.get_json()["ok"])
+        self.assertTrue(self.client.post(draft["cancel_url"], headers=accept).get_json()["ok"])
 
     def test_audit_logs_are_signed_private_and_require_admin(self):
         self.assertEqual(self.client.get("/admin/audit-logs").status_code, 302)

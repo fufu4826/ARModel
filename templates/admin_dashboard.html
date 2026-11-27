@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>แดชบอร์ดผู้ดูแลระบบ - ระบบจัดการ {{ brand_name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  <title>หน้าแรกผู้ดูแล - ระบบจัดการ {{ brand_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261127v') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-dashboard.css') }}" />
   {% include "_fonts.html" %}
 </head>
@@ -17,13 +17,62 @@
         <header class="admin-heading dashboard-heading">
           <div>
             <p class="admin-eyebrow">ภาพรวม</p>
-            <h1>แดชบอร์ดผู้ดูแลระบบ</h1>
-            <p>ข้อมูลจากฐานข้อมูล D1 ไฟล์สื่อบน R2 และสถานะระบบ</p>
+            <h1>หน้าแรกผู้ดูแล</h1>
+            <p>สรุปเนื้อหาบนเว็บไซต์ และสิ่งที่ควรทำต่อ</p>
           </div>
-          <p class="dashboard-generated" id="dashboard-generated">กำลังรอข้อมูลล่าสุด…</p>
+          <a class="button secondary" href="{{ url_for('home') }}" target="_blank" rel="noopener"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> ดูเว็บไซต์</a>
         </header>
 
-        <div class="dashboard-state dashboard-loading" id="dashboard-loading" role="status">
+        {% set todo = content_todo %}
+        {% if not todo.error %}
+        <section class="admin-todo" aria-labelledby="todo-title">
+          <div class="admin-todo__stats">
+            <a class="admin-stat" href="{{ url_for('admin') }}#models"><strong>{{ todo.models_shown }}</strong><span>โมเดลที่แสดงบนเว็บ</span>{% if todo.models_hidden %}<small>ซ่อนอยู่ {{ todo.models_hidden|length }}</small>{% endif %}</a>
+            <a class="admin-stat" href="{{ url_for('admin') }}#projects"><strong>{{ todo.projects_total }}</strong><span>แหล่งเรียนรู้</span></a>
+            <a class="admin-stat" href="{{ url_for('admin_narrations') }}"><strong>{{ todo.models_shown - todo.no_narration|length }}</strong><span>โมเดลที่มีเสียงบรรยาย</span><small>จาก {{ todo.models_shown }}</small></a>
+          </div>
+
+          <h2 id="todo-title">สิ่งที่ควรทำ</h2>
+          <ul class="admin-todo__list">
+            {% if todo.no_narration %}
+            <li><span class="admin-chip admin-chip--warn">{{ todo.no_narration|length }} โมเดล</span> ยังไม่มีเสียงบรรยาย
+              <span class="admin-todo__names">{% for m in todo.no_narration[:6] %}{{ m.name }}{{ ", " if not loop.last }}{% endfor %}{% if todo.no_narration|length > 6 %} และอื่น ๆ{% endif %}</span>
+              <a class="button small" href="{{ url_for('admin_narrations') }}">ไปเพิ่มเสียง</a></li>
+            {% endif %}
+            {% if todo.no_thumbnail %}
+            <li><span class="admin-chip admin-chip--warn">{{ todo.no_thumbnail|length }} โมเดล</span> ยังไม่มีรูปปก
+              <span class="admin-todo__names">{% for m in todo.no_thumbnail[:6] %}<a href="{{ url_for('edit_model', model_id=m.id) }}">{{ m.name }}</a>{{ ", " if not loop.last }}{% endfor %}</span></li>
+            {% endif %}
+            {% if todo.no_description %}
+            <li><span class="admin-chip admin-chip--warn">{{ todo.no_description|length }} โมเดล</span> ยังไม่มีรายละเอียด
+              <span class="admin-todo__names">{% for m in todo.no_description[:6] %}<a href="{{ url_for('edit_model', model_id=m.id) }}">{{ m.name }}</a>{{ ", " if not loop.last }}{% endfor %}</span></li>
+            {% endif %}
+            {% if todo.empty_projects %}
+            <li><span class="admin-chip">{{ todo.empty_projects|length }} แหล่งเรียนรู้</span> ยังไม่มีโมเดล
+              <span class="admin-todo__names">{% for p in todo.empty_projects %}<a href="{{ url_for('edit_project', project_id=p.id) }}">{{ p.name }}</a>{{ ", " if not loop.last }}{% endfor %}</span></li>
+            {% endif %}
+            {% if todo.models_hidden %}
+            <li><span class="admin-chip">{{ todo.models_hidden|length }} โมเดล</span> ถูกซ่อนจากเว็บไซต์
+              <span class="admin-todo__names">{% for m in todo.models_hidden %}<a href="{{ url_for('edit_model', model_id=m.id) }}">{{ m.name }}</a>{{ ", " if not loop.last }}{% endfor %}</span></li>
+            {% endif %}
+            {% if not (todo.no_narration or todo.no_thumbnail or todo.no_description or todo.empty_projects or todo.models_hidden) %}
+            <li class="admin-todo__done">เนื้อหาครบแล้ว ไม่มีอะไรต้องแก้</li>
+            {% endif %}
+          </ul>
+
+          <h2>ทางลัด</h2>
+          <div class="admin-quick">
+            <a class="button" href="{{ url_for('admin') }}#add-model-section" ><span class="admin-icon admin-icon--add" aria-hidden="true"></span> เพิ่มโมเดล</a>
+            <a class="button secondary" href="{{ url_for('admin') }}#add-project-section">เพิ่มแหล่งเรียนรู้</a>
+            <a class="button secondary" href="{{ url_for('admin_sliders') }}">เพิ่มสไลด์ข่าว</a>
+            <a class="button secondary" href="{{ url_for('admin_recommended_models') }}">เลือกโมเดลแนะนำ</a>
+          </div>
+        </section>
+        {% endif %}
+
+        <details class="admin-advanced dashboard-system">
+          <summary>ข้อมูลระบบและพื้นที่จัดเก็บไฟล์ (สำหรับผู้ดูแลเทคนิค)</summary>
+          <p class="dashboard-generated" id="dashboard-generated">กำลังรอข้อมูลล่าสุด…</p>        <div class="dashboard-state dashboard-loading" id="dashboard-loading" role="status">
           <span class="dashboard-spinner" aria-hidden="true"></span>
           <div><strong>กำลังโหลดแดชบอร์ด…</strong><span>กำลังตรวจสอบฐานข้อมูลและไฟล์สื่อ</span></div>
         </div>
@@ -108,6 +157,7 @@
             </div>
           </section>
         </div>
+        </details>
       </div>
     </main>
   </div>

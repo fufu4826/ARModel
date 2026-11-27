@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>แก้ไขแหล่งเรียนรู้ - ระบบจัดการ {{ brand_name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261127v') }}" />
   {% include "_fonts.html" %}
 </head>
 <body>
@@ -15,16 +15,16 @@
       <div class="admin-shell">
         <header class="admin-heading">
           <div>
-            <p class="admin-eyebrow">เนื้อหา / แหล่งเรียนรู้</p>
-            <h1>แก้ไขแหล่งเรียนรู้</h1>
-            <p>แก้ไขข้อมูลและภาพปกของแหล่งเรียนรู้จัดแสดง</p>
+            <p class="admin-eyebrow"><a href="{{ url_for('admin') }}#projects">แหล่งเรียนรู้</a> / แก้ไข</p>
+            <h1>{{ project.name }}</h1>
+            <p>แก้ไขข้อมูลแล้วกด “บันทึก” ที่แถบด้านล่าง</p>
           </div>
-          <a class="button secondary" href="{{ url_for('admin') }}#projects">← กลับไปรายการแหล่งเรียนรู้</a>
+          <a class="button secondary" href="{{ url_for('project_detail', project_id=project.id) }}" target="_blank" rel="noopener">ดูหน้านี้บนเว็บ</a>
         </header>
 
         {% include "_admin_messages.html" %}
 
-        <form class="admin-form" method="post" enctype="multipart/form-data">
+        <form class="admin-form admin-form--with-savebar" method="post" enctype="multipart/form-data">
           <!-- Section 1: ข้อมูลแหล่งเรียนรู้ -->
           <fieldset class="admin-form-section full">
             <legend class="admin-section-title">ข้อมูลแหล่งเรียนรู้</legend>
@@ -33,55 +33,52 @@
               <label for="edit-project-name">ชื่อแหล่งเรียนรู้</label>
               <input id="edit-project-name" name="name" value="{{ project.name }}" required>
             </div>
-            <div class="field">
-              <label for="edit-project-dept">หน่วยงาน/แผนก</label>
-              <input id="edit-project-dept" name="department" value="{{ project.department }}">
-            </div>
             <div class="field full">
               <label for="edit-project-desc">รายละเอียด</label>
-              <textarea id="edit-project-desc" name="description">{{ project.description }}</textarea>
-            </div>
-          </fieldset>
-
-          <!-- Section 2: ภาพปกแหล่งเรียนรู้ -->
-          <fieldset class="admin-form-section full">
-            <legend class="admin-section-title">ภาพปกแหล่งเรียนรู้</legend>
-
-            <div class="field">
-              <label for="edit-project-cover">เปลี่ยนภาพปก (เลือกไฟล์รูปภาพ)</label>
-              <input id="edit-project-cover" name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="project_image" data-upload-target="image_url" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">แนะนำใช้ไฟล์รูปภาพประเภท JPG, PNG หรือ WebP (ขนาดไม่เกิน 5 MB)</p>
+              <textarea id="edit-project-desc" name="description" rows="5">{{ project.description }}</textarea>
             </div>
             <div class="field">
-              <label for="edit-project-image-url">หรือระบุลิงก์รูปภาพภายนอก (External image URL)</label>
-              <input id="edit-project-image-url" name="image_url" type="url" value="{{ project.image_url }}" placeholder="https://example.com/project.jpg" data-image-preview-target="edit-project-cover-preview" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">ใช้เมื่อต้องการดึงรูปภาพจาก Cloudflare R2 หรือระบบออนไลน์อื่น</p>
+              <label for="edit-project-dept">หน่วยงาน/แผนก <span class="admin-optional">ไม่บังคับ</span></label>
+              <input id="edit-project-dept" name="department" value="{{ project.department }}">
             </div>
-            <div class="field full">
-              <div class="preview-panel">
-                <img id="edit-project-cover-preview" data-image-preview="edit-project-cover" src="{{ project.cover_image_url or '' }}" alt="ตัวอย่างภาพปกแหล่งเรียนรู้" {% if not project.cover_image_url %}hidden{% endif %}>
-                <div>
-                  <strong>ตัวอย่างภาพปกแหล่งเรียนรู้</strong>
-                  <span>แสดงรูปภาพปกปัจจุบันหรือรูปที่เลือกเพื่อเปลี่ยน</span>
-                </div>
-              </div>
-            </div>
-          </fieldset>
-
-          <!-- Section 3: การตั้งค่า -->
-          <fieldset class="admin-form-section full">
-            <legend class="admin-section-title">การตั้งค่า</legend>
-
-            <div class="field full">
-              <label class="check-field">
-                <input name="visible" type="checkbox" {{ "checked" if project.visible else "" }}> เผยแพร่บนหน้าเว็บไซต์
+            <div class="field">
+              <span class="admin-field-label">การแสดงผล</span>
+              <label class="check-field admin-switch">
+                <input name="visible" type="checkbox" {{ "checked" if project.visible else "" }}> แสดงแหล่งเรียนรู้นี้บนเว็บไซต์
               </label>
             </div>
           </fieldset>
 
-          <div class="admin-action-row full">
-            <a class="button secondary" href="{{ url_for('admin') }}">ยกเลิก</a>
-            <button class="button" type="submit">บันทึกข้อมูล</button>
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">ภาพปก</legend>
+
+            <div class="field full">
+              <div class="preview-panel">
+                <img id="edit-project-cover-preview" data-image-preview="edit-project-cover" src="{{ project.cover_image_url or '' }}" alt="ภาพปกของ {{ project.name }}" {% if not project.cover_image_url %}hidden{% endif %}>
+                <div>
+                  <strong>ภาพปกปัจจุบัน</strong>
+                  <span>แสดงในการ์ดแหล่งเรียนรู้ เลือกไฟล์ใหม่ด้านล่างเพื่อเปลี่ยน</span>
+                </div>
+              </div>
+            </div>
+            <div class="field full">
+              <label for="edit-project-cover">เปลี่ยนภาพปก</label>
+              <input id="edit-project-cover" name="cover_image" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="project_image" data-upload-target="image_url" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">JPG, PNG หรือ WebP ไม่เกิน 5 MB ภาพแนวนอนสัดส่วน 16:10 จะพอดีที่สุด</p>
+            </div>
+            <details class="admin-advanced field full">
+              <summary>ใช้ลิงก์รูปที่อัปโหลดไว้แล้ว</summary>
+              <div class="field">
+                <label for="edit-project-image-url">ลิงก์รูปภาพ</label>
+                <input id="edit-project-image-url" name="image_url" type="url" value="{{ project.image_url }}" placeholder="https://example.com/project.jpg" data-image-preview-target="edit-project-cover-preview" {{ "disabled" if uploads_disabled else "" }}>
+              </div>
+            </details>
+          </fieldset>
+
+          <div class="admin-action-row full admin-savebar">
+            <span class="admin-savebar__hint">การแก้ไขจะยังไม่ถูกบันทึกจนกว่าจะกดบันทึก</span>
+            <a class="button secondary" href="{{ url_for('admin') }}#projects">ยกเลิก</a>
+            <button class="button" type="submit">บันทึก</button>
           </div>
         </form>
       </div>

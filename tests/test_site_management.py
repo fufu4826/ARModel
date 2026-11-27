@@ -2127,8 +2127,8 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn("ลูกประคบ", html)
         self.assertIn("ลิ้นจี่", html)
         self.assertIn("เลือกได้สูงสุด 10 โมเดล", html)
-        self.assertIn("ใส่เลขลำดับน้อยกว่าเพื่อให้แสดงก่อน", html)
-        self.assertIn("ถ้าไม่เลือก ระบบจะแสดงโมเดลล่าสุดอัตโนมัติ", html)
+        self.assertIn("เลข 1 แสดงก่อน", html)
+        self.assertIn("เว็บจะแสดงโมเดลล่าสุดแทน", html)
 
         # 3. Default/fallback homepage still renders recommended models
         home_res = self.client.get("/home")

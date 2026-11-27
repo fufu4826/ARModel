@@ -79,7 +79,7 @@ class AdminUsersTests(unittest.TestCase):
         self.assertEqual(client.post("/admin/users/invite", data={"role": "admin"}).status_code, 403)
         nav = client.get("/admin").get_data(as_text=True)
         self.assertNotIn("ผู้ใช้และสิทธิ์", nav)
-        self.assertIn("บันทึกการใช้งาน", nav)
+        self.assertIn("ประวัติการแก้ไข", nav)
 
     def test_every_admin_route_has_a_known_permission(self):
         for rule in module.app.url_map.iter_rules():

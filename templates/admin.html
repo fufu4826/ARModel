@@ -4,10 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>โมเดลและแหล่งเรียนรู้ - ระบบจัดการ {{ brand_name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261127v') }}" />
   {% include "_fonts.html" %}
 </head>
 <body>
+  {% set show_model_dept = models|selectattr("department")|list|length > 0 %}
+  {% set show_project_dept = projects|selectattr("department")|list|length > 0 %}
   <div class="admin-container">
     {% include "_admin_nav.html" %}
 
@@ -34,10 +36,8 @@
         {% include "_admin_storage_notice.html" %}
 
         <nav class="admin-tabs" aria-label="ส่วนของหน้านี้" data-admin-tabs>
-          <a href="#models" data-admin-tab-link="models">รายการโมเดล <span class="admin-tab-count">{{ models|length }}</span></a>
-          <a href="#projects" data-admin-tab-link="projects">รายการแหล่งเรียนรู้ <span class="admin-tab-count">{{ projects|length }}</span></a>
-          <a href="#add-model-section" data-admin-tab-link="add-model-section">+ เพิ่มโมเดล</a>
-          <a href="#add-project-section" data-admin-tab-link="add-project-section">+ เพิ่มแหล่งเรียนรู้</a>
+          <a href="#models" data-admin-tab-link="models">โมเดล 3D <span class="admin-tab-count">{{ models|length }}</span></a>
+          <a href="#projects" data-admin-tab-link="projects">แหล่งเรียนรู้ <span class="admin-tab-count">{{ projects|length }}</span></a>
         </nav>
 
         <!-- Forms Grid layout -->
@@ -67,11 +67,14 @@
                   <p class="meta">แนะนำใช้ไฟล์รูปภาพประเภท JPG, PNG หรือ WebP (ขนาดไม่เกิน 5 MB) ภาพนี้จะแสดงเป็นภาพปกของการ์ดแหล่งเรียนรู้</p>
                 </div>
 
-                <div class="field full">
-                  <label for="project-image-url">หรือระบุลิงก์รูปภาพภายนอก (External image URL)</label>
-                  <input id="project-image-url" name="image_url" type="url" placeholder="https://example.com/project.jpg" data-image-preview-target="project-cover-preview" {{ "disabled" if uploads_disabled else "" }}>
-                  <p class="meta">ใช้เมื่อรูปภาพอยู่บน Cloudflare R2 หรือระบบออนไลน์อื่นเรียบร้อยแล้ว</p>
-                </div>
+                <details class="admin-advanced field full">
+                  <summary>ใช้ลิงก์รูปที่อัปโหลดไว้แล้ว (ไม่บังคับ)</summary>
+                  <div class="field">
+                    <label for="project-image-url">ลิงก์รูปภาพ</label>
+                    <input id="project-image-url" name="image_url" type="url" placeholder="https://example.com/project.jpg" data-image-preview-target="project-cover-preview" {{ "disabled" if uploads_disabled else "" }}>
+                    <p class="meta">ใช้เมื่อรูปอยู่บนอินเทอร์เน็ตแล้ว ถ้าเลือกไฟล์ด้านบน ไม่ต้องกรอกช่องนี้</p>
+                  </div>
+                </details>
 
                 <div class="field full">
                   <div class="preview-panel compact">
@@ -130,16 +133,19 @@
                   <input id="model-file" name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" data-max-bytes="{{ model_file_max_bytes }}" data-max-size-label="{{ model_file_max_mb }} MB" {{ "disabled" if uploads_disabled else "" }}>
                   <p class="meta">รองรับไฟล์ .glb ขนาดไม่เกิน {{ model_file_max_mb }} MB หากไฟล์ใหญ่ควรบีบอัดโมเดลก่อนอัปโหลด</p>
                 </div>
-                <div class="field">
-                  <label for="model-path">หรือระบุ path ไฟล์โมเดลในเครื่อง</label>
-                  <input id="model-path" name="model_path" placeholder="model/example.glb" {{ "disabled" if uploads_disabled else "" }}>
-                  <p class="meta">ระบุเฉพาะกรณีนำไฟล์โมเดลไปวางในเครื่องแม่ข่ายแล้ว เช่น static/model/example.glb</p>
-                </div>
-                <div class="field full">
-                  <label for="model-url">หรือระบุลิงก์ไฟล์โมเดลภายนอก (External .glb model URL)</label>
-                  <input id="model-url" name="model_url" type="url" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}>
-                  <p class="meta">ใช้กรณีที่ไฟล์โมเดลอยู่บน Cloudflare R2 หรือคลาวด์อื่นแล้ว</p>
-                </div>
+                <details class="admin-advanced field full">
+                  <summary>ใช้ไฟล์โมเดลที่อัปโหลดไว้แล้ว (ไม่บังคับ)</summary>
+                  <div class="field">
+                    <label for="model-url">ลิงก์ไฟล์โมเดล (.glb)</label>
+                    <input id="model-url" name="model_url" type="url" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}>
+                    <p class="meta">ใช้เมื่อไฟล์อยู่บนอินเทอร์เน็ตแล้ว ถ้าเลือกไฟล์ด้านบน ไม่ต้องกรอกช่องนี้</p>
+                  </div>
+                  <div class="field">
+                    <label for="model-path">ตำแหน่งไฟล์ในเว็บไซต์</label>
+                    <input id="model-path" name="model_path" placeholder="model/example.glb" {{ "disabled" if uploads_disabled else "" }}>
+                    <p class="meta">สำหรับผู้ดูแลเทคนิคเท่านั้น เช่น model/example.glb</p>
+                  </div>
+                </details>
 
                 <div class="field full" style="border-top: 1px solid var(--admin-line); padding-top: 12px; margin-top: 8px;">
                   <strong style="color: var(--admin-green); font-size: 14px;">รูปภาพ Thumbnail & แกลเลอรี</strong>
@@ -149,11 +155,13 @@
                   <input id="image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="thumbnail" data-upload-target="thumbnail_url" {{ "disabled" if uploads_disabled else "" }}>
                   <p class="meta">เป็นรูปภาพหน้าปกหลักของโมเดลที่จะแสดงบนหน้าแสดงรายการ แนะนำใช้สัดส่วน 1:1 หรือ 4:3</p>
                 </div>
-                <div class="field">
-                  <label for="thumbnail-url">หรือระบุลิงก์รูปปกหลักภายนอก (External thumbnail URL)</label>
-                  <input id="thumbnail-url" name="thumbnail_url" type="url" placeholder="https://example.com/thumb.jpg" data-image-preview-target="model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}>
-                  <p class="meta">ใช้ระบุ URL ตรงของรูปปกบน Cloudflare R2 หรือระบบออนไลน์อื่น</p>
-                </div>
+                <details class="admin-advanced field">
+                  <summary>ใช้ลิงก์รูปที่อัปโหลดไว้แล้ว</summary>
+                  <div class="field">
+                    <label for="thumbnail-url">ลิงก์รูปปก</label>
+                    <input id="thumbnail-url" name="thumbnail_url" type="url" placeholder="https://example.com/thumb.jpg" data-image-preview-target="model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}>
+                  </div>
+                </details>
                 <div class="field full">
                   <div class="preview-panel compact">
                     <img id="model-thumbnail-preview" data-image-preview="image-file" alt="ตัวอย่างรูป Thumbnail" hidden>
@@ -178,15 +186,17 @@
                   <input id="narration-audio-file" name="narration_audio_file" type="file" accept=".mp3,.m4a,.wav,.ogg" data-upload-kind="model_narration_audio" data-upload-target="narration_audio" {{ "disabled" if uploads_disabled else "" }}>
                   <p class="meta">รองรับ MP3, M4A, WAV หรือ OGG ขนาดไม่เกิน 20 MB</p>
                 </div>
-                <div class="field">
-                  <label for="narration-audio">หรือ URL/path ไฟล์เสียงคำบรรยาย</label>
-                  <input id="narration-audio" name="narration_audio" placeholder="https://example.com/narration.mp3" {{ "disabled" if uploads_disabled else "" }}>
-                  <p class="meta">หากไม่ใส่ ระบบจะลองใช้เสียงอ่านภาษาไทยจากเบราว์เซอร์</p>
-                </div>
+                <details class="admin-advanced field">
+                  <summary>ใช้ลิงก์ไฟล์เสียงที่อัปโหลดไว้แล้ว</summary>
+                  <div class="field">
+                    <label for="narration-audio">ลิงก์ไฟล์เสียง</label>
+                    <input id="narration-audio" name="narration_audio" placeholder="https://example.com/narration.mp3" {{ "disabled" if uploads_disabled else "" }}>
+                    <p class="meta">ถ้าไม่มีเสียง เว็บจะใช้เสียงอ่านภาษาไทยของเครื่องผู้ชมแทน</p>
+                  </div>
+                </details>
 
-                <div class="field full" style="border-top: 1px solid var(--admin-line); padding-top: 12px; margin-top: 8px;">
-                  <strong style="color: var(--admin-green); font-size: 14px;">การตั้งค่าการแสดงผล AR/3D</strong>
-                </div>
+                <details class="admin-advanced field full">
+                  <summary>ปรับขนาดและทิศทางโมเดล (ใช้เมื่อโมเดลแสดงผลผิดขนาดหรือกลับหัว)</summary>
                 <div class="field">
                   <label for="scale">ขนาด (Scale)</label>
                   <input id="scale" name="scale" type="number" value="0.2" step="any" min="0.001">
@@ -217,6 +227,7 @@
                     <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="0" data-preset-z="3.1416">หมุน Z 180°</button>
                   </div>
                 </div>
+                </details>
 
                 <div class="field full">
                   <label class="check-field">
@@ -264,7 +275,7 @@
                 <tr>
                   <th>ภาพ</th>
                   <th>แหล่งเรียนรู้</th>
-                  <th>หน่วยงาน</th>
+                  {% if show_project_dept %}<th>หน่วยงาน</th>{% endif %}
                   <th>โมเดล</th>
                   <th>สถานะ</th>
                   <th>จัดการ</th>
@@ -282,9 +293,9 @@
                   </td>
                   <td data-label="แหล่งเรียนรู้">
                     <strong>{{ project.name }}</strong>
-                    <div class="meta">{{ project.description or "-" }}</div>
+                    <div class="meta admin-clamp">{{ project.description or "ยังไม่มีรายละเอียด" }}</div>
                   </td>
-                  <td data-label="หน่วยงาน">{{ project.department or "-" }}</td>
+                  {% if show_project_dept %}<td data-label="หน่วยงาน">{{ project.department or "-" }}</td>{% endif %}
                   <td data-label="โมเดล">{{ model_counts.get(project.id, 0) }}</td>
                   <td data-label="สถานะ">
                     <span class="status {{ '' if project.visible else 'off' }}">
@@ -295,7 +306,7 @@
                     <div class="row-actions">
                       <a class="button secondary" href="{{ url_for('edit_project', project_id=project.id) }}">แก้ไข</a>
                       <form action="{{ url_for('delete_project', project_id=project.id) }}" method="post">
-                        <button class="button danger" data-confirm="คำเตือน: การลบแหล่งเรียนรู้นี้จะส่งผลให้โมเดล 3D ทั้งหมดภายใต้แหล่งเรียนรู้นี้ถูกลบออกไปถาวรทันที! ยืนยันการลบแหล่งเรียนรู้?" type="submit">ลบ</button>
+                        <button class="button danger admin-delete" data-confirm="คำเตือน: การลบแหล่งเรียนรู้นี้จะส่งผลให้โมเดล 3D ทั้งหมดภายใต้แหล่งเรียนรู้นี้ถูกลบออกไปถาวรทันที! ยืนยันการลบแหล่งเรียนรู้?" type="submit">ลบ</button>
                       </form>
                     </div>
                   </td>
@@ -320,7 +331,7 @@
                   <th>ภาพ</th>
                   <th>โมเดล</th>
                   <th>แหล่งเรียนรู้</th>
-                  <th>หน่วยงาน</th>
+                  {% if show_model_dept %}<th>หน่วยงาน</th>{% endif %}
                   <th>สถานะ</th>
                   <th>จัดการ</th>
                 </tr>
@@ -337,11 +348,11 @@
                   </td>
                   <td data-label="โมเดล">
                     <strong>{{ model.name }}</strong>
-                    <div class="meta">{{ model.description or "-" }}</div>
-                    <div class="meta meta--path">{{ model.model }}</div>
+                    <div class="meta admin-clamp">{{ model.description or "ยังไม่มีรายละเอียด" }}</div>
+                    {% if not model.narration_audio %}<span class="admin-chip admin-chip--warn">ยังไม่มีเสียงบรรยาย</span>{% endif %}
                   </td>
                   <td data-label="แหล่งเรียนรู้">{{ model.project_name }}</td>
-                  <td data-label="หน่วยงาน">{{ model.department or "-" }}</td>
+                  {% if show_model_dept %}<td data-label="หน่วยงาน">{{ model.department or "-" }}</td>{% endif %}
                   <td data-label="สถานะ">
                     <span class="status {{ '' if model.visible else 'off' }}">
                       {{ "เผยแพร่" if model.visible else "ซ่อน" }}
@@ -351,7 +362,7 @@
                     <div class="row-actions">
                       <a class="button secondary" href="{{ url_for('edit_model', model_id=model.id) }}">แก้ไข</a>
                       <form action="{{ url_for('delete_model', model_id=model.id) }}" method="post">
-                        <button class="button danger" data-confirm="ยืนยันการลบโมเดล 3D นี้ออกจากเว็บไซต์อย่างถาวร?" type="submit">ลบ</button>
+                        <button class="button danger admin-delete" data-confirm="ยืนยันการลบโมเดล 3D นี้ออกจากเว็บไซต์อย่างถาวร?" type="submit">ลบ</button>
                       </form>
                     </div>
                   </td>

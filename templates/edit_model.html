@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>แก้ไขโมเดล - ระบบจัดการ {{ brand_name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261127v') }}" />
   {% include "_fonts.html" %}
 </head>
 <body>
@@ -15,17 +15,16 @@
       <div class="admin-shell">
         <header class="admin-heading">
           <div>
-            <p class="admin-eyebrow">เนื้อหา / โมเดล 3D</p>
-            <h1>แก้ไขโมเดล</h1>
-            <p>แก้ไขข้อมูล ไฟล์ 3D ภาพประกอบ และการแสดงผลของโมเดล 3D</p>
+            <p class="admin-eyebrow"><a href="{{ url_for('admin') }}#models">โมเดล 3D</a> / แก้ไข</p>
+            <h1>{{ model.name }}</h1>
+            <p>แก้ไขข้อมูลแล้วกด “บันทึก” ที่แถบด้านล่าง</p>
           </div>
-          <a class="button secondary" href="{{ url_for('admin') }}#models">← กลับไปรายการโมเดล</a>
+          <a class="button secondary" href="{{ url_for('model_detail', model_id=model.id) }}" target="_blank" rel="noopener">ดูหน้านี้บนเว็บ</a>
         </header>
 
         {% include "_admin_messages.html" %}
 
-        <form class="admin-form" method="post" enctype="multipart/form-data">
-          <!-- Section 1: ข้อมูลโมเดล -->
+        <form class="admin-form admin-form--with-savebar" method="post" enctype="multipart/form-data">
           <fieldset class="admin-form-section full">
             <legend class="admin-section-title">ข้อมูลโมเดล</legend>
 
@@ -41,158 +40,80 @@
                 {% endfor %}
               </select>
             </div>
-            <div class="field">
-              <label for="edit-model-dept">หน่วยงาน/แผนก</label>
-              <input id="edit-model-dept" name="department" value="{{ model.department }}">
-            </div>
             <div class="field full">
               <label for="edit-model-desc">รายละเอียด</label>
-              <textarea id="edit-model-desc" name="description">{{ model.description }}</textarea>
+              <textarea id="edit-model-desc" name="description" rows="6">{{ model.description }}</textarea>
+            </div>
+            <div class="field">
+              <label for="edit-model-dept">หน่วยงาน/แผนก <span class="admin-optional">ไม่บังคับ</span></label>
+              <input id="edit-model-dept" name="department" value="{{ model.department }}">
+            </div>
+            <div class="field">
+              <span class="admin-field-label">การแสดงผล</span>
+              <label class="check-field admin-switch">
+                <input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> แสดงโมเดลนี้บนเว็บไซต์
+              </label>
             </div>
           </fieldset>
 
-          <!-- Section 2: ไฟล์โมเดล 3D -->
           <fieldset class="admin-form-section full">
-            <legend class="admin-section-title">ไฟล์โมเดล 3D (.glb)</legend>
+            <legend class="admin-section-title">รูปปก</legend>
 
-            <div class="field">
-              <label for="edit-model-file">เปลี่ยนไฟล์ .glb (เลือกไฟล์โมเดล 3D)</label>
-              <input id="edit-model-file" name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" data-max-bytes="{{ model_file_max_bytes }}" data-max-size-label="{{ model_file_max_mb }} MB" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">รองรับไฟล์ .glb ขนาดไม่เกิน {{ model_file_max_mb }} MB หากไฟล์ใหญ่ควรบีบอัดโมเดลก่อนอัปโหลด</p>
-            </div>
-            <div class="field">
-              <label for="edit-model-path">Path ไฟล์โมเดลในเครื่อง</label>
-              <input id="edit-model-path" name="model_path" value="{{ model.model_path }}" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">ระบุกรณีวางโมเดลในเครื่องแล้ว เช่น static/model/example.glb</p>
-            </div>
-            <div class="field full">
-              <label for="edit-model-url">หรือระบุลิงก์ไฟล์โมเดลภายนอก (External .glb model URL)</label>
-              <input id="edit-model-url" name="model_url" type="url" value="{{ model.model_url }}" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">ใช้กรณีที่ไฟล์โมเดลอยู่บน Cloudflare R2 หรือคลาวด์อื่นแล้ว</p>
-            </div>
-          </fieldset>
-
-          <!-- Section 3: รูปภาพหลัก (Thumbnail) -->
-          <fieldset class="admin-form-section full">
-            <legend class="admin-section-title">รูปภาพหลัก (Thumbnail)</legend>
-
-            <div class="field">
-              <label for="edit-image-file">เปลี่ยน Thumbnail (เลือกไฟล์รูปปก)</label>
-              <input id="edit-image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="thumbnail" data-upload-target="thumbnail_url" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">รูปปกหลักแสดงในหน้ารวม สัดส่วนแนะนำ 1:1 หรือ 4:3</p>
-            </div>
-            <div class="field">
-              <label for="edit-image-path">Path รูปภาพปกหลัก</label>
-              <input id="edit-image-path" name="image_path" value="{{ model.thumbnail_path }}" data-image-preview-target="edit-model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">ใช้ระบุพาทโลคอล เช่น static/pic/example.jpg</p>
-            </div>
-            <div class="field full">
-              <label for="edit-thumbnail-url">หรือระบุลิงก์รูปปกหลักภายนอก (External thumbnail URL)</label>
-              <input id="edit-thumbnail-url" name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" data-image-preview-target="edit-model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">ใช้ลิงก์ภาพจาก Cloudflare R2 หรือระบบออนไลน์อื่น</p>
-            </div>
             <div class="field full">
               <div class="preview-panel">
-                <img id="edit-model-thumbnail-preview" data-image-preview="edit-image-file" src="{{ model.thumbnail_resolved_url or '' }}" alt="ตัวอย่างรูป Thumbnail" {% if not model.thumbnail_resolved_url %}hidden{% endif %}>
+                <img id="edit-model-thumbnail-preview" data-image-preview="edit-image-file" src="{{ model.thumbnail_resolved_url or '' }}" alt="รูปปกของ {{ model.name }}" {% if not model.thumbnail_resolved_url %}hidden{% endif %}>
                 <div>
-                  <strong>ตัวอย่างภาพ Thumbnail โมเดล</strong>
-                  <span>รูปภาพปกปัจจุบันหรือรูปที่เลือกเพื่อเปลี่ยน</span>
+                  <strong>รูปปกปัจจุบัน</strong>
+                  <span>แสดงในการ์ดโมเดลทุกหน้า เลือกไฟล์ใหม่ด้านล่างเพื่อเปลี่ยน</span>
                 </div>
               </div>
             </div>
-          </fieldset>
-
-          <!-- Section 4: แกลเลอรีรูปภาพ -->
-          <fieldset class="admin-form-section full">
-            <legend class="admin-section-title">แกลเลอรีรูปภาพ</legend>
-
             <div class="field full">
-              <label for="preview-images">รูปภาพตัวอย่างเพิ่มเติม (แกลเลอรีรูปภาพ)</label>
-              <textarea id="preview-images" name="preview_images" rows="5" data-gallery-input>{{ model.preview_images|join('\n') }}</textarea>
-              <p class="meta">ใส่ลิงก์รูปภาพพรีวิวประกอบแกลเลอรีหน้าดูโมเดล หนึ่งภาพต่อหนึ่งบรรทัด</p>
-              <div class="gallery-input-preview" data-gallery-input-preview aria-live="polite"></div>
+              <label for="edit-image-file">เปลี่ยนรูปปก</label>
+              <input id="edit-image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="thumbnail" data-upload-target="thumbnail_url" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">JPG, PNG หรือ WebP สัดส่วน 4:3 หรือ 1:1</p>
             </div>
-          </fieldset>
-
-          <!-- Section 5: เสียงบรรยาย -->
-          <fieldset class="admin-form-section full">
-            <legend class="admin-section-title">เสียงคำบรรยาย</legend>
-
-            <div class="field">
-              <label for="edit-narration-audio-file">ไฟล์เสียงคำบรรยาย</label>
-              <input id="edit-narration-audio-file" name="narration_audio_file" type="file" accept=".mp3,.m4a,.wav,.ogg" data-upload-kind="model_narration_audio" data-upload-target="narration_audio" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">รองรับ MP3, M4A, WAV หรือ OGG ขนาดไม่เกิน 20 MB</p>
-            </div>
-            <div class="field">
-              <label for="edit-narration-audio">หรือ URL/path ไฟล์เสียงคำบรรยาย</label>
-              <input id="edit-narration-audio" name="narration_audio" value="{{ model.narration_audio }}" placeholder="https://example.com/narration.mp3" {{ "disabled" if uploads_disabled else "" }}>
-              <p class="meta">อัปโหลดหรือระบุ URL ไฟล์เสียง เช่น .mp3 หากไม่ใส่ ระบบจะลองใช้เสียงอ่านจากเบราว์เซอร์</p>
-            </div>
-
-            <div class="field full" style="border-top: 1px solid var(--admin-line); padding-top: 12px; margin-top: 8px;">
-              <label>สร้างเสียงบรรยายอัตโนมัติด้วย AI</label>
-              <a class="button secondary" href="{{ url_for('admin_narrations', focus=model.id) }}" style="margin-top: 4px;"><span class="admin-icon admin-icon--gemini" aria-hidden="true"></span> ไปที่จัดการเสียงบรรยาย</a>
-              <p class="meta" style="margin-top: 4px;">ใช้หน้าจัดการเสียงบรรยายเพื่อสร้าง ฟังเปรียบเทียบ และยืนยันเสียงใหม่อย่างปลอดภัย</p>
-            </div>
-
-            {% if model.narration_audio_url %}
-            <div class="field full" style="border-top: 1px solid var(--admin-line); padding-top: 12px; margin-top: 8px;">
-              <label>ตัวอย่างไฟล์เสียงปัจจุบัน</label>
-              <audio controls preload="none" src="{{ model.narration_audio_url }}" style="width: 100%; margin-top: 4px;"></audio>
-              <label class="check-field" style="margin-top: 8px;">
-                <input name="narration_audio_remove" type="checkbox"> ลบไฟล์เสียงคำบรรยายนี้และกลับไปใช้เสียงอ่านอัตโนมัติ
-              </label>
-            </div>
-            {% endif %}
-          </fieldset>
-
-          <!-- Section 6: การตั้งค่าการแสดงผล AR/3D -->
-          <fieldset class="admin-form-section full">
-            <legend class="admin-section-title">การตั้งค่าการแสดงผล AR/3D</legend>
-
-            <div class="field">
-              <label for="edit-model-scale">ขนาด (Scale)</label>
-              <input id="edit-model-scale" name="scale" type="number" value="{{ model.scale }}" step="any" min="0.001">
-              <p class="meta">ขนาดเริ่มต้นแสดงผลโมเดล 3D บนหน้าเว็บ</p>
-            </div>
-            <div class="field">
-              <label for="edit-model-rotate-x">หมุนแกน X (เรเดียน)</label>
-              <input id="edit-model-rotate-x" name="rotate_x" type="number" value="{{ model.rotate_x or 0 }}" step="any">
-              <p class="meta">ปรับความเอียงเริ่มต้นแกน X (0 = ไม่หมุน, 3.1416 = 180°)</p>
-            </div>
-            <div class="field">
-              <label for="edit-model-rotate-y">หมุนแกน Y (เรเดียน)</label>
-              <input id="edit-model-rotate-y" name="rotate_y" type="number" value="{{ model.rotate_y or 0 }}" step="any">
-              <p class="meta">ปรับมุมหมุนแกน Y (0 = ไม่หมุน, 3.1416 = 180°)</p>
-            </div>
-            <div class="field">
-              <label for="edit-model-rotate-z">หมุนแกน Z (เรเดียน)</label>
-              <input id="edit-model-rotate-z" name="rotate_z" type="number" value="{{ model.rotate_z or 0 }}" step="any">
-              <p class="meta">ปรับมุมเอียงแกน Z (0 = ไม่หมุน, 3.1416 = 180°)</p>
-            </div>
-
-            <div class="field full">
-              <label>ปุ่มหมุนด่วน (Presets)</label>
-              <div class="admin-presets">
-                <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="0" data-preset-z="0">ไม่หมุน</button>
-                <button type="button" class="preset-btn" data-preset-x="3.1416" data-preset-y="0" data-preset-z="0">กลับหัว X 180°</button>
-                <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="3.1416" data-preset-z="0">กลับด้าน Y 180°</button>
-                <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="0" data-preset-z="3.1416">หมุน Z 180°</button>
+            <details class="admin-advanced field full">
+              <summary>ใช้ลิงก์รูปที่อัปโหลดไว้แล้ว</summary>
+              <div class="field">
+                <label for="edit-thumbnail-url">ลิงก์รูปปก</label>
+                <input id="edit-thumbnail-url" name="thumbnail_url" type="url" value="{{ model.thumbnail_url }}" placeholder="https://example.com/thumb.jpg" data-image-preview-target="edit-model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}>
               </div>
-            </div>
+              <div class="field">
+                <label for="edit-image-path">ตำแหน่งไฟล์ในเว็บไซต์</label>
+                <input id="edit-image-path" name="image_path" value="{{ model.thumbnail_path }}" data-image-preview-target="edit-model-thumbnail-preview" {{ "disabled" if uploads_disabled else "" }}>
+                <p class="meta">สำหรับผู้ดูแลเทคนิค เช่น pic/example.jpg</p>
+              </div>
+            </details>
+          </fieldset>
+
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">ไฟล์โมเดล 3D</legend>
 
             <div class="field full">
-              <label class="check-field">
-                <input name="visible" type="checkbox" {{ "checked" if model.visible else "" }}> เผยแพร่โมเดลนี้บนเว็บไซต์
-              </label>
+              <p class="admin-current-file">ไฟล์ปัจจุบัน: <strong>{{ (model.model_url or model.model_path or "ยังไม่มีไฟล์").rsplit('/', 1)[-1] }}</strong>{% if model.file_size_mb %} ({{ model.file_size_mb }} MB){% endif %}</p>
+              <label for="edit-model-file">เปลี่ยนไฟล์โมเดล (.glb)</label>
+              <input id="edit-model-file" name="model_file" type="file" accept=".glb" data-upload-kind="model" data-upload-target="model_url" data-max-bytes="{{ model_file_max_bytes }}" data-max-size-label="{{ model_file_max_mb }} MB" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">ไฟล์ .glb ขนาดไม่เกิน {{ model_file_max_mb }} MB ไฟล์ยิ่งเล็ก หน้าเว็บยิ่งโหลดเร็ว</p>
             </div>
+            <details class="admin-advanced field full">
+              <summary>ใช้ลิงก์ไฟล์ที่อัปโหลดไว้แล้ว</summary>
+              <div class="field">
+                <label for="edit-model-url">ลิงก์ไฟล์โมเดล (.glb)</label>
+                <input id="edit-model-url" name="model_url" type="url" value="{{ model.model_url }}" placeholder="https://example.com/model.glb" {{ "disabled" if uploads_disabled else "" }}>
+              </div>
+              <div class="field">
+                <label for="edit-model-path">ตำแหน่งไฟล์ในเว็บไซต์</label>
+                <input id="edit-model-path" name="model_path" value="{{ model.model_path }}" {{ "disabled" if uploads_disabled else "" }}>
+                <p class="meta">สำหรับผู้ดูแลเทคนิค เช่น model/example.glb</p>
+              </div>
+            </details>
 
-            <!-- Model 3D Preview Panel -->
             <div class="field full admin-model-preview-card" data-admin-model-preview-root>
-              <label>พรีวิวการแสดงผลโมเดล</label>
+              <span class="admin-field-label">พรีวิวการแสดงผลโมเดล</span>
               <div class="admin-model-preview-frame">
                 <div class="admin-model-preview-placeholder" data-admin-model-preview-placeholder>
-                  อัปโหลดหรือเลือกไฟล์ .glb เพื่อดูพรีวิว
+                  กำลังโหลดตัวอย่างโมเดล…
                 </div>
                 <model-viewer
                   class="admin-model-preview-viewer"
@@ -204,13 +125,87 @@
                   style="display: none;"
                 ></model-viewer>
               </div>
-              <p class="meta">พรีวิวนี้ใช้ค่าขนาดและการหมุนเดียวกับหน้าเว็บจริง</p>
+              <p class="meta">หน้าตาเหมือนบนเว็บจริง ลากเพื่อหมุนดูได้</p>
+            </div>
+
+            <details class="admin-advanced field full">
+              <summary>ปรับขนาดและทิศทาง (ใช้เมื่อโมเดลแสดงผลผิดขนาดหรือกลับหัว)</summary>
+              <div class="field">
+                <label for="edit-model-scale">ขนาด</label>
+                <input id="edit-model-scale" name="scale" type="number" value="{{ model.scale }}" step="any" min="0.001">
+                <p class="meta">1 = ขนาดจริงของไฟล์</p>
+              </div>
+              <div class="field full">
+                <span class="admin-field-label">หมุนด่วน</span>
+                <div class="admin-presets">
+                  <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="0" data-preset-z="0">ไม่หมุน</button>
+                  <button type="button" class="preset-btn" data-preset-x="3.1416" data-preset-y="0" data-preset-z="0">พลิกกลับหัว</button>
+                  <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="3.1416" data-preset-z="0">หันกลับด้าน</button>
+                  <button type="button" class="preset-btn" data-preset-x="0" data-preset-y="0" data-preset-z="3.1416">หมุนตะแคง 180°</button>
+                </div>
+              </div>
+              <div class="field">
+                <label for="edit-model-rotate-x">หมุนแกน X (เรเดียน)</label>
+                <input id="edit-model-rotate-x" name="rotate_x" type="number" value="{{ model.rotate_x or 0 }}" step="any">
+              </div>
+              <div class="field">
+                <label for="edit-model-rotate-y">หมุนแกน Y (เรเดียน)</label>
+                <input id="edit-model-rotate-y" name="rotate_y" type="number" value="{{ model.rotate_y or 0 }}" step="any">
+              </div>
+              <div class="field">
+                <label for="edit-model-rotate-z">หมุนแกน Z (เรเดียน)</label>
+                <input id="edit-model-rotate-z" name="rotate_z" type="number" value="{{ model.rotate_z or 0 }}" step="any">
+                <p class="meta">3.1416 = 180°, 1.5708 = 90°</p>
+              </div>
+            </details>
+          </fieldset>
+
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">เสียงบรรยาย</legend>
+
+            {% if model.narration_audio_url %}
+            <div class="field full">
+              <span class="admin-field-label">เสียงปัจจุบัน</span>
+              <audio controls preload="none" src="{{ model.narration_audio_url }}" class="admin-audio"></audio>
+              <label class="check-field">
+                <input name="narration_audio_remove" type="checkbox"> ลบเสียงนี้ (เว็บจะใช้เสียงอ่านอัตโนมัติแทน)
+              </label>
+            </div>
+            {% else %}
+            <p class="field full admin-note">ยังไม่มีเสียงบรรยาย อัปโหลดไฟล์ หรือสร้างเสียงด้วย AI ได้</p>
+            {% endif %}
+            <div class="field">
+              <label for="edit-narration-audio-file">อัปโหลดไฟล์เสียงคำบรรยาย</label>
+              <input id="edit-narration-audio-file" name="narration_audio_file" type="file" accept=".mp3,.m4a,.wav,.ogg" data-upload-kind="model_narration_audio" data-upload-target="narration_audio" {{ "disabled" if uploads_disabled else "" }}>
+              <p class="meta">MP3, M4A, WAV หรือ OGG ไม่เกิน 20 MB</p>
+            </div>
+            <div class="field">
+              <span class="admin-field-label">หรือสร้างเสียงด้วย AI</span>
+              <a class="button secondary" href="{{ url_for('admin_narrations', focus=model.id) }}"><span class="admin-icon admin-icon--gemini" aria-hidden="true"></span> ไปหน้าเสียงบรรยาย</a>
+              <p class="meta">ฟังตัวอย่างก่อน แล้วค่อยยืนยันใช้งาน</p>
+            </div>
+            <details class="admin-advanced field full">
+              <summary>ใช้ลิงก์ไฟล์เสียงที่อัปโหลดไว้แล้ว</summary>
+              <div class="field">
+                <label for="edit-narration-audio">ลิงก์ไฟล์เสียง</label>
+                <input id="edit-narration-audio" name="narration_audio" value="{{ model.narration_audio }}" placeholder="https://example.com/narration.mp3" {{ "disabled" if uploads_disabled else "" }}>
+              </div>
+            </details>
+          </fieldset>
+
+          <fieldset class="admin-form-section full">
+            <legend class="admin-section-title">รูปเพิ่มเติม <span class="admin-optional">ไม่บังคับ</span></legend>
+            <div class="field full">
+              <label for="preview-images">ลิงก์รูปสำหรับแกลเลอรีในหน้าโมเดล</label>
+              <textarea id="preview-images" name="preview_images" rows="3" data-gallery-input placeholder="ใส่ลิงก์รูป บรรทัดละ 1 รูป">{{ model.preview_images|join('\n') }}</textarea>
+              <div class="gallery-input-preview" data-gallery-input-preview aria-live="polite"></div>
             </div>
           </fieldset>
 
-          <div class="admin-action-row full">
-            <a class="button secondary" href="{{ url_for('admin') }}">ยกเลิก</a>
-            <button class="button" type="submit">บันทึกข้อมูล</button>
+          <div class="admin-action-row full admin-savebar">
+            <span class="admin-savebar__hint">การแก้ไขจะยังไม่ถูกบันทึกจนกว่าจะกดบันทึก</span>
+            <a class="button secondary" href="{{ url_for('admin') }}#models">ยกเลิก</a>
+            <button class="button" type="submit">บันทึก</button>
           </div>
         </form>
 

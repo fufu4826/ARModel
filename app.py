@@ -2761,7 +2761,31 @@ def admin_dashboard():
     return render_template(
         "admin_dashboard.html",
         analytics_today=datetime.now(BANGKOK_TZ).date().isoformat(),
+        content_todo=admin_content_todo(),
     )
+
+
+def admin_content_todo() -> dict:
+    """Plain-language content checklist for the dashboard: what an editor should fix next."""
+    try:
+        models = get_models(include_hidden=True)
+        projects = get_projects(include_hidden=True)
+    except Exception:
+        logger.exception("Unable to build the dashboard content checklist")
+        return {"error": True}
+    shown = [model for model in models if model.get("visible")]
+    with_models = {model.get("project_id") for model in models}
+    return {
+        "error": False,
+        "models_total": len(models),
+        "models_shown": len(shown),
+        "models_hidden": [model for model in models if not model.get("visible")],
+        "projects_total": len(projects),
+        "no_narration": [model for model in shown if not model.get("narration_audio")],
+        "no_thumbnail": [model for model in shown if not (model.get("thumbnail_url") or model.get("thumbnail_path") or model.get("image"))],
+        "no_description": [model for model in shown if not str(model.get("description") or "").strip()],
+        "empty_projects": [project for project in projects if project.get("id") not in with_models],
+    }
 
 
 @app.get("/admin/audit-logs")

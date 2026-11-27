@@ -102,7 +102,7 @@ class AdminDashboardTests(unittest.TestCase):
         self.sign_in()
         page = self.client.get("/admin/dashboard")
         self.assertEqual(page.status_code, 200)
-        self.assertIn("แดชบอร์ดผู้ดูแลระบบ", page.get_data(as_text=True))
+        self.assertIn("หน้าแรกผู้ดูแล", page.get_data(as_text=True))
         self.assertIn("admin-dashboard.js", page.get_data(as_text=True))
 
     def test_summary_reports_counts_without_supabase_metric_and_ready_analytics(self):

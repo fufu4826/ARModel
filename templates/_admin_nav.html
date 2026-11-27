@@ -17,37 +17,36 @@
 
   <div class="admin-nav-scroll">
     <div class="admin-nav-group">
-      <span class="admin-nav-heading">ภาพรวม</span>
-      <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if endpoint in ['admin_dashboard', 'admin_dashboard_summary'] else '' }}"><span class="admin-icon admin-icon--dashboard" aria-hidden="true"></span> แดชบอร์ด</a>
+      <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if endpoint in ['admin_dashboard', 'admin_dashboard_summary'] else '' }}"><span class="admin-icon admin-icon--dashboard" aria-hidden="true"></span> หน้าแรกผู้ดูแล</a>
     </div>
 
     <div class="admin-nav-group">
       <span class="admin-nav-heading">เนื้อหา</span>
-      <a href="{{ url_for('admin') }}#models" data-admin-nav-hash="models" class="{{ 'active' if endpoint in ['admin', 'edit_model'] else '' }}"><span class="admin-icon admin-icon--models" aria-hidden="true"></span> รายการโมเดล</a>
+      <a href="{{ url_for('admin') }}#models" data-admin-nav-hash="models" class="{{ 'active' if endpoint in ['admin', 'edit_model'] else '' }}"><span class="admin-icon admin-icon--models" aria-hidden="true"></span> โมเดล 3D</a>
       <a href="{{ url_for('admin') }}#projects" data-admin-nav-hash="projects" class="{{ 'active' if endpoint == 'edit_project' else '' }}"><span class="admin-icon admin-icon--projects" aria-hidden="true"></span> แหล่งเรียนรู้</a>
-      <a href="{{ url_for('admin_recommended_models') }}" class="{{ 'active' if endpoint == 'admin_recommended_models' else '' }}"><span class="admin-icon admin-icon--recommended" aria-hidden="true"></span> โมเดลแนะนำ</a>
       <a href="{{ url_for('admin_narrations') }}" class="{{ 'active' if endpoint in ['admin_narrations', 'generate_narration_draft', 'confirm_narration_draft', 'cancel_narration_draft'] else '' }}"><span class="admin-icon admin-icon--gemini" aria-hidden="true"></span> เสียงบรรยาย</a>
-      <a href="{{ url_for('admin_sliders') }}" class="{{ 'active' if endpoint in ['admin_sliders', 'edit_slider'] else '' }}"><span class="admin-icon admin-icon--sliders" aria-hidden="true"></span> สไลด์หน้าแรก</a>
-      {% if admin_can('admin_api_keys') %}
-      <a href="{{ url_for('admin_api_keys') }}" class="{{ 'active' if endpoint == 'admin_api_keys' else '' }}"><span class="admin-icon admin-icon--settings" aria-hidden="true"></span> คีย์ API เสียงบรรยาย</a>
-      {% endif %}
     </div>
 
     <div class="admin-nav-group">
-      <span class="admin-nav-heading">หน้าตาเว็บไซต์</span>
-      <a href="{{ url_for('admin_landing') }}" class="{{ 'active' if endpoint in ['admin_landing', 'admin_landing_preview'] else '' }}"><span class="admin-icon admin-icon--landing" aria-hidden="true"></span> หน้าปก (Landing)</a>
-      <a href="{{ url_for('admin_branding') }}" class="{{ 'active' if endpoint == 'admin_branding' else '' }}"><span class="admin-icon admin-icon--branding" aria-hidden="true"></span> แบรนด์ / SEO</a>
-      <a href="{{ url_for('admin_intro') }}" class="{{ 'active' if endpoint == 'admin_intro' else '' }}"><span class="admin-icon admin-icon--intro" aria-hidden="true"></span> โลโก้อินโทร</a>
+      <span class="admin-nav-heading">หน้าเว็บไซต์</span>
+      <a href="{{ url_for('admin_landing') }}" class="{{ 'active' if endpoint in ['admin_landing', 'admin_landing_preview'] else '' }}"><span class="admin-icon admin-icon--landing" aria-hidden="true"></span> หน้าปก</a>
+      <a href="{{ url_for('admin_sliders') }}" class="{{ 'active' if endpoint in ['admin_sliders', 'edit_slider'] else '' }}"><span class="admin-icon admin-icon--sliders" aria-hidden="true"></span> สไลด์ข่าวสาร</a>
+      <a href="{{ url_for('admin_recommended_models') }}" class="{{ 'active' if endpoint == 'admin_recommended_models' else '' }}"><span class="admin-icon admin-icon--recommended" aria-hidden="true"></span> โมเดลแนะนำ</a>
+      <a href="{{ url_for('admin_intro') }}" class="{{ 'active' if endpoint == 'admin_intro' else '' }}"><span class="admin-icon admin-icon--intro" aria-hidden="true"></span> โลโก้หน้าอินโทร</a>
+      <a href="{{ url_for('admin_branding') }}" class="{{ 'active' if endpoint == 'admin_branding' else '' }}"><span class="admin-icon admin-icon--branding" aria-hidden="true"></span> ชื่อเว็บและการค้นหา</a>
     </div>
 
-    {% if admin_can('admin_audit_logs') or admin_can('admin_users') %}
+    {% if admin_can('admin_users') or admin_can('admin_api_keys') or admin_can('admin_audit_logs') %}
     <div class="admin-nav-group">
-      <span class="admin-nav-heading">ระบบ</span>
-      {% if admin_can('admin_audit_logs') %}
-      <a href="{{ url_for('admin_audit_logs') }}" class="{{ 'active' if endpoint in ['admin_audit_logs', 'export_audit_logs'] else '' }}"><span class="admin-icon admin-icon--settings" aria-hidden="true"></span> บันทึกการใช้งาน</a>
-      {% endif %}
+      <span class="admin-nav-heading">ตั้งค่า</span>
       {% if admin_can('admin_users') %}
       <a href="{{ url_for('admin_users') }}" class="{{ 'active' if endpoint == 'admin_users' else '' }}"><span class="admin-icon admin-icon--users" aria-hidden="true"></span> ผู้ใช้และสิทธิ์</a>
+      {% endif %}
+      {% if admin_can('admin_api_keys') %}
+      <a href="{{ url_for('admin_api_keys') }}" class="{{ 'active' if endpoint == 'admin_api_keys' else '' }}"><span class="admin-icon admin-icon--settings" aria-hidden="true"></span> คีย์ AI สร้างเสียง</a>
+      {% endif %}
+      {% if admin_can('admin_audit_logs') %}
+      <a href="{{ url_for('admin_audit_logs') }}" class="{{ 'active' if endpoint in ['admin_audit_logs', 'export_audit_logs'] else '' }}"><span class="admin-icon admin-icon--settings" aria-hidden="true"></span> ประวัติการแก้ไข</a>
       {% endif %}
     </div>
     {% endif %}
@@ -63,10 +62,12 @@
       </span>
     </div>
     {% endif %}
-    <a href="{{ url_for('home') }}" class="btn-view-site" target="_blank" rel="noopener"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> ดูเว็บไซต์</a>
-    <form action="{{ url_for('admin_logout') }}" method="post" class="logout-form" data-admin-no-busy>
-      <button type="submit" class="btn-logout"><span class="admin-icon admin-icon--logout" aria-hidden="true"></span> ออกจากระบบ</button>
-    </form>
+    <div class="admin-nav-actions__row">
+      <a href="{{ url_for('home') }}" class="btn-view-site" target="_blank" rel="noopener"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> ดูเว็บไซต์</a>
+      <form action="{{ url_for('admin_logout') }}" method="post" class="logout-form" data-admin-no-busy>
+        <button type="submit" class="btn-logout"><span class="admin-icon admin-icon--logout" aria-hidden="true"></span> ออกจากระบบ</button>
+      </form>
+    </div>
   </div>
 </nav>
 {% include "_admin_busy.html" %}

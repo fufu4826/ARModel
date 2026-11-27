@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>โมเดลแนะนำ - ระบบจัดการ {{ brand_name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261127v') }}" />
   {% include "_fonts.html" %}
 </head>
 <body>
@@ -15,9 +15,9 @@
       <div class="admin-shell">
         <header class="admin-heading">
           <div>
-            <p class="admin-eyebrow">เนื้อหาหน้าแรก</p>
-            <h1>จัดการโมเดลแนะนำ</h1>
-            <p>เลือกและจัดลำดับโมเดล 3D ที่ต้องการแนะนำเพื่อนำไปแสดงผลบนหน้าแรกสูงสุด 10 รายการ</p>
+            <p class="admin-eyebrow">หน้าเว็บไซต์</p>
+            <h1>โมเดลแนะนำ</h1>
+            <p>เลือกโมเดลที่จะแสดงในส่วน “โมเดลแนะนำ” ของหน้าแรก</p>
           </div>
           <a class="button secondary" href="{{ url_for('home') }}#featured-models" target="_blank" rel="noopener"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> ดูผลบนเว็บไซต์</a>
         </header>
@@ -30,11 +30,10 @@
 
             <div class="admin-recommended-summary full">
               <div>
-                <strong>เลือกได้สูงสุด 10 โมเดล</strong>
-                <p>ใส่เลขลำดับน้อยกว่าเพื่อให้แสดงก่อน</p>
-                <p>ถ้าไม่เลือก ระบบจะแสดงโมเดลล่าสุดอัตโนมัติ</p>
+                <strong>ติ๊กเลือกโมเดลที่จะแสดงในหน้าแรก เลือกได้สูงสุด 10 โมเดล</strong>
+                <p>ช่อง “ลำดับ” ใช้เรียง: เลข 1 แสดงก่อน ถ้าไม่เลือกเลย เว็บจะแสดงโมเดลล่าสุดแทน</p>
               </div>
-              <span class="admin-selected-count">เลือกแล้ว {{ models|selectattr("is_recommended")|list|length }} / 10</span>
+              <span class="admin-selected-count" data-recommended-count>เลือกแล้ว {{ models|selectattr("is_recommended")|list|length }} / 10</span>
             </div>
 
             <div class="admin-list-toolbar full">
@@ -42,18 +41,19 @@
               <label class="check-field"><input type="checkbox" data-admin-list-selected="recommended"> แสดงเฉพาะที่เลือกไว้</label>
             </div>
 
-            <div class="admin-recommended-list full" data-admin-list="recommended">
-              {% for model in models %}
+            {% set chosen = models|selectattr("is_recommended")|sort(attribute="recommend_order")|list %}
+            {% set others = models|rejectattr("is_recommended")|list %}
+            <div class="admin-recommended-list admin-recommended-list--compact full" data-admin-list="recommended">
+              {% for model in chosen + others %}
               <article class="admin-recommended-model">
                 <label class="admin-recommended-select">
-                  <input type="checkbox" name="recommended_ids" value="{{ model.id }}" {% if model.is_recommended %}checked{% endif %} />
-                  <span>เลือกเป็นโมเดลแนะนำ</span>
+                  <input type="checkbox" name="recommended_ids" value="{{ model.id }}" {% if model.is_recommended %}checked{% endif %} aria-label="เลือก {{ model.name }} เป็นโมเดลแนะนำ" />
                 </label>
 
                 {% set thumb_url = model.thumbnail_url or model.thumbnail_resolved_url %}
                 <div class="admin-recommended-thumb">
                   {% if thumb_url %}
-                  <img src="{{ thumb_url }}" alt="ภาพตัวอย่าง {{ model.name }}" />
+                  <img src="{{ thumb_url }}" alt="" loading="lazy" />
                   {% else %}
                   <span>ไม่มีรูป</span>
                   {% endif %}
@@ -61,26 +61,12 @@
 
                 <div class="admin-recommended-info">
                   <h2>{{ model.name }}</h2>
-                  <dl>
-                    <div>
-                      <dt>แหล่งเรียนรู้</dt>
-                      <dd>{{ model.project_name or "-" }}</dd>
-                    </div>
-                    <div>
-                      <dt>หน่วยงาน/แผนก</dt>
-                      <dd>{{ model.department or "-" }}</dd>
-                    </div>
-                  </dl>
-                  {% if model.narration_audio %}
-                  <span class="admin-audio-badge">มีเสียงบรรยาย</span>
-                  {% else %}
-                  <span class="admin-audio-badge is-muted">ไม่มีเสียงบรรยาย</span>
-                  {% endif %}
+                  <p>{{ model.project_name or "-" }}{% if not model.narration_audio %} <span class="admin-chip admin-chip--warn">ไม่มีเสียงบรรยาย</span>{% endif %}</p>
                 </div>
 
                 <label class="admin-recommended-order">
                   <span>ลำดับ</span>
-                  <input type="number" name="sort_order_{{ model.id }}" value="{{ model.recommend_order or 1 }}" min="1" max="99" inputmode="numeric" />
+                  <input type="number" name="sort_order_{{ model.id }}" value="{{ model.recommend_order or loop.index }}" min="1" max="99" inputmode="numeric" />
                 </label>
               </article>
               {% else %}
@@ -92,13 +78,27 @@
               <p class="admin-table-empty" data-admin-list-empty="recommended" hidden>ไม่พบโมเดลที่ตรงกับเงื่อนไข</p>
             </div>
 
-            <div class="admin-action-row admin-recommended-actions">
-              <button class="button" type="submit">บันทึกรายชื่อโมเดลแนะนำ</button>
+            <div class="admin-action-row admin-recommended-actions admin-savebar">
+              <span class="admin-savebar__hint" data-recommended-hint>โมเดลที่เลือกอยู่ด้านบนสุด</span>
+              <button class="button" type="submit">บันทึก</button>
             </div>
-          </fieldset>
-        </form>
+          </fieldset>        </form>
       </div>
     </main>
   </div>
+  <script>
+  (() => {
+    const list = document.querySelector('[data-admin-list="recommended"]');
+    const count = document.querySelector('[data-recommended-count]');
+    if (!list || !count) return;
+    const boxes = Array.from(list.querySelectorAll('input[name="recommended_ids"]'));
+    const update = () => {
+      const n = boxes.filter((b) => b.checked).length;
+      count.textContent = `เลือกแล้ว ${n} / 10`;
+      count.classList.toggle('is-over', n > 10);
+    };
+    boxes.forEach((b) => b.addEventListener('change', update));
+  })();
+  </script>
 </body>
 </html>

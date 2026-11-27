@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>แก้ไขสไลด์ - ระบบจัดการ {{ brand_name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261127v') }}" />
   {% include "_fonts.html" %}
 </head>
 <body>
@@ -15,7 +15,7 @@
       <div class="admin-shell">
         <header class="admin-heading">
           <div>
-            <p class="admin-eyebrow">เนื้อหา / สไลด์หน้าแรก</p>
+            <p class="admin-eyebrow"><a href="{{ url_for('admin_sliders') }}">สไลด์ข่าวสาร</a> / แก้ไข</p>
             <h1>แก้ไขสไลด์</h1>
             <p>แก้ไขข้อมูลและรูปภาพของสไลด์หน้าแรก: {{ slider.title }}</p>
           </div>
@@ -24,7 +24,7 @@
 
         {% include "_admin_messages.html" %}
 
-        <form action="{{ url_for('edit_slider', slider_id=slider.id) }}" method="post" enctype="multipart/form-data" class="admin-form">
+        <form action="{{ url_for('edit_slider', slider_id=slider.id) }}" method="post" enctype="multipart/form-data" class="admin-form admin-form--with-savebar">
           <input type="hidden" name="image_url" value="{{ slider.image_url }}" />
 
           <!-- Section 1: ข้อมูลสไลด์ -->
@@ -61,7 +61,7 @@
 
           <!-- Section 3: ปุ่มและลิงก์ -->
           <fieldset class="admin-form-section full">
-            <legend class="admin-section-title">ปุ่มและลิงก์เชื่อมโยง (CTA Button)</legend>
+            <legend class="admin-section-title">ปุ่มบนสไลด์ <span class="admin-optional">ไม่บังคับ</span></legend>
 
             <div class="field">
               <label for="slider-button-text">ข้อความบนปุ่ม</label>
@@ -85,9 +85,10 @@
             </div>
           </fieldset>
 
-          <div class="admin-action-row full">
+          <div class="admin-action-row full admin-savebar">
+            <span class="admin-savebar__hint">การแก้ไขจะยังไม่ถูกบันทึกจนกว่าจะกดบันทึก</span>
             <a class="button secondary" href="{{ url_for('admin_sliders') }}">ยกเลิก</a>
-            <button class="button" type="submit">บันทึกข้อมูลสไลด์</button>
+            <button class="button" type="submit">บันทึก</button>
           </div>
         </form>
       </div>

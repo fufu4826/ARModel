@@ -94,9 +94,6 @@
           <div class="card-body compact">
             <div class="meta-row">
               <span class="badge">{{ model.project_name }}</span>
-              {% if model.size_mb is not none %}
-              <span class="count-pill">{{ "%.2f MB"|format(model.size_mb) }}</span>
-              {% endif %}
               {% if model.narration_audio %}
               <span class="model-audio-badge" aria-label="มีเสียงบรรยาย">
                 <span class="model-audio-badge__icon" aria-hidden="true"></span>
@@ -105,7 +102,7 @@
               {% endif %}
             </div>
             <h3><a href="{{ url_for('model_detail', model_id=model.id) }}">{{ model.name }}</a></h3>
-            <p class="model-tags"><span class="model-tag">3D</span><span class="model-tag">AR</span>{% if model.narration_audio %}<span class="model-tag model-tag--audio">มีเสียงบรรยาย</span>{% endif %}</p>
+            <p class="model-tags"><span class="model-tag">3D</span><span class="model-tag">AR</span></p>
             {% if model.department %}
             <p class="model-card-dept" style="font-size: 12px; color: var(--muted); margin-top: -4px; margin-bottom: 8px;">
               {{ model.department }}

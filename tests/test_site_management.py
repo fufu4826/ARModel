@@ -816,7 +816,8 @@ class SiteManagementTests(unittest.TestCase):
         self.assertIn('property="og:description" content="เรียนรู้ของดีสกลนคร แหล่งเรียนรู้ภูพาน และพิพิธภัณฑ์ท้องถิ่นผ่านโมเดล 3D และ AR ในรูปแบบออนไลน์เสมือนจริง ค้นพบผลิตภัณฑ์ท้องถิ่นสกลนคร"', landing_html)
 
         # 2. /home contains natural SEO phrase
-        self.assertIn("<title>ภูพาน AR สกลนคร | โมเดล 3D และแหล่งเรียนรู้ท้องถิ่นออนไลน์</title>", home_html)
+        self.assertIn(f"<title>{module.HOME_META_TITLE}</title>", home_html)
+        self.assertIn("ศูนย์ภูพาน", home_html.split("<meta name=\"description\"", 1)[1].split("/>", 1)[0])
         self.assertIn("เว็บไซต์นี้รวบรวมของดีสกลนคร แหล่งเรียนรู้ภูพาน และพิพิธภัณฑ์ท้องถิ่นออนไลน์ผ่านโมเดล 3D และ AR เสมือนจริง", home_html)
 
         # 3. /models renders SEO title/meta
@@ -1653,7 +1654,7 @@ class SiteManagementTests(unittest.TestCase):
             module.load_site_settings()["site_social_image"],
             "https://cdn.example/social-preview.jpg",
         )
-        home_html = self.client.get("/home").get_data(as_text=True)
+        home_html = self.client.get("/").get_data(as_text=True)
         self.assertIn("<title>Test Brand</title>", home_html)
         self.assertIn("Test Brand", home_html)
         self.assertIn('content="Test metadata description"', home_html)

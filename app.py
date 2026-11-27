@@ -109,6 +109,12 @@ DEFAULT_META_KEYWORDS = (
 )
 DEFAULT_META_IMAGE_PATH = "pic/og-cover.jpg"
 SEARCH_SITE_NAME = "PuparnAR"
+# /home gets its own title so it does not duplicate the landing page; it leads with the short names people type.
+HOME_META_TITLE = "ศูนย์ภูพาน สกลนคร | เรียนรู้ศูนย์ศึกษาการพัฒนาภูพานผ่านโมเดล 3D และ AR"
+HOME_META_DESCRIPTION = (
+    "ชมศูนย์ศึกษาการพัฒนาภูพานอันเนื่องมาจากพระราชดำริ (ศูนย์ภูพาน) จังหวัดสกลนคร ผ่านโมเดล 3D และ AR "
+    "{models} โมเดล จาก {projects} แหล่งเรียนรู้ เช่น ไก่ดำภูพาน สุกรภูพาน โคเนื้อภูพาน ผ้าย้อมคราม และเห็ด"
+)
 MAX_RECOMMENDED_MODELS = 10
 DEFAULT_SITE_SETTINGS = {
     "landing_cover": DEFAULT_META_IMAGE_PATH,
@@ -2529,8 +2535,8 @@ def home():
         sliders=sliders,
         landing_slider_collapsible=False,
         structured_data=public_structured_data(settings),
-        page_title=settings["site_name"],
-        page_description=settings["meta_description"],
+        page_title=HOME_META_TITLE,
+        page_description=HOME_META_DESCRIPTION.format(models=len(all_models), projects=len(projects)),
         page_image=public_settings["social_image_absolute_url"],
         page_url=public_url_for("home"),
     )

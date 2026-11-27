@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>หน้าแรกผู้ดูแล - ระบบจัดการ {{ brand_name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261127v') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261127w') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-dashboard.css') }}" />
   {% include "_fonts.html" %}
 </head>
@@ -64,7 +64,7 @@
           <div class="admin-quick">
             <a class="button" href="{{ url_for('admin') }}#add-model-section" ><span class="admin-icon admin-icon--add" aria-hidden="true"></span> เพิ่มโมเดล</a>
             <a class="button secondary" href="{{ url_for('admin') }}#add-project-section">เพิ่มแหล่งเรียนรู้</a>
-            <a class="button secondary" href="{{ url_for('admin_sliders') }}">เพิ่มสไลด์ข่าว</a>
+            <a class="button secondary" href="{{ url_for('admin_sliders') }}#news-add">เพิ่มข่าว</a>
             <a class="button secondary" href="{{ url_for('admin_recommended_models') }}">เลือกโมเดลแนะนำ</a>
           </div>
         </section>

@@ -1777,6 +1777,33 @@ class SiteManagementTests(unittest.TestCase):
         )
         self.assertEqual(slider_response.status_code, 400)
 
+    def test_news_list_adds_first_reorders_and_toggles_in_place(self):
+        self.sign_in()
+        accept = {"Accept": "application/json"}
+        for title in ("First news", "Second news"):
+            response = self.client.post("/admin/sliders", data={"title": title, "image_url": "pic/og-cover.jpg", "visible": "on"})
+            self.assertEqual(response.status_code, 302)
+        items = module.load_slider_items()
+        self.assertEqual([item["title"] for item in items], ["Second news", "First news"])
+        page = self.client.get("/admin/sliders").get_data(as_text=True)
+        self.assertIn("data-news-list", page)
+        self.assertIn("data-news-link-pick", page)
+        self.assertIn("บันทึกข่าวสารแล้ว", self.client.get("/admin/sliders").get_data(as_text=True) + module.slider_save_flash_message())
+
+        reordered = self.client.post("/admin/sliders/reorder", data={"order": ",".join(item["id"] for item in reversed(items))}, headers=accept)
+        self.assertEqual(reordered.status_code, 200)
+        self.assertTrue(reordered.get_json()["ok"])
+        self.assertEqual([item["title"] for item in module.load_slider_items()], ["First news", "Second news"])
+        stale = self.client.post("/admin/sliders/reorder", data={"order": items[0]["id"]}, headers=accept)
+        self.assertEqual(stale.status_code, 409)
+
+        target = module.load_slider_items()[0]
+        hidden = self.client.post(f"/admin/sliders/{target['id']}/visibility", data={"visible": "0"}, headers=accept)
+        self.assertEqual(hidden.status_code, 200)
+        self.assertFalse(hidden.get_json()["active"])
+        self.assertEqual([item["title"] for item in self.client.get("/api/sliders").get_json()], ["Second news"])
+        self.assertEqual(self.client.post("/admin/sliders/missing/visibility", data={"visible": "1"}, headers=accept).status_code, 404)
+
     def test_slider_button_text_and_url_must_be_paired(self):
         self.sign_in()
         response = self.client.post(

@@ -1,0 +1,72 @@
+{# One news form for both "add" and "edit". `slider` is empty when adding. #}
+{% set s = slider or {} %}
+<div class="news-form" data-news-form>
+  <div class="news-form__fields">
+    <input type="hidden" name="image_url" value="{{ s.image_url or '' }}" />
+    {% if s.id %}<input type="hidden" name="sort_order" value="{{ s.sort_order }}" />{% endif %}
+
+    <div class="field">
+      <span class="admin-field-label">รูปข่าว</span>
+      <label class="news-drop" for="{{ prefix }}-image">
+        <img data-image-preview="{{ prefix }}-image" data-news-preview-src src="{{ s.resolved_image_url or '' }}" alt="" {% if not s.resolved_image_url %}hidden{% endif %} />
+        <span class="news-drop__text">
+          <strong>{{ 'เปลี่ยนรูป' if s.resolved_image_url else 'เลือกรูป' }}</strong>
+          <small>JPG, PNG หรือ WebP ไม่เกิน 5 MB · ภาพแนวนอน 16:9 พอดีที่สุด</small>
+        </span>
+      </label>
+      <input class="news-drop__input" id="{{ prefix }}-image" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="slider_image" data-upload-target="image_url" {% if not s.image_url %}required{% endif %} />
+    </div>
+
+    <div class="field">
+      <label for="{{ prefix }}-title">หัวข้อข่าว</label>
+      <input id="{{ prefix }}-title" name="title" value="{{ s.title or '' }}" maxlength="120" required data-news-title placeholder="เช่น อบรมการเพาะเห็ดฟรี ประจำเดือนธันวาคม" />
+    </div>
+    <div class="field">
+      <label for="{{ prefix }}-description">รายละเอียด <span class="admin-optional">ไม่บังคับ</span></label>
+      <textarea id="{{ prefix }}-description" name="description" rows="4" data-news-description placeholder="วัน เวลา สถานที่ หรือรายละเอียดสั้น ๆ">{{ s.description or '' }}</textarea>
+    </div>
+
+    <fieldset class="news-button">
+      <legend>ปุ่มบนข่าว <span class="admin-optional">ไม่บังคับ</span></legend>
+      <div class="field">
+        <label for="{{ prefix }}-link-pick">เมื่อกดปุ่ม ไปที่</label>
+        <select id="{{ prefix }}-link-pick" data-news-link-pick>
+          <option value="">ไม่มีปุ่ม</option>
+          {% for group in link_choices|groupby('group') %}
+          <optgroup label="{{ group.grouper }}">
+            {% for choice in group.list %}<option value="{{ choice.url }}">{{ choice.label }}</option>{% endfor %}
+          </optgroup>
+          {% endfor %}
+          <option value="__custom">ลิงก์อื่น (พิมพ์เอง)</option>
+        </select>
+      </div>
+      <div class="field" data-news-custom-url hidden>
+        <label for="{{ prefix }}-button-url">ลิงก์</label>
+        <input id="{{ prefix }}-button-url" name="button_url" value="{{ s.button_url or '' }}" placeholder="https://... หรือ /models" data-news-url />
+      </div>
+      <div class="field" data-news-button-text-field hidden>
+        <label for="{{ prefix }}-button-text">ข้อความบนปุ่ม</label>
+        <input id="{{ prefix }}-button-text" name="button_text" value="{{ s.button_text or '' }}" maxlength="40" data-news-button-text placeholder="เช่น ดูรายละเอียด" />
+      </div>
+    </fieldset>
+
+    <label class="check-field admin-switch">
+      <input name="visible" type="checkbox" {{ 'checked' if (s.active if s.id else True) else '' }} /> แสดงข่าวนี้บนเว็บไซต์
+    </label>
+  </div>
+
+  <aside class="news-form__preview" aria-label="ตัวอย่างบนเว็บ">
+    <span class="admin-field-label">ตัวอย่างบนเว็บ</span>
+    <div class="news-card" data-news-card>
+      <img data-news-card-img src="{{ s.resolved_image_url or '' }}" alt="" {% if not s.resolved_image_url %}hidden{% endif %} />
+      <span class="news-card__empty" data-news-card-empty {% if s.resolved_image_url %}hidden{% endif %}>ยังไม่มีรูป</span>
+      <div class="news-card__shade"></div>
+      <div class="news-card__text">
+        <strong data-news-card-title>{{ s.title or 'หัวข้อข่าว' }}</strong>
+        <p data-news-card-desc {% if not s.description %}hidden{% endif %}>{{ s.description or '' }}</p>
+        <span class="news-card__button" data-news-card-button {% if not s.button_text %}hidden{% endif %}>{{ s.button_text or '' }}</span>
+      </div>
+    </div>
+    <p class="meta">หน้าแรกแสดงหัวข้อและรายละเอียดบางส่วน ผู้ชมกดที่ข่าวเพื่ออ่านเต็ม</p>
+  </aside>
+</div>

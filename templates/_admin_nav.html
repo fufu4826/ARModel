@@ -30,7 +30,7 @@
     <div class="admin-nav-group">
       <span class="admin-nav-heading">หน้าเว็บไซต์</span>
       <a href="{{ url_for('admin_landing') }}" class="{{ 'active' if endpoint in ['admin_landing', 'admin_landing_preview'] else '' }}"><span class="admin-icon admin-icon--landing" aria-hidden="true"></span> หน้าปก</a>
-      <a href="{{ url_for('admin_sliders') }}" class="{{ 'active' if endpoint in ['admin_sliders', 'edit_slider'] else '' }}"><span class="admin-icon admin-icon--sliders" aria-hidden="true"></span> สไลด์ข่าวสาร</a>
+      <a href="{{ url_for('admin_sliders') }}" class="{{ 'active' if endpoint in ['admin_sliders', 'edit_slider'] else '' }}"><span class="admin-icon admin-icon--sliders" aria-hidden="true"></span> ข่าวสาร</a>
       <a href="{{ url_for('admin_recommended_models') }}" class="{{ 'active' if endpoint == 'admin_recommended_models' else '' }}"><span class="admin-icon admin-icon--recommended" aria-hidden="true"></span> โมเดลแนะนำ</a>
       <a href="{{ url_for('admin_intro') }}" class="{{ 'active' if endpoint == 'admin_intro' else '' }}"><span class="admin-icon admin-icon--intro" aria-hidden="true"></span> โลโก้หน้าอินโทร</a>
       <a href="{{ url_for('admin_branding') }}" class="{{ 'active' if endpoint == 'admin_branding' else '' }}"><span class="admin-icon admin-icon--branding" aria-hidden="true"></span> ชื่อเว็บและการค้นหา</a>

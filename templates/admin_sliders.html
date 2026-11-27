@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>สไลด์หน้าแรก - ระบบจัดการ {{ brand_name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261127v') }}" />
+  <title>ข่าวสาร - ระบบจัดการ {{ brand_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20261127w') }}" />
   {% include "_fonts.html" %}
 </head>
 <body>
@@ -12,122 +12,84 @@
     {% include "_admin_nav.html" %}
 
     <main class="admin-main-content">
-      <div class="admin-shell">
+      <div class="admin-shell news" data-news
+           data-reorder-url="{{ url_for('reorder_sliders') }}"
+           data-visibility-url="{{ url_for('set_slider_visibility', slider_id='__ID__') }}">
         <header class="admin-heading">
           <div>
-            <p class="admin-eyebrow">เนื้อหา</p>
-            <h1>สไลด์หน้าแรก</h1>
-            <p>เพิ่ม แก้ไข จัดลำดับ และเปิดหรือปิดสไลด์บนหน้า Landing และ Home</p>
+            <p class="admin-eyebrow">หน้าเว็บไซต์</p>
+            <h1>ข่าวสาร</h1>
+            <p>ข่าวในแถบสไลด์ของหน้าแรก เรียงจากบนลงล่างตรงกับซ้ายไปขวาบนเว็บ</p>
+          </div>
+          <div class="admin-heading-actions">
+            <button type="button" class="button" data-news-add-open {% if not sliders %}hidden{% endif %}><span class="admin-icon admin-icon--add" aria-hidden="true"></span> เพิ่มข่าว</button>
+            <a class="button secondary" href="{{ url_for('home') }}" target="_blank" rel="noopener"><span class="admin-icon admin-icon--view" aria-hidden="true"></span> ดูบนเว็บ</a>
           </div>
         </header>
 
         {% include "_admin_messages.html" %}
 
-        <!-- Form Grid layout -->
-        <div class="admin-page-grid">
-          <!-- Left Column: Add Slider Form -->
-          <div class="admin-settings-column">
-            <form action="{{ url_for('admin_sliders') }}" method="post" enctype="multipart/form-data" class="admin-form">
-              <input type="hidden" name="image_url" value="" />
-
-              <fieldset class="admin-form-section full">
-                <legend class="admin-section-title">เพิ่มสไลด์ใหม่</legend>
-
-                <div class="field">
-                  <label for="slider-title">หัวข้อสไลด์</label>
-                  <input id="slider-title" name="title" required />
-                </div>
-                <div class="field">
-                  <label for="slider-sort-order">ลำดับการแสดง (เลขน้อยแสดงก่อน)</label>
-                  <input id="slider-sort-order" name="sort_order" type="number" value="0" step="1" />
-                </div>
-                <div class="field full">
-                  <label for="slider-description">คำอธิบาย</label>
-                  <textarea id="slider-description" name="description" rows="3"></textarea>
-                </div>
-
-                <div class="field full">
-                  <label for="slider-image-file">รูปภาพ</label>
-                  <input id="slider-image-file" name="image_file" type="file" accept=".jpg,.jpeg,.png,.webp" data-upload-kind="slider_image" data-upload-target="image_url" required />
-                </div>
-
-                <div class="field full">
-                  <div class="preview-panel compact">
-                    <img data-image-preview="slider-image-file" alt="ตัวอย่างภาพสไลด์" hidden />
-                    <div><strong>ตัวอย่างภาพสไลด์</strong><span>แนะนำไฟล์รูปภาพประเภท JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB</span></div>
-                  </div>
-                </div>
-
-                <div class="field">
-                  <label for="slider-button-text">ข้อความบนปุ่ม</label>
-                  <input id="slider-button-text" name="button_text" />
-                </div>
-                <div class="field">
-                  <label for="slider-button-url">ลิงก์ปลายทางของปุ่ม</label>
-                  <input id="slider-button-url" name="button_url" />
-                </div>
-
-                <label class="check-field full">
-                  <input name="visible" type="checkbox" checked /> เปิดแสดงผลสไลด์นี้ทันที
-                </label>
-
-                <div class="admin-action-row">
-                  <button class="button" type="submit">เพิ่มสไลด์</button>
-                </div>
-              </fieldset>
-            </form>
+        <section class="admin-card news-add" id="news-add" data-news-add {% if sliders %}hidden{% endif %} aria-labelledby="news-add-title">
+          <div class="news-add__head">
+            <h2 id="news-add-title">{{ 'เพิ่มข่าวใหม่' if sliders else 'เพิ่มข่าวแรก' }}</h2>
+            {% if sliders %}<button type="button" class="button secondary small" data-news-add-close>ปิด</button>{% endif %}
           </div>
+          <form action="{{ url_for('admin_sliders') }}" method="post" enctype="multipart/form-data">
+            {% with prefix='new-slide', slider=None %}{% include "_slider_form.html" %}{% endwith %}
+            <div class="admin-action-row">
+              <span class="meta">ข่าวใหม่จะอยู่ลำดับแรก</span>
+              <button class="button" type="submit">เพิ่มข่าว</button>
+            </div>
+          </form>
+        </section>
 
-          <!-- Right Column: Current Sliders List -->
-          <div class="admin-sticky-preview">
-            <section class="admin-section" style="width: 100%;">
-              <div class="section-heading">
-                <h2>รายการสไลด์ปัจจุบัน</h2>
-                <span>{{ sliders|length }} รายการ</span>
-              </div>
+        {# The server adds the CSRF token and data revisions to this form; the list's instant saves reuse them. #}
+        <form method="post" action="#" data-news-security hidden></form>
 
-              {% if sliders %}
-              <div class="slider-admin-grid">
-                {% for slider in sliders %}
-                <article class="slider-admin-card">
-                  <div class="slider-admin-image">
-                    {% if slider.resolved_image_url %}
-                    <img src="{{ slider.resolved_image_url }}" alt="{{ slider.title }}" />
-                    {% else %}
-                    <span style="font-size: 16px;">[ไม่มีรูป]</span>
-                    {% endif %}
-                  </div>
-                  <div class="slider-admin-body">
-                    <div class="slider-card-meta">
-                      <span>ลำดับ: {{ slider.sort_order }}</span>
-                      <span class="status {{ '' if slider.active else 'off' }}">{{ 'เปิดใช้งาน' if slider.active else 'ปิดการใช้งาน' }}</span>
-                    </div>
-                    <h3>{{ slider.title }}</h3>
-                    <p>{{ slider.description or 'ไม่มีคำอธิบาย' }}</p>
-                    <div class="card-actions">
-                      <a class="button secondary" href="{{ url_for('edit_slider', slider_id=slider.id) }}">แก้ไข</a>
-                      <form action="{{ url_for('delete_slider', slider_id=slider.id) }}" method="post">
-                        <button class="button danger" type="submit" data-confirm="ยืนยันการลบสไลด์นี้?">ลบ</button>
-                      </form>
-                    </div>
-                  </div>
-                </article>
-                {% endfor %}
-              </div>
-              {% else %}
-              <div class="empty-state">
-                <strong>ยังไม่มีสไลด์ในระบบ</strong>
-                <p>คุณสามารถเพิ่มภาพสไลด์แรกสำหรับหน้าหลักได้ด้วยแบบฟอร์มทางด้านซ้าย</p>
-              </div>
-              {% endif %}
-            </section>
+        {% if sliders %}
+        <section class="news-list-wrap" aria-labelledby="news-list-title">
+          <div class="news-list-head">
+            <h2 id="news-list-title">ข่าวทั้งหมด</h2>
+            <span class="meta" data-news-summary>แสดงอยู่ {{ sliders|selectattr('active')|list|length }} · ซ่อน {{ sliders|rejectattr('active')|list|length }}</span>
           </div>
-        </div>
-
+          <p class="news-status" data-news-status role="status" aria-live="polite" hidden></p>
+          <ol class="news-list" data-news-list>
+            {% for slider in sliders %}
+            <li class="news-row{% if not slider.active %} is-hidden{% endif %}" data-news-id="{{ slider.id }}">
+              <span class="news-row__order">
+                <button type="button" class="news-move" data-news-move="-1" aria-label="เลื่อนขึ้น: {{ slider.title }}">▲</button>
+                <span class="news-row__pos" aria-hidden="true">{{ loop.index }}</span>
+                <button type="button" class="news-move" data-news-move="1" aria-label="เลื่อนลง: {{ slider.title }}">▼</button>
+              </span>
+              <a class="news-row__thumb" href="{{ url_for('edit_slider', slider_id=slider.id) }}" tabindex="-1" aria-hidden="true">
+                {% if slider.resolved_image_url %}<img src="{{ slider.resolved_image_url }}" alt="" loading="lazy" />{% else %}<span>ไม่มีรูป</span>{% endif %}
+              </a>
+              <div class="news-row__text">
+                <a class="news-row__title" href="{{ url_for('edit_slider', slider_id=slider.id) }}">{{ slider.title }}</a>
+                {% if slider.description %}<p class="admin-clamp">{{ slider.description }}</p>{% endif %}
+                {% if slider.button_text %}<span class="admin-chip">ปุ่ม: {{ slider.button_text }}</span>{% endif %}
+              </div>
+              <label class="news-toggle">
+                <input type="checkbox" data-news-visible {{ 'checked' if slider.active else '' }} aria-label="แสดงข่าว {{ slider.title }} บนเว็บ" />
+                <span class="news-toggle__track" aria-hidden="true"></span>
+                <span class="news-toggle__label" data-news-visible-label>{{ 'แสดงอยู่' if slider.active else 'ซ่อนอยู่' }}</span>
+              </label>
+              <div class="news-row__actions">
+                <a class="button secondary small" href="{{ url_for('edit_slider', slider_id=slider.id) }}">แก้ไข</a>
+                <form action="{{ url_for('delete_slider', slider_id=slider.id) }}" method="post">
+                  <button class="button small admin-delete" type="submit" data-confirm="ลบข่าว “{{ slider.title }}” ถาวร? (ถ้าแค่ไม่อยากให้แสดง ให้ปิดสวิตช์แทน)">ลบ</button>
+                </form>
+              </div>
+            </li>
+            {% endfor %}
+          </ol>
+        </section>
+        {% endif %}
       </div>
     </main>
   </div>
 
   <script src="{{ url_for('static', filename='js/image-preview.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/admin-sliders.js', v='1') }}" defer></script>
 </body>
 </html>

@@ -1154,8 +1154,8 @@ def save_slider_items(items: list[dict]) -> None:
     )
 
 
-def slider_save_flash_message(action: str) -> str:
-    return f"{action} saved."
+def slider_save_flash_message(action: str = "") -> str:
+    return "บันทึกข่าวสารแล้ว"
 
 
 GeminiTTSError = narration_service.GeminiTTSError
@@ -2149,7 +2149,8 @@ ROLE_RANK = {"reviewer": 0, "editor": 1, "admin": 2, "owner": 3}
 CONTENT_ENDPOINTS = {
     "add_model", "delete_model", "edit_model", "generate_model_narration", "generate_narration_draft",
     "cancel_narration_draft", "confirm_narration_draft", "add_project", "delete_project", "edit_project",
-    "admin_sliders", "delete_slider", "edit_slider", "admin_recommended_models", "create_admin_upload_url",
+    "admin_sliders", "delete_slider", "edit_slider", "reorder_sliders", "set_slider_visibility",
+    "admin_recommended_models", "create_admin_upload_url",
 }
 SETTINGS_PAGES = {"admin_branding", "admin_landing", "admin_landing_preview", "admin_intro"}
 AUDIT_ENDPOINTS = {"admin_audit_logs", "export_audit_logs"}
@@ -3143,13 +3144,68 @@ def admin_sliders():
         if not data["image_url"]:
             abort(400, "จำเป็นต้องระบุรูปภาพสไลด์เดอร์")
         items = load_slider_items(include_inactive=True)
+        if "sort_order" not in request.form:
+            # The new admin form has no order box: a new news item goes first.
+            data["sort_order"] = (min((item["sort_order"] for item in items), default=10)) - 10
         items.append(data)
         save_slider_items(items)
         write_audit_event("slider", "create", "success", f'เพิ่มสไลด์ “{data["title"]}” สำเร็จ', resource_type="slider", resource_id=data["id"], resource_name=data["title"])
         flash(slider_save_flash_message("Slider"), "success")
         return redirect(url_for("admin_sliders"))
     sliders = [slider_with_url(item) for item in get_slider_items(include_inactive=True)]
-    return render_template("admin_sliders.html", sliders=sliders)
+    return render_template("admin_sliders.html", sliders=sliders, link_choices=slider_link_choices())
+
+
+def slider_link_choices() -> list[dict]:
+    """Pages a news button can open, so editors pick instead of typing a URL."""
+    choices = [
+        {"group": "หน้าเว็บ", "label": "หน้าแรก", "url": url_for("home")},
+        {"group": "หน้าเว็บ", "label": "รวมโมเดลทั้งหมด", "url": url_for("models_index")},
+    ]
+    try:
+        projects = get_projects(include_hidden=False)
+        models = get_models(include_hidden=False)
+    except Exception:
+        logger.exception("Unable to list pages for news buttons")
+        return choices
+    choices += [{"group": "แหล่งเรียนรู้", "label": project["name"], "url": url_for("project_detail", project_id=project["id"])} for project in projects]
+    choices += [{"group": "โมเดล", "label": model["name"], "url": url_for("model_detail", model_id=model["id"])} for model in models]
+    return choices
+
+
+@app.post("/admin/sliders/reorder")
+@admin_required
+def reorder_sliders():
+    """Save a new display order from the news list (ids, first to last)."""
+    if admin_write_blocked_on_vercel():
+        return jsonify({"ok": False, "error": "แก้ไขไม่ได้ในขณะนี้"}), 403
+    order = [item for item in request.form.get("order", "").split(",") if item]
+    items = load_slider_items(include_inactive=True)
+    ids = {item["id"] for item in items}
+    if sorted(order) != sorted(ids):
+        return jsonify({"ok": False, "error": "รายการข่าวเปลี่ยนไปแล้ว กรุณาโหลดหน้าใหม่"}), 409
+    position = {item_id: index for index, item_id in enumerate(order)}
+    for item in items:
+        item["sort_order"] = (position[item["id"]] + 1) * 10
+    save_slider_items(items)
+    write_audit_event("slider", "reorder", "success", "จัดลำดับข่าวสารใหม่", resource_type="slider")
+    return jsonify({"ok": True, "revisions": {"slider_items": g.get("dataset_revisions", {}).get("slider_items")}})
+
+
+@app.post("/admin/sliders/<slider_id>/visibility")
+@admin_required
+def set_slider_visibility(slider_id: str):
+    if admin_write_blocked_on_vercel():
+        return jsonify({"ok": False, "error": "แก้ไขไม่ได้ในขณะนี้"}), 403
+    items = load_slider_items(include_inactive=True)
+    item = next((entry for entry in items if entry["id"] == slider_id), None)
+    if item is None:
+        return jsonify({"ok": False, "error": "ไม่พบข่าวนี้ กรุณาโหลดหน้าใหม่"}), 404
+    item["active"] = request.form.get("visible") in {"1", "true", "on", "yes"}
+    item["updated_at"] = datetime.now(timezone.utc).isoformat()
+    save_slider_items(items)
+    write_audit_event("slider", "edit", "success", f'{"แสดง" if item["active"] else "ซ่อน"}ข่าว “{item["title"]}”', resource_type="slider", resource_id=slider_id, resource_name=item["title"])
+    return jsonify({"ok": True, "active": item["active"], "revisions": {"slider_items": g.get("dataset_revisions", {}).get("slider_items")}})
 
 
 @app.route("/admin/sliders/<slider_id>/edit", methods=["GET", "POST"])
@@ -3169,7 +3225,7 @@ def edit_slider(slider_id: str):
         write_audit_event("slider", "edit", "success", f'แก้ไขสไลด์ “{data["title"]}” สำเร็จ', resource_type="slider", resource_id=slider_id, resource_name=data["title"], changes=audit_changes(slider, data, {"active":"สถานะเปิดใช้งาน","title":"หัวข้อสไลด์"}))
         flash(slider_save_flash_message("Slider"), "success")
         return redirect(url_for("admin_sliders"))
-    return render_template("edit_slider.html", slider=slider_with_url(slider))
+    return render_template("edit_slider.html", slider=slider_with_url(slider), link_choices=slider_link_choices())
 
 
 @app.route("/admin/sliders/<slider_id>", methods=["POST", "DELETE"])
